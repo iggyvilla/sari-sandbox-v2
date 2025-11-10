@@ -1,0 +1,44 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct Plane
+{
+    float distance;
+    float3 normal;
+};
+
+// in: stores item locations
+StructuredBuffer<float3> item_locations;
+// in: holds information about the camera's frustum planes
+StructuredBuffer<Plane> planes;
+// out: indices to cull
+RWStructuredBuffer<uint> cull_indices;
+// out: used later to easily see if to skip the buffer entirely
+RWStructuredBuffer<uint> items_removed;
+
+/*
+ * numthreads' total (x*y*z) should be less than the avg GPU wave count
+ * - AMD GPUs do 64 per wave while NVIDIA does 32.
+ * - Apple is 32-64
+ * If a threads wave is > what the GPU can handle, GPU just batches it
+ * up accordingly
+ *
+ * 6 is because there will be 6 frustum planes
+ */
+[numthreads(64,6,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x > 1023) return;
+
+    Plane current_plane = planes[id.y];
+    
+    float distance_to_point = dot(current_plane.normal, item_locations[id.x]) + current_plane.distance;
+
+    // if the point is out of a plane, it isn't visible 
+    if (distance_to_point < 0)
+    {
+        cull_indices[items_removed[0]] = id.x;
+        InterlockedAdd(items_removed[0], 1);
+    } 
+    
+}

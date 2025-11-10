@@ -1,0 +1,20 @@
+Sari Sandbox V2.sln.DotSettings.user
+.DS_Store
+Assembly-CSharp-Editor.csproj
+Assembly-CSharp.csproj
+Sari Sandbox V2.sln
+*.meta
+Library
+Logs
+Temp
+UserSettings
+obj
+Assets/InputSystem_Actions.inputactions
+Assets/Readme.asset
+Assets/TutorialInfo
+Assets/Settings
+.idea
+Assets/Resources
+Assets/Materials
+Assets/Meshes
+Assets/Prefabs
