@@ -6,8 +6,9 @@ public class GPUInstanceTracker : MonoBehaviour
 {
     
     public static GPUInstanceTracker Instance {get; private set;}
-    
-    private Dictionary<string, BatchInstancer> trackers = new Dictionary<string, BatchInstancer>();
+    [SerializeField] private Camera mainCamera;
+    [SerializeField] private ComputeShader frustumCullingShader;
+    private Dictionary<string, BatchInstancer> trackers = new();
     
     void Awake()
     {
@@ -39,6 +40,8 @@ public class GPUInstanceTracker : MonoBehaviour
             
             batchInstancer.mesh = obj.GetComponentInChildren<MeshFilter>().sharedMesh;
             batchInstancer.materials = obj.GetComponentInChildren<MeshRenderer>().sharedMaterials;
+            batchInstancer.frustumCullingShader = frustumCullingShader;
+            batchInstancer.agentCamera = mainCamera;
 
             foreach (var materials in batchInstancer.materials)
             {

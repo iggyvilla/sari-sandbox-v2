@@ -12,9 +12,7 @@ StructuredBuffer<float3> item_locations;
 // in: holds information about the camera's frustum planes
 StructuredBuffer<Plane> planes;
 // out: indices to cull
-RWStructuredBuffer<uint> cull_indices;
-// out: used later to easily see if to skip the buffer entirely
-RWStructuredBuffer<uint> items_removed;
+RWStructuredBuffer<uint> item_mask;
 
 /*
  * numthreads' total (x*y*z) should be less than the avg GPU wave count
@@ -25,7 +23,7 @@ RWStructuredBuffer<uint> items_removed;
  *
  * 6 is because there will be 6 frustum planes
  */
-[numthreads(64,6,1)]
+[numthreads(256,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     if (id.x > 1023) return;
@@ -34,11 +32,10 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     
     float distance_to_point = dot(current_plane.normal, item_locations[id.x]) + current_plane.distance;
 
-    // if the point is out of a plane, it isn't visible 
-    if (distance_to_point < 0)
+    // if the point is out of a plane, it isn't visible
+    if (distance_to_point >= 0)
     {
-        cull_indices[items_removed[0]] = id.x;
-        InterlockedAdd(items_removed[0], 1);
+        item_mask[id.x] = 1;
     } 
     
 }
