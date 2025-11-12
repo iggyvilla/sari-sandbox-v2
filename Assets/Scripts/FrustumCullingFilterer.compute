@@ -7,35 +7,48 @@ struct Plane
     float3 normal;
 };
 
+struct DrawData {
+    float3 position;
+    float4 rotation;
+    float3 scale;
+};
+
 // in: stores item locations
-StructuredBuffer<float3> item_locations;
+StructuredBuffer<DrawData> batch_buffer;
 // in: holds information about the camera's frustum planes
 StructuredBuffer<Plane> planes;
-// out: indices to cull
-RWStructuredBuffer<uint> item_mask;
+// out: TRS Matrices to keep (unculled)
+RWStructuredBuffer<DrawData> matrix_buf;
+// internal: to keep track when appending
+groupshared uint _idx = 0;
 
-/*
- * numthreads' total (x*y*z) should be less than the avg GPU wave count
- * - AMD GPUs do 64 per wave while NVIDIA does 32.
- * - Apple is 32-64
- * If a threads wave is > what the GPU can handle, GPU just batches it
- * up accordingly
- *
- * 6 is because there will be 6 frustum planes
- */
 [numthreads(256,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     if (id.x > 1023) return;
 
-    Plane current_plane = planes[id.y];
+    // there are only going to be 6 planes all the time
+    // might as well unroll the loop now 
     
-    float distance_to_point = dot(current_plane.normal, item_locations[id.x]) + current_plane.distance;
+    Plane plane0 = planes[0];
+    Plane plane1 = planes[1];
+    Plane plane2 = planes[2];
+    Plane plane3 = planes[3];
+    Plane plane4 = planes[4];
+    Plane plane5 = planes[5];
+    
+    float d0 = dot(plane0.normal, batch_buffer[id.x].position) + plane0.distance;
+    float d1 = dot(plane1.normal, batch_buffer[id.x].position) + plane1.distance;
+    float d2 = dot(plane2.normal, batch_buffer[id.x].position) + plane2.distance;
+    float d3 = dot(plane3.normal, batch_buffer[id.x].position) + plane3.distance;
+    float d4 = dot(plane4.normal, batch_buffer[id.x].position) + plane4.distance;
+    float d5 = dot(plane5.normal, batch_buffer[id.x].position) + plane5.distance;
 
-    // if the point is out of a plane, it isn't visible
-    if (distance_to_point >= 0)
+    // if in any of the planes the point is out of view
+    if (!(d0 < 0 || d1 < 0 || d2 < 0 || d3 < 0 || d4 < 0 || d5 < 0))
     {
-        item_mask[id.x] = 1;
+        matrix_buf[_idx] = batch_buffer[id.x];
+        InterlockedAdd(_idx, 1);
     } 
     
 }

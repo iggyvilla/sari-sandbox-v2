@@ -15,6 +15,11 @@ Assets/TutorialInfo
 Assets/Settings
 .idea
 Assets/Resources
-Assets/Materials
 Assets/Meshes
 Assets/Prefabs
+Assets/Samples
+Unity.RenderPipelines.Core.Samples.Editor.csproj
+Unity.RenderPipelines.Core.Samples.Runtime.csproj
+mono_crash.143e1228bd.0.json
+Assets/Materials/*
+!Assets/Materials/Shaders

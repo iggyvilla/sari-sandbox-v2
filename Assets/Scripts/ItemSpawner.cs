@@ -35,7 +35,7 @@ public class ItemSpawner : MonoBehaviour
         
         Renderer r = GetComponent<Renderer>();
         
-        // not sure if theres a better name for this
+        // not sure if there's a better name for this
         direction = CalculateDirectionInteger();
         
         if (ShelfIsFacingZ()) {
@@ -128,33 +128,29 @@ public class ItemSpawner : MonoBehaviour
                     Transform prodChild = product.transform.GetChild(0);
                     Transform lodTransform = prodChild.Find(prodChild.name + "_LOD0");
 
+                    Quaternion q =
+                        Quaternion.Euler(0, DegreesToAisle(), 0) *
+                        lodTransform.transform.rotation;
+                    
+                    DrawData drawData = new DrawData
+                    {
+                        position = spawnPosition,
+                        rotation = new Vector4(q.x, q.y, q.z, q.w),
+                        scale = lodTransform.transform.lossyScale
+                    };
+
                     if (lodTransform != null)
                     {
                         GPUInstanceTracker.Instance.AddToInstance(
                             product.name,
                             product,
-                            Matrix4x4.TRS(
-                                spawnPosition,
-                                Quaternion.Euler(0, DegreesToAisle(), 0) * lodTransform.transform.rotation,
-                                lodTransform.transform.lossyScale
-                            )  
+                            drawData  
                         );
                     }
                     else
                     {
                         Debug.LogError("Could not find LOD0 for object " + product.name);
                     }
-                    
-
-                    // spawnedItem.isStatic = true;
-                    
-                    // makes the object face the aisle
-                    // spawnedItem.transform.Rotate(
-                    //     Vector3.up, 
-                    //     DegreesToAisle()
-                    // );
-
-                    // TODO: parent under an empty for organization
                 }
             }
 
@@ -206,9 +202,9 @@ public class ItemSpawner : MonoBehaviour
 
     GameObject GetRandomProduct()
     {
-        string[] canIds = itemCategories.Categories[6].Items;
-        string chosenId = canIds[Random.Range(0, canIds.Length)];
-        return Resources.Load<GameObject>("Prefabs/Products/" + chosenId);
+        // string[] canIds = itemCategories.Categories[6].Items;
+        // string chosenId = canIds[Random.Range(0, canIds.Length)];
+        return Resources.Load<GameObject>("DummyPrefabs/555_FRIED_SARDINES_ESCABECHE_155G");
         //"PUREFOODS_CHINESE_STYLE_LUNCHEON_MEAT_350G"
     }
 

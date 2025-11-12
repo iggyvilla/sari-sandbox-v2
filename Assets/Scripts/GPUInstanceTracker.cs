@@ -28,16 +28,17 @@ public class GPUInstanceTracker : MonoBehaviour
     // wasteful if 1 compute shader per BatchInstancer
     // better if 1 compute shader call only every item call
     
-    public void AddToInstance(string itemId, GameObject obj, Matrix4x4 matrix)
+    public void AddToInstance(string itemId, GameObject obj, DrawData drawData)
     {
         if (trackers.ContainsKey(itemId))
         {
-            trackers[itemId].AddObjectToBatch(matrix);
+            trackers[itemId].AddObjectToBatch(drawData);
         }
         else
         {
             BatchInstancer batchInstancer = gameObject.AddComponent<BatchInstancer>();
             
+            // Gets LOD0 (maybe implement LOD1 in the future)
             batchInstancer.mesh = obj.GetComponentInChildren<MeshFilter>().sharedMesh;
             batchInstancer.materials = obj.GetComponentInChildren<MeshRenderer>().sharedMaterials;
             batchInstancer.frustumCullingShader = frustumCullingShader;
@@ -48,7 +49,7 @@ public class GPUInstanceTracker : MonoBehaviour
                 materials.enableInstancing = true;
             }
             
-            batchInstancer.AddObjectToBatch(matrix);
+            batchInstancer.AddObjectToBatch(drawData);
             
             trackers[itemId] = batchInstancer;
         }
