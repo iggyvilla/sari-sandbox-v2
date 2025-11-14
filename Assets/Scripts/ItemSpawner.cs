@@ -4,9 +4,6 @@ using Random = UnityEngine.Random;
 
 public class ItemSpawner : MonoBehaviour
 {
-
-    public bool spawnItems;
-    
     private float widthBudget;
     private float depthBudget;
     public float heightBudget;
@@ -22,21 +19,25 @@ public class ItemSpawner : MonoBehaviour
 
     private float direction;
     
+    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Awake()
     {
-        itemCategories = FindFirstObjectByType<DataHandler>().itemCategories;
+        // Instantiate a DataHandler to access objects
+        itemCategories = DataHandler.Instance.itemCategories;
+
+        UpdateShelfDimensions();
+        
+        // heightBudget = 0.41f;
+        
+        // SpawnProducts();
     }
-    
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+
+    void UpdateShelfDimensions()
     {
-        
-        Debug.Log(SystemInfo.maxComputeWorkGroupSize);
-        
-        Renderer r = GetComponent<Renderer>();
-        
         // not sure if there's a better name for this
         direction = CalculateDirectionInteger();
+        
+        Renderer r = GetComponent<Renderer>();
         
         if (ShelfIsFacingZ()) {
             widthBudget = r.bounds.size.x;
@@ -50,13 +51,6 @@ public class ItemSpawner : MonoBehaviour
         
         // how thick the shelf is
         shelfWidth = r.bounds.size.y;
-        
-        // TODO: change to shelfBuilder.distanceBetweenLevels
-        heightBudget = 0.41f;
-        
-        // Sometimes you'd want to spawn 
-        // an empty shelf for debugging
-        if (spawnItems) SpawnProducts();
     }
 
     bool ShelfIsFacingZ()
@@ -74,14 +68,16 @@ public class ItemSpawner : MonoBehaviour
         return -1;
     }
 
-    void SpawnProducts()
+    public void SpawnProducts()
     {
+        UpdateShelfDimensions();
+
+        if (itemCategories == null) return;
+        
         float lengthwiseOffset = 0.0f;
         bool firstItem = true;
-        
         while (lengthwiseOffset < widthBudget)
         {
-
             GameObject product = GetRandomProduct();
             
             /*
@@ -94,23 +90,18 @@ public class ItemSpawner : MonoBehaviour
             float itemWidth = r.bounds.size.z;
             float itemHeight = r.bounds.size.y;
             
-            // only worry about interItemPadding if it isn't the 
-            // leftmost/first item on the shelf
+            /* only worry about interItemPadding if it isn't the 
+               leftmost/first item on the shelf */
             lengthwiseOffset += itemWidth/2 + (!firstItem ? interItemPadding : 0);
             
-            // stop spawning if the item we're about to spawn is outside the shelf
+            /* stop spawning if the item we're about to spawn is outside the shelf */
             if (lengthwiseOffset + itemWidth/2 + itemOuterPadding > widthBudget) break;
-
-            // physics will be disabled until the player is near
-            Rigidbody rb = product.GetComponentInChildren<Rigidbody>();
-            DisablePhysics(rb);
             
             for (int j = 0; j < CalculateRows(itemWidth); j++)
             {
                 // Only stack if of type Can, otherwise it just spawns one
                 for (int k = 0; k < CalculateStackHeight(itemHeight, "Can"); k++)
                 {
-                    
                     Vector3 spawnPosition =
                         GenerateSpawnPositionOnShelf(
                             lengthwiseOffset,
@@ -128,6 +119,7 @@ public class ItemSpawner : MonoBehaviour
                     Transform prodChild = product.transform.GetChild(0);
                     Transform lodTransform = prodChild.Find(prodChild.name + "_LOD0");
 
+                    /* prepare DrawData used later in custom URP shader */
                     Quaternion q =
                         Quaternion.Euler(0, DegreesToAisle(), 0) *
                         lodTransform.transform.rotation;
@@ -188,7 +180,7 @@ public class ItemSpawner : MonoBehaviour
         return spawnPosition;
     }
 
-    // theres definitely a better way to do this
+    // i feel like there's a better way to do this...
     float DegreesToAisle()
     {
         Vector3 fwd = transform.forward;
@@ -202,10 +194,10 @@ public class ItemSpawner : MonoBehaviour
 
     GameObject GetRandomProduct()
     {
-        // string[] canIds = itemCategories.Categories[6].Items;
-        // string chosenId = canIds[Random.Range(0, canIds.Length)];
-        return Resources.Load<GameObject>("DummyPrefabs/555_FRIED_SARDINES_ESCABECHE_155G");
-        //"PUREFOODS_CHINESE_STYLE_LUNCHEON_MEAT_350G"
+        string[] canIds = itemCategories.Categories[6].Items;
+        string chosenId = canIds[Random.Range(0, canIds.Length)];
+        // return Resources.Load<GameObject>("Prefabs/Products/LIBBYS_VIENNA_SAUSAGE_130G");
+        return Resources.Load<GameObject>("Prefabs/Products/" + chosenId);
     }
 
     int CalculateStackHeight(float itemHeight, string category)
@@ -227,11 +219,5 @@ public class ItemSpawner : MonoBehaviour
         rb.linearVelocity = Vector3.zero;
         rb.useGravity = false;
         rb.interpolation = RigidbodyInterpolation.None;
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
     }
 }

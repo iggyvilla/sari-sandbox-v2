@@ -7,7 +7,8 @@ public class GPUInstanceTracker : MonoBehaviour
     
     public static GPUInstanceTracker Instance {get; private set;}
     [SerializeField] private Camera mainCamera;
-    [SerializeField] private ComputeShader frustumCullingShader;
+    public ComputeShader frustumCullingShader;
+    [SerializeField] private Shader proceduralUrpLitShader;
     private Dictionary<string, BatchInstancer> trackers = new();
     
     void Awake()
@@ -22,12 +23,6 @@ public class GPUInstanceTracker : MonoBehaviour
         Instance = this;
     }
     
-    // option 1: one compute shader per BatchInstancer
-    // have to track where in the BatchInstancer batches array an item is
-    // also have to track which BatchInstancer an item goes to
-    // wasteful if 1 compute shader per BatchInstancer
-    // better if 1 compute shader call only every item call
-    
     public void AddToInstance(string itemId, GameObject obj, DrawData drawData)
     {
         if (trackers.ContainsKey(itemId))
@@ -36,21 +31,35 @@ public class GPUInstanceTracker : MonoBehaviour
         }
         else
         {
+            
             BatchInstancer batchInstancer = gameObject.AddComponent<BatchInstancer>();
             
-            // Gets LOD0 (maybe implement LOD1 in the future)
-            batchInstancer.mesh = obj.GetComponentInChildren<MeshFilter>().sharedMesh;
+            // Gets LOD0
+            // TODO: (maybe implement LOD1 in the future)
+            batchInstancer.instanceMesh = obj.GetComponentInChildren<MeshFilter>().sharedMesh;
             batchInstancer.materials = obj.GetComponentInChildren<MeshRenderer>().sharedMaterials;
-            batchInstancer.frustumCullingShader = frustumCullingShader;
+            batchInstancer.frustumCullingShader = Instantiate(frustumCullingShader);
             batchInstancer.agentCamera = mainCamera;
-
-            foreach (var materials in batchInstancer.materials)
+            batchInstancer.itemId = itemId;
+            
+            /* Make the material a new clone of itself, since the 
+             * custom shader renders materials of the same type at 
+             * the same time, if the same material is used on different 
+             * meshes, it freaks out */
+            for (int i = 0; i < batchInstancer.materials.Length; i++)
             {
-                materials.enableInstancing = true;
+                Material currentMaterial = batchInstancer.materials[i];
+                currentMaterial = new Material(currentMaterial)
+                    {
+                        shader = proceduralUrpLitShader,
+                        enableInstancing = true
+                    };
+                batchInstancer.materials[i] = currentMaterial;
             }
             
-            batchInstancer.AddObjectToBatch(drawData);
+            batchInstancer.Init();
             
+            batchInstancer.AddObjectToBatch(drawData);
             trackers[itemId] = batchInstancer;
         }
     }

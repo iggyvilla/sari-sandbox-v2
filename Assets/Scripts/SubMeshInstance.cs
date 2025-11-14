@@ -22,7 +22,12 @@ public class SubMeshInstance
         argsBuffer.SetData(args);
     }
 
-    public void UpdateArgs(int instanceCount)
+    public void UpdateInstanceCountBuf(ComputeBuffer srcBuf)
+    {
+        ComputeBuffer.CopyCount(srcBuf, argsBuffer, sizeof(uint));
+    }
+    
+    public void UpdateInstanceCount(int instanceCount)
     {
         args[1] = (uint)instanceCount;
         argsBuffer.SetData(args);

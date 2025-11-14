@@ -14,18 +14,19 @@ struct DrawData {
 };
 
 // in: stores item locations
-StructuredBuffer<DrawData> batch_buffer;
+StructuredBuffer<DrawData> draw_buffer;
+// in: how many item locations 
+int num_to_draw;
 // in: holds information about the camera's frustum planes
 StructuredBuffer<Plane> planes;
-// out: TRS Matrices to keep (unculled)
-RWStructuredBuffer<DrawData> matrix_buf;
-// internal: to keep track when appending
-groupshared uint _idx = 0;
 
-[numthreads(256,1,1)]
+// out: TRS Matrices to keep (unculled)
+AppendStructuredBuffer<DrawData> unculled_buf;
+
+[numthreads(64,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    if (id.x > 1023) return;
+    if (id.x > num_to_draw) return;
 
     // there are only going to be 6 planes all the time
     // might as well unroll the loop now 
@@ -37,18 +38,18 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     Plane plane4 = planes[4];
     Plane plane5 = planes[5];
     
-    float d0 = dot(plane0.normal, batch_buffer[id.x].position) + plane0.distance;
-    float d1 = dot(plane1.normal, batch_buffer[id.x].position) + plane1.distance;
-    float d2 = dot(plane2.normal, batch_buffer[id.x].position) + plane2.distance;
-    float d3 = dot(plane3.normal, batch_buffer[id.x].position) + plane3.distance;
-    float d4 = dot(plane4.normal, batch_buffer[id.x].position) + plane4.distance;
-    float d5 = dot(plane5.normal, batch_buffer[id.x].position) + plane5.distance;
+    float d0 = dot(plane0.normal, draw_buffer[id.x].position) + plane0.distance;
+    float d1 = dot(plane1.normal, draw_buffer[id.x].position) + plane1.distance;
+    float d2 = dot(plane2.normal, draw_buffer[id.x].position) + plane2.distance;
+    float d3 = dot(plane3.normal, draw_buffer[id.x].position) + plane3.distance;
+    float d4 = dot(plane4.normal, draw_buffer[id.x].position) + plane4.distance;
+    float d5 = dot(plane5.normal, draw_buffer[id.x].position) + plane5.distance;
 
-    // if in any of the planes the point is out of view
+    // if in any of the planes the point is out of 
+    // view, don't save into matrix_buf (output)
     if (!(d0 < 0 || d1 < 0 || d2 < 0 || d3 < 0 || d4 < 0 || d5 < 0))
     {
-        matrix_buf[_idx] = batch_buffer[id.x];
-        InterlockedAdd(_idx, 1);
+        unculled_buf.Append(draw_buffer[id.x]);
     } 
     
 }

@@ -1,7 +1,7 @@
 #ifndef SHADER_GRAPH_SUPPORT_H
 #define SHADER_GRAPH_SUPPORT_H
 
-// Many thanks to Refsa for the code
+// Many thanks to Refsa's Gist for the code!
 // https://gist.github.com/Refsa/4949519af2160b9b29ea31d115de5dad
 
 // You could also upload the model matrix

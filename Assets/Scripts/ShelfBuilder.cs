@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [ExecuteInEditMode]
@@ -99,7 +100,9 @@ public class ShelfBuilder : MonoBehaviour
             floorY + shelfHeight / 2, 
             spawnPos.z
         );
-        
+
+        List<ItemSpawner> spawnersToEnable = new();
+
         // summon 1 shelf for each level
         for (int i = 0; i < shelfLevels; i++)
         {
@@ -111,15 +114,20 @@ public class ShelfBuilder : MonoBehaviour
                 parent
             );
             
-            ItemSpawner ispawner = shelfExtruded.GetComponent<ItemSpawner>();
-            ispawner.spawnItems = spawnItems;
-
             shelfExtruded.name = "Shelf" + i;
             
             // extrude the shelf to the desired width via scaling
             Vector3 extrudedScale = shelfSideProfile.transform.localScale;
             extrudedScale.x = width;
             shelfExtruded.transform.localScale = extrudedScale;
+            
+            if (spawnItems)
+            {
+                ItemSpawner ispawner =
+                    shelfExtruded.GetComponent<ItemSpawner>();
+                ispawner.heightBudget = distanceBetweenLevels;
+                spawnersToEnable.Add(ispawner);
+            }
             
             // set as static for performance
             shelfExtruded.isStatic = true;
@@ -132,6 +140,14 @@ public class ShelfBuilder : MonoBehaviour
         }
         
         emptyParent.transform.Rotate(Vector3.up, rotationY);
+        
+        if (spawnItems)
+        {
+            foreach (var spawner in spawnersToEnable)
+            {
+                spawner.SpawnProducts();
+            }
+        }
     }
     
     // wallOffset is how far from the edge of a shelf the wall will spawn at
@@ -188,16 +204,19 @@ public class ShelfBuilder : MonoBehaviour
             DestroyImmediate(transform.GetChild(0).gameObject);
         }
     }
-
+    
     void Update()
     {
         #if UNITY_EDITOR
         // Only used in the editor
         if (spawnShelves)
         {
+            bool prevSpawnItems = spawnItems;
             DestroyAllChildren();
             spawnShelves = false;
+            spawnItems = false;
             BuildRectangularShelf();
+            spawnItems = prevSpawnItems;
         }
         #endif
     }

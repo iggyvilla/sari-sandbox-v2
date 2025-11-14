@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -17,51 +18,100 @@ public struct DrawData {
 public class BatchInstancer : MonoBehaviour
 {
     public Camera agentCamera;
-    public Mesh mesh;
+    public Mesh instanceMesh;
     public Material[] materials;
-    public ComputeShader frustumCullingShader;
+    private SubMeshInstance[] subMeshInstances;
     
     private List<DrawData> instances = new();
-    private int simplePlaneSize = sizeof(float) * 4;
-
-    private SubMeshInstance[] subMeshInstances;
+    public string itemId;
     private ComputeBuffer _drawDataBuffer;
+    private int drawDataSize = Marshal.SizeOf<DrawData>();
+    
+    private int _sDrawDataId;
+    
+    /* frustum culling compute shader setup */
+    
+    public ComputeShader frustumCullingShader;
     private ComputeBuffer _simplePlaneBuffer;
+    private ComputeBuffer _unculledDataBuffer;
+    
+    private int simplePlaneSize = sizeof(float) * 4;
+    
+    private int _fDrawBufferId;
+    private int _fNumToDrawId;
+    private int _fPlanesId;
+    private int _fUnculledBufferId;
+    private int _fKernelId;
 
     private bool ready = false;
 
-    void Init()
+    public void Init()
     {
         subMeshInstances = new SubMeshInstance[materials.Length];
-        
-        _simplePlaneBuffer = new ComputeBuffer(6, simplePlaneSize);
         
         for (int i = 0; i < materials.Length; i++)
         {
             subMeshInstances[i] = new SubMeshInstance(
-                mesh.GetIndexCount(i), 
-                mesh.GetIndexStart(i), 
-                mesh.GetBaseVertex(i), 
+                instanceMesh.GetIndexCount(i), 
+                instanceMesh.GetIndexStart(i), 
+                instanceMesh.GetBaseVertex(i), 
                 materials[i]
             );
         }
-    }
-    
-    // Render each 1023-sized batch one time
-    private void RenderBatches()
-    {
-        // returns 6 planes
-        // [0] = Left, [1] = Right, [2] = Down,
-        // [3] = Up,   [4] = Near,  [5] = Far
-        SimplePlane[] planes = GetFrustumPlanes(agentCamera);
         
+        _simplePlaneBuffer = new ComputeBuffer(6, simplePlaneSize);
+        
+        _fDrawBufferId = Shader.PropertyToID("draw_buffer");
+        _fNumToDrawId = Shader.PropertyToID("num_to_draw");
+        _fPlanesId = Shader.PropertyToID("planes");
+        _fUnculledBufferId = Shader.PropertyToID("unculled_buf");
+        _fKernelId = frustumCullingShader.FindKernel("CSMain");
+        
+        _sDrawDataId = Shader.PropertyToID("_DrawData");
+        
+        frustumCullingShader.SetBuffer(_fKernelId, _fPlanesId, _simplePlaneBuffer);
+        
+        ready = true;
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        // Continuously render batches only when Init() has been called at least once
+        if (!ready) return;
+        
+        // returns 6 planes
+        SimplePlane[] planes = GetFrustumPlanes(agentCamera);
         _simplePlaneBuffer.SetData(planes);
         
-        for (int i = 0; i < materials.Length; i++)
+        _unculledDataBuffer.SetData(Array.Empty<DrawData>());
+        _unculledDataBuffer.SetCounterValue(0);
+        
+        // stores all items
+        frustumCullingShader.SetBuffer(_fKernelId, _fDrawBufferId, _drawDataBuffer);
+        
+        // set buffer: stores unculled items 
+        frustumCullingShader.SetBuffer(_fKernelId, _fUnculledBufferId, _unculledDataBuffer);
+        
+        // dispatch ComputeShader
+        frustumCullingShader.Dispatch(
+            _fKernelId, 
+            Mathf.CeilToInt(instances.Count/64f), 
+            1, 
+            1
+        );
+        
+        for (int i = 0; i < subMeshInstances.Length; i++)
         {
+            subMeshInstances[i].material.SetBuffer(_sDrawDataId, _unculledDataBuffer);
+            subMeshInstances[i].UpdateInstanceCountBuf(_unculledDataBuffer);
+            
+            // subMeshInstances[i].material.SetBuffer(_sDrawDataId, _drawDataBuffer);
+            // subMeshInstances[i].UpdateInstanceCount(instances.Count);
+            
             // i is the submeshIndex 
             Graphics.DrawMeshInstancedIndirect(
-                mesh, 
+                instanceMesh, 
                 i, 
                 subMeshInstances[i].material, 
                 new Bounds(Vector3.zero, Vector3.one * 1000f),
@@ -72,17 +122,17 @@ public class BatchInstancer : MonoBehaviour
     
     void OnDestroy()
     {
-        for (int i = 0; i < subMeshInstances.Length; i++)
-            subMeshInstances[i].Release();
+        /*
+         * Destroy ComputeBuffers
+         * C# doesn't handle the cleanup of these
+         * since they are in the GPU
+         */ 
+        foreach (var t in subMeshInstances)
+            t.Release();
+
         _drawDataBuffer?.Release();
         _simplePlaneBuffer?.Release();
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        // Continuously render batches only when Init() has been called
-        if (ready) RenderBatches();
+        _unculledDataBuffer?.Release();
     }
 
     private SimplePlane[] GetFrustumPlanes(Camera mainCamera)
@@ -93,32 +143,35 @@ public class BatchInstancer : MonoBehaviour
         
         for (int i = 0; i < 6; i++)
         {
-            SimplePlane sPlane = new SimplePlane();
-            sPlane.distance = planes[i].distance;
-            sPlane.normal = planes[i].normal;
+            SimplePlane sPlane = new SimplePlane
+            {
+                distance = planes[i].distance,
+                normal = planes[i].normal
+            };
             simplePlanes[i] = sPlane; 
         }
 
         return simplePlanes;
     }
     
-    public void AddObjectToBatch(DrawData m)
+    public void AddObjectToBatch(DrawData d)
     {
-        if (subMeshInstances == null) Init();
+        instances.Add(d);
         
-        instances.Add(m);
-        
-        // TODO: Could be better but it works for now
+        // TODO: Might have a better solution but it works for now
         _drawDataBuffer?.Release();
-        _drawDataBuffer = new ComputeBuffer(instances.Count, Marshal.SizeOf<DrawData>());
+        _drawDataBuffer = new ComputeBuffer(instances.Count, drawDataSize);
         _drawDataBuffer.SetData(instances);
         
-        foreach (var submesh in subMeshInstances)
-        {
-            submesh.UpdateArgs(instances.Count);
-            submesh.material.SetBuffer("_DrawData", _drawDataBuffer);
-        }
+        _unculledDataBuffer?.Release();
+        _unculledDataBuffer = new ComputeBuffer(instances.Count, drawDataSize, ComputeBufferType.Append);
         
-        ready = true;
+        // update no. of items to draw in culling compute shader
+        frustumCullingShader.SetInt(_fNumToDrawId, instances.Count);
+        
+        // foreach (var submesh in subMeshInstances)
+        // {
+        //     submesh.UpdateInstanceCount(instances.Count);
+        // }
     }
 }
