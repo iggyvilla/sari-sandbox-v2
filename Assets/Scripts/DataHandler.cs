@@ -38,10 +38,4 @@ public class DataHandler : MonoBehaviour
         itemCategories = JsonUtility.FromJson<ItemCategories>(categoriesJson.text);
         Debug.Log("Done.");
     }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }

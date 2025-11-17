@@ -19,10 +19,16 @@ public class ShelfBuilder : MonoBehaviour
 
     public bool spawnShelves;
     public bool spawnItems;
+
+    public float rotationY;
+    
+    private List<GameObject> shelfObjects;
     
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        shelfObjects = new List<GameObject>();
+        
         shelfHeight = shelfSideProfile.transform.localScale.y;
         shelfLength = shelfSideProfile.transform.localScale.z;
         
@@ -73,6 +79,10 @@ public class ShelfBuilder : MonoBehaviour
             (shelfLength * 2) + wallThickness,
             true
         );
+        
+        transform.Rotate(Vector3.up, rotationY);
+
+        SpawnItemsOnAllShelves();
     }
     
     /* 
@@ -101,8 +111,6 @@ public class ShelfBuilder : MonoBehaviour
             spawnPos.z
         );
 
-        List<ItemSpawner> spawnersToEnable = new();
-
         // summon 1 shelf for each level
         for (int i = 0; i < shelfLevels; i++)
         {
@@ -126,7 +134,7 @@ public class ShelfBuilder : MonoBehaviour
                 ItemSpawner ispawner =
                     shelfExtruded.GetComponent<ItemSpawner>();
                 ispawner.heightBudget = distanceBetweenLevels;
-                spawnersToEnable.Add(ispawner);
+                shelfObjects.Add(shelfExtruded);
             }
             
             // set as static for performance
@@ -140,12 +148,17 @@ public class ShelfBuilder : MonoBehaviour
         }
         
         emptyParent.transform.Rotate(Vector3.up, rotationY);
-        
+    }
+
+    void SpawnItemsOnAllShelves()
+    {
         if (spawnItems)
         {
-            foreach (var spawner in spawnersToEnable)
+            foreach (var shelf in shelfObjects)
             {
-                spawner.SpawnProducts();
+                ItemSpawner ispawner =
+                    shelf.GetComponent<ItemSpawner>();
+                ispawner.SpawnProducts();
             }
         }
     }

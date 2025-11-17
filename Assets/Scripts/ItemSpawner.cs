@@ -20,7 +20,7 @@ public class ItemSpawner : MonoBehaviour
     private float direction;
     
     // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Awake()
+    void Start()
     {
         // Instantiate a DataHandler to access objects
         itemCategories = DataHandler.Instance.itemCategories;
@@ -72,7 +72,10 @@ public class ItemSpawner : MonoBehaviour
     {
         UpdateShelfDimensions();
 
-        if (itemCategories == null) return;
+        if (itemCategories == null)
+        {
+            itemCategories = DataHandler.Instance.itemCategories;
+        };
         
         float lengthwiseOffset = 0.0f;
         bool firstItem = true;
@@ -202,9 +205,9 @@ public class ItemSpawner : MonoBehaviour
 
     int CalculateStackHeight(float itemHeight, string category)
     {
-        // can implement randomness for row front (i.e., iteration = 0)
+        // TODO: can implement randomness for row front (i.e., iteration = 0)
         
-        // stack only if of type "Can"
+        // stack only if of type "Can" or 
         if (category == "Can")
         {
             return (int)((heightBudget * fillFraction) / itemHeight);
