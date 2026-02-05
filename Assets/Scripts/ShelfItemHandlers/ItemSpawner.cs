@@ -7,8 +7,9 @@ public class ItemSpawner : MonoBehaviour
 {
     private float widthBudget;
     private float depthBudget;
-    public float heightBudget;
     private float shelfWidth;
+    // Set by ShelfBuilder, specified by user
+    public float heightBudget;
     
     private ShelfBuilder shelfBuilder; // get from parent
     private ItemCategories itemCategories;
@@ -22,7 +23,10 @@ public class ItemSpawner : MonoBehaviour
     private List<GameObject> triggers;
     private LayerMask itemTriggerMask;
     
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    public ShelfItemData shelfItemData;
+
+    private bool itemsSpawnRandomly = true;
+    
     void Awake()
     {
         triggers = new List<GameObject>();
@@ -32,21 +36,30 @@ public class ItemSpawner : MonoBehaviour
         {
             itemCategories = DataHandler.Instance.itemCategories;
         }
-
-        // while (GPUInstanceTracker.Instance == null) ;
         
         itemTriggerMask = LayerMask.NameToLayer("GroceryItemTrigger");
         
+        shelfItemData = GetComponent<ShelfItemData>();
+        
         UpdateShelfDimensions();
         
-        // heightBudget = 0.41f;
-        
-        // SpawnProducts();
+        /*
+         * We don't spawn products immediately here 
+         * because we process scaling/rotation first
+         * in ShelfBuilder.cs, then we use SpawnProducts()
+         */
+    }
+
+    public void Init(float distanceBetweenShelves, bool spawnRandomly, ItemCategoryType category)
+    {
+        heightBudget = distanceBetweenShelves;
+        itemCategory = category;
+        itemsSpawnRandomly = spawnRandomly;
     }
 
     void UpdateShelfDimensions()
     {
-        // not sure if there's a better name for this
+        // Not sure if there's a better name for this
         direction = CalculateDirectionInteger();
         
         Renderer r = GetComponent<Renderer>();
@@ -61,7 +74,7 @@ public class ItemSpawner : MonoBehaviour
             depthBudget = r.bounds.size.x;   
         }
         
-        // how "thick" the shelf is
+        // How "thick" the shelf is
         shelfWidth = r.bounds.size.y;
     }
 
@@ -84,6 +97,8 @@ public class ItemSpawner : MonoBehaviour
     {
         // Update our knowledge of the shelf dimensions
         UpdateShelfDimensions();
+        
+        if (itemsSpawnRandomly) shelfItemData.RandomFillWithCategory(itemCategory, interItemPadding, widthBudget);
         
         // Tracks how far along the shelf we are
         float lengthwiseOffset = 0.0f;
@@ -189,7 +204,7 @@ public class ItemSpawner : MonoBehaviour
             1,
             true
         );
-        itemTrigger.layer = LayerMask.NameToLayer("GroceryItemTrigger");;
+        itemTrigger.layer = itemTriggerMask;
             
         b.name = productName;
         b.isTrigger = true;

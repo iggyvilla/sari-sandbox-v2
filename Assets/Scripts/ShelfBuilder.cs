@@ -13,6 +13,8 @@ public class ShelfBuilder : MonoBehaviour
 
     public Material wallMaterial;
     
+    public ItemCategoryType itemCategory;
+    
     public GameObject floor;
     
     private float shelfHeight;
@@ -20,6 +22,7 @@ public class ShelfBuilder : MonoBehaviour
 
     public bool spawnShelves;
     public bool spawnItems;
+    public bool itemsSpawnRandomly;
 
     public float rotationY;
     
@@ -138,9 +141,15 @@ public class ShelfBuilder : MonoBehaviour
             
             if (spawnItems)
             {
-                ItemSpawner ispawner =
-                    shelfExtruded.GetComponent<ItemSpawner>();
-                ispawner.heightBudget = distanceBetweenLevels;
+                ItemSpawner spawner = shelfExtruded.GetComponent<ItemSpawner>();
+                spawner.heightBudget = distanceBetweenLevels;
+                
+                spawner.Init(
+                    distanceBetweenLevels,
+                    itemsSpawnRandomly,
+                    ItemCategoryType.Biscuit
+                );
+                
                 shelfObjects.Add(shelfExtruded);
             }
             
@@ -235,7 +244,7 @@ public class ShelfBuilder : MonoBehaviour
             DestroyAllChildren();
             spawnShelves = false;
             spawnItems = false;
-            BuildRectangularShelf();
+            // BuildRectangularShelf();
             spawnItems = prevSpawnItems;
         }
         #endif

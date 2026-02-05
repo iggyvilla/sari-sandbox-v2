@@ -8,6 +8,7 @@ public class RetailItemData
     public List<string> tags;
     public ItemCategoryType itemCategory;
     public RetailItemDimensions dimensions;
+    public List<DrawData> itemLocations;
 }
 
 public class RetailItemDimensions
@@ -31,7 +32,7 @@ public class ShelfItemData : MonoBehaviour
         }
     }
 
-    void RandomFillWithCategory(ItemCategoryType itemCategory, float interItemPadding, float widthBudget)
+    public void RandomFillWithCategory(ItemCategoryType itemCategory, float interItemPadding, float widthBudget)
     {
         float lengthwiseOffset = 0.0f;
         bool firstItem = true;
@@ -59,7 +60,8 @@ public class ShelfItemData : MonoBehaviour
                 name = product.name,
                 tags = new List<string>(),
                 itemCategory = itemCategory,
-                dimensions = dimensions
+                dimensions = dimensions,
+                itemLocations = new List<DrawData>()
             };
             
             lengthwiseOffset += dimensions.width/2 + (!firstItem ? interItemPadding : 0);
@@ -78,6 +80,8 @@ public class ShelfItemData : MonoBehaviour
             firstItem = false;
         }
     }
+
+    public void LoadItemsFromJson() {}
 
     
     GameObject GetRandomProduct(ItemCategoryType itemCategory)
