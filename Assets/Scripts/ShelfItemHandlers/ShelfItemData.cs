@@ -21,10 +21,10 @@ public class RetailItemDimensions
 public class ShelfItemData : MonoBehaviour
 {
     public List<RetailItemData> shelfItems = new();
-    public float itemTotalWidth = 0f;
+    public float itemsTotalWidth = 0f;
     private ItemCategories itemCategories;
     
-    void Start()
+    void Awake()
     {
         while (itemCategories == null)
         {
@@ -39,11 +39,17 @@ public class ShelfItemData : MonoBehaviour
 
         while (lengthwiseOffset < widthBudget)
         {
-            GameObject product = GetRandomProduct(itemCategory);
+            GameObject product = null;
+            
+            while (product is null)
+            {
+                product = GetRandomProduct(itemCategory);
+            }
             
             MeshRenderer r = product.GetComponentInChildren<MeshRenderer>();
             if (r is null)
             {
+                Debug.LogError(product.name + " has no mesh renderer");
                 continue;
             }
 
@@ -63,20 +69,22 @@ public class ShelfItemData : MonoBehaviour
                 dimensions = dimensions,
                 itemLocations = new List<DrawData>()
             };
+
+            float halfWidth = dimensions.width / 2;
             
-            lengthwiseOffset += dimensions.width/2 + (!firstItem ? interItemPadding : 0);
+            lengthwiseOffset += halfWidth + (!firstItem ? interItemPadding : 0);
             
-            // If the item we're about to spawn won't fit anymore, don't bother
-            if (lengthwiseOffset + dimensions.width/2 + interItemPadding > widthBudget)
+            // If the item we're about to spawn won't fit anymore, end loop
+            if (lengthwiseOffset + halfWidth + interItemPadding > widthBudget)
             {
-                itemTotalWidth = lengthwiseOffset;
+                itemsTotalWidth = lengthwiseOffset - halfWidth;
                 break;
             }
             
             // If it does fit within the shelf, add to the item list
             shelfItems.Add(retailItemData);
 
-            lengthwiseOffset += dimensions.width / 2;
+            lengthwiseOffset += halfWidth;
             firstItem = false;
         }
     }

@@ -3,11 +3,11 @@ using UnityEngine;
 [System.Serializable]
 public class ItemCategories
 {
-    public ItemCategory[] Categories;
+    public ItemCategoryData[] Categories;
 }
 
 [System.Serializable]
-public class ItemCategory
+public class ItemCategoryData
 {
     public string Category;
     public string[] Items;
@@ -33,7 +33,7 @@ public enum ItemCategoryType
 public class DataHandler : MonoBehaviour
 {
 
-    public ItemCategories itemCategories;
+    public ItemCategories itemCategories = null;
     public static DataHandler Instance { get; private set; }
     
     void Awake()

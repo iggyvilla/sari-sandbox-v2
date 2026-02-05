@@ -5,26 +5,39 @@ using UnityEngine;
 public class ShelfBuilder : MonoBehaviour
 {
     
-    public GameObject shelfSideProfile;
+    [Header("Shelf Dimensions")]
     public float shelvesLength;
+    [Tooltip("Determines thickness of the lowest shelf")]
     public float shelfBootHeight;
+    [Tooltip("Determines how many layers of shelves there will be")]
     public int shelfLevels;
+    [Tooltip("Determines the distance between each layer of shelves")]
     [SerializeField] private float distanceBetweenLevels;
-
-    public Material wallMaterial;
+    [Tooltip("Determines shelf rotation")]
+    [Range(0, 360)]
+    public float rotationY;
     
+    [Header("Item Spawning")]
+    [Tooltip("Determines if items should be spawned at all")]
+    public bool spawnItems;
+    [Tooltip("Determines if to spawn randomly picked items from a single category")]
+    public bool itemsSpawnRandomly;
+    [Tooltip("If items spawn randomly, determines what category of items to spawn")]
     public ItemCategoryType itemCategory;
     
+    [Header("Prefabs/Objects")]
+    [Tooltip("The program extrudes this prefab for the shelves")]
+    public GameObject shelfSideProfile;
+    [Tooltip("Material for the shelf walls")]
+    public Material wallMaterial;
+    [Tooltip("Reference to the floor, so shelves know where to spawn on")]
     public GameObject floor;
+    [Tooltip("Determines if shelves should be spawned at all")]
+    public bool spawnShelves;
     
     private float shelfHeight;
     private float shelfLength;
 
-    public bool spawnShelves;
-    public bool spawnItems;
-    public bool itemsSpawnRandomly;
-
-    public float rotationY;
     
     private List<GameObject> shelfObjects;
     
@@ -142,12 +155,11 @@ public class ShelfBuilder : MonoBehaviour
             if (spawnItems)
             {
                 ItemSpawner spawner = shelfExtruded.GetComponent<ItemSpawner>();
-                spawner.heightBudget = distanceBetweenLevels;
                 
                 spawner.Init(
                     distanceBetweenLevels,
                     itemsSpawnRandomly,
-                    ItemCategoryType.Biscuit
+                    itemCategory
                 );
                 
                 shelfObjects.Add(shelfExtruded);
@@ -172,9 +184,8 @@ public class ShelfBuilder : MonoBehaviour
         {
             foreach (var shelf in shelfObjects)
             {
-                ItemSpawner ispawner = shelf.GetComponent<ItemSpawner>();
-                ispawner.itemCategory = ItemCategoryType.Biscuit;
-                ispawner.SpawnProducts();
+                ItemSpawner spawner = shelf.GetComponent<ItemSpawner>();
+                spawner.SpawnProducts();
             }
         }
     }

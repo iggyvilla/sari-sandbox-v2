@@ -9,7 +9,7 @@ public class ItemSpawner : MonoBehaviour
     private float depthBudget;
     private float shelfWidth;
     // Set by ShelfBuilder, specified by user
-    public float heightBudget;
+    private float heightBudget;
     
     private ShelfBuilder shelfBuilder; // get from parent
     private ItemCategories itemCategories;
@@ -17,7 +17,7 @@ public class ItemSpawner : MonoBehaviour
     public float itemBackPadding;
     public float interItemPadding;
     public float fillFraction;
-    public ItemCategoryType itemCategory;
+    private ItemCategoryType itemCategory;
 
     private float direction;
     private List<GameObject> triggers;
@@ -53,8 +53,8 @@ public class ItemSpawner : MonoBehaviour
     public void Init(float distanceBetweenShelves, bool spawnRandomly, ItemCategoryType category)
     {
         heightBudget = distanceBetweenShelves;
-        itemCategory = category;
         itemsSpawnRandomly = spawnRandomly;
+        itemCategory = category;
     }
 
     void UpdateShelfDimensions()
@@ -101,30 +101,21 @@ public class ItemSpawner : MonoBehaviour
         if (itemsSpawnRandomly) shelfItemData.RandomFillWithCategory(itemCategory, interItemPadding, widthBudget);
         
         // Tracks how far along the shelf we are
-        float lengthwiseOffset = 0.0f;
+        // float lengthwiseOffset = 0.0f;
+        
+        float lengthwiseOffset = Math.Max(0, (widthBudget - shelfItemData.itemsTotalWidth)/2);
+        
+        Debug.Log(lengthwiseOffset);
+        
         bool firstItem = true;
         
-        while (lengthwiseOffset < widthBudget)
+        foreach (var shelfItem in shelfItemData.shelfItems)
         {
-            GameObject product = null;
+            GameObject product = shelfItem.prefab;
             
-            // prevents spawning of "ghost items"
-            while (product is null)
-            {
-                product = GetRandomProduct(itemCategory);
-            }
-            
-            /* get product dimensions */ 
-            MeshRenderer r = product.GetComponentInChildren<MeshRenderer>();
-            if (r is null)
-            {
-                Debug.LogError(product.name + " has no mesh renderer");
-                return;
-            }
-            
-            float itemDepth = r.bounds.size.x;
-            float itemWidth = r.bounds.size.z;
-            float itemHeight = r.bounds.size.y;
+            float itemDepth = shelfItem.dimensions.depth;
+            float itemWidth = shelfItem.dimensions.width;
+            float itemHeight = shelfItem.dimensions.height;
             
             /*
              * only worry about interItemPadding if it 
@@ -186,7 +177,8 @@ public class ItemSpawner : MonoBehaviour
 
     int CalculateRows(float itemWidth)
     {
-        return (int) ((depthBudget-itemOuterPadding-itemBackPadding) / itemWidth);
+        return (int) ((depthBudget-itemOuterPadding-itemBackPadding) /
+                      (itemWidth + interItemPadding));
     }
 
     void GenerateBoundingBoxTriggerForItem(float lengthwiseOffset, float itemHeight, float itemWidth, float numStack, string productName)
