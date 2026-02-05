@@ -1,0 +1,43 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct Plane
+{
+    float distance;
+    float3 normal;
+};
+
+struct DrawData {
+    float3 position;
+    float4 rotation;
+    float3 scale;
+};
+
+// in: stores item locations
+StructuredBuffer<DrawData> draw_buffer;
+// in: how many item locations 
+int num_to_draw;
+// in: holds information about the camera's frustum planes
+StructuredBuffer<Plane> planes;
+
+// out: TRS Matrices to keep (unculled)
+AppendStructuredBuffer<DrawData> unculled_buf;
+
+[numthreads(64,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x > (uint) num_to_draw-1) return;
+
+    float3 pos = draw_buffer[id.x].position;
+
+    // ensures loop is unrolled at compile time
+    [unroll]
+    for (int i = 0; i < 6; i++)
+    {
+        if (dot(planes[i].normal, pos) + planes[i].distance < -0.2f)
+            return; // culled
+    }
+
+    unculled_buf.Append(draw_buffer[id.x]);
+    
+}

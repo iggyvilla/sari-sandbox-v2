@@ -20,6 +20,7 @@ public class BatchInstancer : MonoBehaviour
     
     /* custom shader buffers setup */
     
+    /* holds DrawData for ALL items (of one type) to draw */
     private List<DrawData> instances = new();
     public string itemId;
     private ComputeBuffer _drawDataBuffer;
@@ -74,7 +75,7 @@ public class BatchInstancer : MonoBehaviour
 
     // LateUpdate becuse GPUInstanceTracker has to
     // calculate cameraFrustumPlanes first at Update()
-    void LateUpdate()
+    void Update()
     {
         // Continuously render batches only when Init() has been called at least once
         if (!ready) return;
@@ -100,7 +101,9 @@ public class BatchInstancer : MonoBehaviour
         
         for (int i = 0; i < subMeshInstances.Length; i++)
         {
+            // tells the shader which items to render
             subMeshInstances[i].material.SetBuffer(_sDrawDataId, _unculledDataBuffer);
+            // tells the shader how many of an item to render
             subMeshInstances[i].UpdateInstanceCountBuf(_unculledDataBuffer);
             
             // subMeshInstances[i].material.SetBuffer(_sDrawDataId, _drawDataBuffer);
@@ -132,8 +135,20 @@ public class BatchInstancer : MonoBehaviour
         _unculledDataBuffer?.Release();
     }
     
-    public void AddObjectToBatch(DrawData d)
+    public void AddObjectToBatch(DrawData d, float itemHeight)
     {
+        // if mesh pivot point isn't at its center
+        if (instanceMesh.bounds.center == Vector3.zero)
+        {
+            /*
+             * our shelf pos calculations assume the pivot
+             * is at the items bottom, not center, so adjust
+             * for it, without this, items spawn IN the shelves,
+             * not ON
+             */
+            d.position.y += itemHeight/2;
+        }
+        
         instances.Add(d);
         
         // TODO: Might have a better solution but it works for now
@@ -144,7 +159,7 @@ public class BatchInstancer : MonoBehaviour
         _unculledDataBuffer?.Release();
         _unculledDataBuffer = new ComputeBuffer(instances.Count, drawDataSize, ComputeBufferType.Append);
 
-        if (frustumCullingShader == null)
+        if (frustumCullingShader is null)
         {
             Debug.LogWarning("frustumCullingShader is null");
             return;
@@ -158,10 +173,5 @@ public class BatchInstancer : MonoBehaviour
         
         // set buffer: stores unculled items 
         frustumCullingShader.SetBuffer(_fKernelId, _fUnculledBufferId, _unculledDataBuffer);
-        
-        // foreach (var submesh in subMeshInstances)
-        // {
-        //     submesh.UpdateInstanceCount(instances.Count);
-        // }
     }
 }

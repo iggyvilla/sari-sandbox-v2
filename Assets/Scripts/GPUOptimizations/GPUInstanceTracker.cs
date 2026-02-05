@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Plane = UnityEngine.Plane;
+using Vector3 = UnityEngine.Vector3;
 
 public struct SimplePlane
 {
@@ -54,11 +56,11 @@ public class GPUInstanceTracker : MonoBehaviour
         return simplePlanes;
     }
     
-    public void AddToInstance(string itemId, GameObject obj, DrawData drawData)
+    public void AddToInstance(string itemId, GameObject obj, float itemHeight, DrawData drawData)
     {
         if (trackers.ContainsKey(itemId))
         {
-            trackers[itemId].AddObjectToBatch(drawData);
+            trackers[itemId].AddObjectToBatch(drawData, itemHeight);
         }
         else
         {
@@ -67,7 +69,7 @@ public class GPUInstanceTracker : MonoBehaviour
             PrepareBatchInstancer(batchInstancer, obj, itemId);
             
             batchInstancer.Init();
-            batchInstancer.AddObjectToBatch(drawData);
+            batchInstancer.AddObjectToBatch(drawData, itemHeight);
             
             trackers[itemId] = batchInstancer;
         }
@@ -78,6 +80,12 @@ public class GPUInstanceTracker : MonoBehaviour
         // Gets LOD0
         // TODO: implement LOD1 in the future?
         batchInstancer.instanceMesh = obj.GetComponentInChildren<MeshFilter>().sharedMesh;
+        if (batchInstancer.instanceMesh is null)
+        {
+            Debug.LogError("Mesh not found on " + obj.name);
+            return;
+        } 
+        
         batchInstancer.materials = obj.GetComponentInChildren<MeshRenderer>().sharedMaterials;
         batchInstancer.frustumCullingShader = Instantiate(frustumCullingShader);
         batchInstancer.agentCamera = mainCamera;

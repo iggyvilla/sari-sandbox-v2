@@ -13,6 +13,20 @@ public class ItemCategory
     public string[] Items;
 }
 
+public enum ItemCategoryType
+{
+    Water,
+    Soda,
+    Juice,
+    Dairies,
+    Liquor,
+    Biscuit,
+    Can,
+    Chips,
+    Nuts,
+    Soup,
+    Noodles
+}
 
 // TODO: getCategoryIndexFromName, itemTags.json
 

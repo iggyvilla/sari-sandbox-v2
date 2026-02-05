@@ -7,6 +7,7 @@ public class ShelfBuilder : MonoBehaviour
     
     public GameObject shelfSideProfile;
     public float shelvesLength;
+    public float shelfBootHeight;
     public int shelfLevels;
     [SerializeField] private float distanceBetweenLevels;
 
@@ -80,6 +81,7 @@ public class ShelfBuilder : MonoBehaviour
             true
         );
         
+        // Must do all rotations/translations first before spawning items
         transform.Rotate(Vector3.up, rotationY);
 
         SpawnItemsOnAllShelves();
@@ -94,7 +96,7 @@ public class ShelfBuilder : MonoBehaviour
      *
      *  Width is how much it extrudes.
      */
-    void BuildShelves(Transform parent, Vector3 spawnPos, float floorY, float rotationY, float width, bool buildWall)
+    void BuildShelves(Transform parent, Vector3 spawnPos, float floorY, float rotY, float width, bool buildWall)
     {
         
         GameObject emptyParent = new GameObject("SideShelves");
@@ -107,13 +109,15 @@ public class ShelfBuilder : MonoBehaviour
         // for the y coordinate, use the y coord of the floor (floorY)
         Vector3 shelfPosition = new Vector3(
             spawnPos.x, 
-            floorY + shelfHeight / 2, 
+            floorY + shelfBootHeight / 2, 
             spawnPos.z
         );
 
-        // summon 1 shelf for each level
+        // summon 1 shelf for each level, starting from the bottom
         for (int i = 0; i < shelfLevels; i++)
         {
+            bool isBottomShelf = i == 0;
+            
             // instantiate shelf
             GameObject shelfExtruded = Instantiate(
                 shelfSideProfile, 
@@ -127,7 +131,10 @@ public class ShelfBuilder : MonoBehaviour
             // extrude the shelf to the desired width via scaling
             Vector3 extrudedScale = shelfSideProfile.transform.localScale;
             extrudedScale.x = width;
+            if (isBottomShelf) extrudedScale.y = shelfBootHeight;
+            
             shelfExtruded.transform.localScale = extrudedScale;
+            
             
             if (spawnItems)
             {
@@ -141,13 +148,13 @@ public class ShelfBuilder : MonoBehaviour
             shelfExtruded.isStatic = true;
             
             // prepare coords for shelf at the next level
-            shelfPosition.y += distanceBetweenLevels;
+            shelfPosition.y += distanceBetweenLevels + (isBottomShelf ? shelfBootHeight/2 : 0);
             
             // set parent to the empty
             shelfExtruded.transform.SetParent(emptyParent.transform);
         }
         
-        emptyParent.transform.Rotate(Vector3.up, rotationY);
+        emptyParent.transform.Rotate(Vector3.up, rotY);
     }
 
     void SpawnItemsOnAllShelves()
@@ -156,8 +163,8 @@ public class ShelfBuilder : MonoBehaviour
         {
             foreach (var shelf in shelfObjects)
             {
-                ItemSpawner ispawner =
-                    shelf.GetComponent<ItemSpawner>();
+                ItemSpawner ispawner = shelf.GetComponent<ItemSpawner>();
+                ispawner.itemCategory = ItemCategoryType.Biscuit;
                 ispawner.SpawnProducts();
             }
         }
@@ -166,7 +173,7 @@ public class ShelfBuilder : MonoBehaviour
     // wallOffset is how far from the edge of a shelf the wall will spawn at
     void BuildShelfWall(float wallThickness, float wallWidth, float wallOffset, Transform parent)
     {
-        float wallHeight = distanceBetweenLevels * shelfLevels;
+        float wallHeight = distanceBetweenLevels * shelfLevels + shelfBootHeight;
         
         GameObject backWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
         backWall.layer = LayerMask.NameToLayer("Wall");
