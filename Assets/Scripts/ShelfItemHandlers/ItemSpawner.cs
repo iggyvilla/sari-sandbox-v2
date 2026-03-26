@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography.X509Certificates;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -13,31 +14,42 @@ public class ItemSpawner : MonoBehaviour
     
     private ShelfBuilder shelfBuilder; // get from parent
     private ItemCategories itemCategories;
+    private Dictionary<string, ItemPriceData> itemPriceData;
+    
     public float itemOuterPadding;
     public float itemBackPadding;
     public float interItemPadding;
     public float fillFraction;
-    private ItemCategoryType itemCategory;
+    private Material _airMaterial;
+    private ItemCategory itemCategory;
+    
+    private float _bBoxPadding = 0.01f;
 
     private float direction;
-    private List<GameObject> triggers;
+    private List<GameObject> triggers = new();
     private LayerMask itemTriggerMask;
+    private ShelfInfo _shelfInfo;
+
+    private GameObject _priceTagPrefab;
+    private float _priceTagHeight;
     
     public ShelfItemData shelfItemData;
 
-    private bool itemsSpawnRandomly = true;
+    private ItemSpawnOption _itemSpawnOption;
+    private bool spawnPriceTags = false;
     
     void Awake()
     {
-        triggers = new List<GameObject>();
+        // triggers = new List<GameObject>();
         
         // Instantiate a DataHandler to access objects
         while (itemCategories == null)
         {
             itemCategories = DataHandler.Instance.itemCategories;
+            itemPriceData = DataHandler.Instance.itemPriceData;
         }
         
-        itemTriggerMask = LayerMask.NameToLayer("GroceryItemTrigger");
+        itemTriggerMask = LayerMask.NameToLayer("SariInteractable");
         
         shelfItemData = GetComponent<ShelfItemData>();
         
@@ -50,11 +62,17 @@ public class ItemSpawner : MonoBehaviour
          */
     }
 
-    public void Init(float distanceBetweenShelves, bool spawnRandomly, ItemCategoryType category)
+    public void Init(float distanceBetweenShelves, ItemSpawnOption spawnOption, bool _spawnPriceTags, ItemCategory category, Material airMaterial, GameObject priceTagPrefab, ShelfInfo shelfInfo)
     {
         heightBudget = distanceBetweenShelves;
-        itemsSpawnRandomly = spawnRandomly;
+        _itemSpawnOption = spawnOption;
         itemCategory = category;
+        spawnPriceTags = _spawnPriceTags;
+        _airMaterial = airMaterial;
+        
+        _priceTagPrefab = priceTagPrefab;
+        _priceTagHeight = priceTagPrefab.GetComponent<Renderer>().bounds.size.y;
+        _shelfInfo = shelfInfo;
     }
 
     void UpdateShelfDimensions()
@@ -98,19 +116,47 @@ public class ItemSpawner : MonoBehaviour
         // Update our knowledge of the shelf dimensions
         UpdateShelfDimensions();
         
-        if (itemsSpawnRandomly) shelfItemData.RandomFillWithCategory(itemCategory, interItemPadding, widthBudget);
+        if (_itemSpawnOption == ItemSpawnOption.GenerateRandom)
+        {
+            // If we spawn items randomly, then just fill our ShelfItemData with random items
+            shelfItemData.RandomFillFromCategory(
+                itemCategory,
+                interItemPadding, 
+                widthBudget
+            );
+        }
+        else if (_itemSpawnOption == ItemSpawnOption.GenerateRandomThenSave)
+        {
+            // Generate random items, then save to a JSON
+            shelfItemData.RandomFillFromCategory(
+                itemCategory,
+                interItemPadding, 
+                widthBudget
+            );
+            shelfItemData.SaveItemsToJson(_shelfInfo);
+        }
+        else if (_itemSpawnOption == ItemSpawnOption.ReadFromSave)
+        {
+            // Load the items from the save JSON
+            shelfItemData.LoadItemsFromJson(_shelfInfo);
+        }
         
-        // Tracks how far along the shelf we are
-        // float lengthwiseOffset = 0.0f;
-        
+        /*
+         * Tracks how far along the shelf we are
+         * Set to this initial value to prevent any awkward 
+         * gaps at the end of the shelf
+         * e.g.,
+         *       xxxxx     -->   xxxxx
+         *       ---------     ---------
+         */
         float lengthwiseOffset = Math.Max(0, (widthBudget - shelfItemData.itemsTotalWidth)/2);
-        
-        Debug.Log(lengthwiseOffset);
         
         bool firstItem = true;
         
         foreach (var shelfItem in shelfItemData.shelfItems)
         {
+            List<DrawData> drawDataList = new List<DrawData>();
+            
             GameObject product = shelfItem.prefab;
             
             float itemDepth = shelfItem.dimensions.depth;
@@ -118,39 +164,42 @@ public class ItemSpawner : MonoBehaviour
             float itemHeight = shelfItem.dimensions.height;
             
             /*
-             * only worry about interItemPadding if it 
+             * Only worry about interItemPadding if it 
              * isn't the leftmost/first item on the shelf
              */
             lengthwiseOffset += itemWidth/2 + (!firstItem ? interItemPadding : 0);
             
-            /* stop spawning if the item we're about to spawn is outside the shelf */
+            /* Stop spawning if the item we're about to spawn is outside the shelf */
             if (lengthwiseOffset + itemWidth/2 + itemOuterPadding > widthBudget) break;
 
             int numRows = CalculateRows(itemDepth);
             int numStack = CalculateStackHeight(itemHeight, itemCategory);
+            
+            SpawnPriceTag(shelfItem, lengthwiseOffset);
             
             for (int j = 0; j < numRows; j++)
             {
                 for (int k = 0; k < numStack; k++)
                 {
                     Vector3 spawnPosition =
-                        GenerateSpawnPositionOnShelf(
+                        GenerateSpawnPositionsOnShelf(
                             lengthwiseOffset,
                             itemDepth, 
                             itemHeight, 
                             j, 
                             k
                         );
-
+                    
                     DrawData drawData = 
-                        GenerateProductDrawData(product, spawnPosition);
+                        GenerateProductDrawData(product, spawnPosition, itemHeight);
                         
                     GPUInstanceTracker.Instance.AddToInstance(
                         product.name,
                         product,
-                        itemHeight,
                         drawData
                     );
+                    
+                    drawDataList.Add(drawData);
                 }
             }
             
@@ -159,12 +208,45 @@ public class ItemSpawner : MonoBehaviour
                 itemHeight, 
                 itemWidth, 
                 numStack, 
-                product.name
+                product.name,
+                drawDataList
             );
 
             firstItem = false;
             lengthwiseOffset += itemWidth/2;
         }
+    }
+
+    private void SpawnPriceTag(RetailItemData shelfItem, float lengthwiseOffset)
+    {
+        Vector3 priceTagSpawnPos = transform.position 
+                                   + transform.right * (lengthwiseOffset - widthBudget/2) * (ShelfIsFacingZ() ? -1 : 1) 
+                                   + transform.forward * (depthBudget/2 + 0.001f)
+                                   - transform.up * _priceTagHeight/2;
+                    
+        GameObject pt = Instantiate(
+            _priceTagPrefab, 
+            priceTagSpawnPos,
+            Quaternion.LookRotation(-transform.up, transform.forward)
+        );
+                    
+        PriceTag ptconfig = pt.GetComponent<PriceTag>();
+
+        if (itemPriceData.TryGetValue(
+                shelfItem.name,
+                out ItemPriceData ptinfo)
+           )
+        {
+            ptconfig.SetValues(
+                shelfItem.name,
+                ptinfo.pricePHP,
+                ptinfo.netWeight
+            );
+        }
+                    
+        pt.isStatic = true;
+        // Helpful when debugging
+        pt.name = shelfItem.name + "_PRICE_TAG";
     }
 
     private void OnDestroy()
@@ -175,20 +257,49 @@ public class ItemSpawner : MonoBehaviour
         }
     }
 
+    DrawData AdjustDrawDataIfPivotOnCenter(GameObject itemGameObject, DrawData drawData, float itemHeight)
+    {
+        Mesh instanceMesh = itemGameObject.GetComponentInChildren<MeshFilter>().sharedMesh;
+        
+        if (instanceMesh is null)
+        {
+            Debug.LogError("Mesh not found on " + itemGameObject.name);
+            return drawData;
+        } 
+        
+        if (instanceMesh.bounds.center == Vector3.zero)
+        {
+            /*
+             * Our shelf position calcs assume the pivot
+             * is at the items bottom, not center, so adjust
+             * for it. Without this, items spawn IN the shelves,
+             * not ON.
+             */
+            drawData.position.y += itemHeight/2;
+        }
+        
+        return drawData;
+    }
+
     int CalculateRows(float itemWidth)
     {
         return (int) ((depthBudget-itemOuterPadding-itemBackPadding) /
                       (itemWidth + interItemPadding));
     }
 
-    void GenerateBoundingBoxTriggerForItem(float lengthwiseOffset, float itemHeight, float itemWidth, float numStack, string productName)
+    void GenerateBoundingBoxTriggerForItem(float lengthwiseOffset, float itemHeight, float itemWidth, float numStack, string productName, List<DrawData> drawDataList)
     {
         /* Setup box collider trigger for item retrieval */
-        GameObject itemTrigger = new GameObject();
+        GameObject itemTrigger = GameObject.CreatePrimitive(PrimitiveType.Cube);
         BoxCollider b = itemTrigger.AddComponent<BoxCollider>();
+        ItemBBoxInfo itemBBoxInfo = itemTrigger.AddComponent<ItemBBoxInfo>();
         
-        /* I'm not sure why this works, but it does */
-        itemTrigger.transform.position = GenerateSpawnPositionOnShelf(
+        /* Make it so the items are outlined when hovered over */
+        itemTrigger.AddComponent<OutlineFx.OutlineFx>();
+        itemTrigger.AddComponent<OutlineController>();
+        
+        /* Not sure why this works, but it does */
+        itemTrigger.transform.position = GenerateSpawnPositionsOnShelf(
             lengthwiseOffset,
             0,
             (itemHeight * numStack)/2,
@@ -197,20 +308,27 @@ public class ItemSpawner : MonoBehaviour
             true
         );
         itemTrigger.layer = itemTriggerMask;
+        
+        Renderer iRenderer = itemTrigger.GetComponent<Renderer>();
+        iRenderer.material = _airMaterial;
+        
+        itemBBoxInfo.UpdateDrawDataList(drawDataList);
             
         b.name = productName;
         b.isTrigger = true;
             
         b.size = new Vector3(
-            ShelfIsFacingZ() ? itemWidth : depthBudget,
-            itemHeight * numStack,
-            ShelfIsFacingZ() ? depthBudget : itemWidth
+            (ShelfIsFacingZ() ? itemWidth : depthBudget) + _bBoxPadding,
+            itemHeight * numStack + _bBoxPadding,
+            (ShelfIsFacingZ() ? depthBudget : itemWidth) + _bBoxPadding
         );
+
+        itemTrigger.transform.localScale = b.size;
             
         itemTrigger.transform.SetParent(transform);
     }
 
-    DrawData GenerateProductDrawData(GameObject product, Vector3 spawnPosition)
+    DrawData GenerateProductDrawData(GameObject product, Vector3 spawnPosition, float itemHeight)
     {
         /*
          * get the transforms of LOD0 (or LOD1)
@@ -246,11 +364,13 @@ public class ItemSpawner : MonoBehaviour
             rotation = new Vector4(q.x, q.y, q.z, q.w),
             scale = lodTransform.transform.lossyScale
         };
+
+        drawData = AdjustDrawDataIfPivotOnCenter(product, drawData, itemHeight);
         
         return drawData;
     }
     
-    Vector3 GenerateSpawnPositionOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum, bool bBoxDepth = false)
+    Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum, bool bBoxDepth = false)
     {
         Vector3 shelfPos = transform.position;
         
@@ -295,7 +415,7 @@ public class ItemSpawner : MonoBehaviour
         return 0;
     }
 
-    GameObject GetRandomProduct(ItemCategoryType itemCategory)
+    GameObject GetRandomProduct(ItemCategory itemCategory)
     {
         string[] categoryIds = itemCategories.Categories[(int)itemCategory].Items;
         string chosenId = categoryIds[Random.Range(0, categoryIds.Length)];
@@ -306,12 +426,12 @@ public class ItemSpawner : MonoBehaviour
         return Resources.Load<GameObject>("Prefabs/Products/" + chosenId);
     }
 
-    int CalculateStackHeight(float itemHeight, ItemCategoryType category)
+    int CalculateStackHeight(float itemHeight, ItemCategory category)
     {
         // TODO: can implement randomness for row front (i.e., iteration = 0)
         
         // stack only if of type "Can" or "Biscuit"
-        if (category is ItemCategoryType.Can)
+        if (category is ItemCategory.Can)
         {
             return (int)((heightBudget * fillFraction) / itemHeight);
         }

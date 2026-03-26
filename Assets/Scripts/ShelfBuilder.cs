@@ -1,12 +1,14 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[ExecuteInEditMode]
+
+// [ExecuteInEditMode]
 public class ShelfBuilder : MonoBehaviour
 {
     
     [Header("Shelf Dimensions")]
-    public float shelvesLength;
+    [Tooltip("Determines width of the shelf")]
+    public float shelfWidth;
     [Tooltip("Determines thickness of the lowest shelf")]
     public float shelfBootHeight;
     [Tooltip("Determines how many layers of shelves there will be")]
@@ -16,38 +18,61 @@ public class ShelfBuilder : MonoBehaviour
     [Tooltip("Determines shelf rotation")]
     [Range(0, 360)]
     public float rotationY;
+
+    [Header("Shelf Configuration")] 
+    public float shelfRoofHeight;
+
+    public int shelfId;
+    
+    public ShelfConfiguration frontShelfConfig;
+    public ShelfConfiguration backShelfConfig;
+    public ShelfConfiguration leftShelfConfig;
+    public ShelfConfiguration rightShelfConfig;
     
     [Header("Item Spawning")]
     [Tooltip("Determines if items should be spawned at all")]
     public bool spawnItems;
+    [Tooltip("Determines if price tags should be spawned")]
+    public bool spawnPriceTags;
     [Tooltip("Determines if to spawn randomly picked items from a single category")]
-    public bool itemsSpawnRandomly;
+    public ItemSpawnOption itemSpawnOption;
     [Tooltip("If items spawn randomly, determines what category of items to spawn")]
-    public ItemCategoryType itemCategory;
+    public ItemCategory itemCategory;
     
     [Header("Prefabs/Objects")]
     [Tooltip("The program extrudes this prefab for the shelves")]
     public GameObject shelfSideProfile;
+    [Tooltip("Material used for the shelf")]
+    public Material shelfMaterial;
+    [Tooltip("Prefab used for the hinge door. Handle has to be at the door's center.")]
+    public GameObject hingeDoorPrefab;
+    [Tooltip("Prefab used for the price tag.")]
+    public GameObject priceTagPrefab;
+    
     [Tooltip("Material for the shelf walls")]
     public Material wallMaterial;
+    
+    // Used in ItemSpawner.cs
+    public Material airMaterial;
+    
     [Tooltip("Reference to the floor, so shelves know where to spawn on")]
     public GameObject floor;
-    [Tooltip("Determines if shelves should be spawned at all")]
+    [Tooltip("DEBUG ONLY: Spawns template shelves in editor mode")]
     public bool spawnShelves;
-    
-    private float shelfHeight;
-    private float shelfLength;
 
+    public bool spawnHingeDoors;
+    
+    private float subShelfHeight;
+    private float subShelfDepth;
     
     private List<GameObject> shelfObjects;
     
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         shelfObjects = new List<GameObject>();
         
-        shelfHeight = shelfSideProfile.transform.localScale.y;
-        shelfLength = shelfSideProfile.transform.localScale.z;
+        subShelfHeight = shelfSideProfile.transform.localScale.y;
+        subShelfDepth = shelfSideProfile.transform.localScale.z;
         
         DestroyAllChildren();
         
@@ -56,51 +81,123 @@ public class ShelfBuilder : MonoBehaviour
     
     void BuildRectangularShelf()
     {
-        float wallThickness = shelfHeight;
+        float wallThickness = subShelfHeight;
         float groundY = floor.transform.position.y;
         
         // Build the lengthwise shelves
-        float shelvesZOffset = (shelfLength + wallThickness) / 2;
-        BuildShelves(
+        float shelvesZOffset = (subShelfDepth + wallThickness) / 2;
+        BuildSubShelf(
             transform, 
             myZWithOffset(shelvesZOffset),
+            0,
             groundY, 
             0, 
-            shelvesLength,
-            true
+            shelfWidth,
+            frontShelfConfig
         );
-        BuildShelves(
+        
+        BuildSubShelf(
             transform, 
             myZWithOffset(-shelvesZOffset),
+            1,
             groundY, 
             180, 
-            shelvesLength,
-            false
+            shelfWidth,
+            backShelfConfig
         );
         
         // Build width-wise shelves
-        float shelvesXOffset = shelfLength / 2 + shelvesLength / 2 + wallThickness;
-        BuildShelves(
+        float shelvesXOffset = subShelfDepth / 2 + shelfWidth / 2 + wallThickness;
+
+        float sideShelfWidth = CalculateShelfWidth(
+            wallThickness, 
+            frontShelfConfig, 
+            backShelfConfig
+        );
+        
+        BuildSubShelf(
             transform, 
-            myXWithOffset(shelvesXOffset),
+            myPosWithOffset(shelvesXOffset, sideShelfWidth, rotationY, frontShelfConfig, backShelfConfig),
+            2,
             groundY, 
             90,
-            (shelfLength * 2) + wallThickness,
-            true
+            sideShelfWidth,
+            leftShelfConfig
         );
-        BuildShelves(
+        
+        BuildSubShelf(
             transform, 
-            myXWithOffset(-shelvesXOffset),
+            myPosWithOffset(-shelvesXOffset, sideShelfWidth, rotationY, frontShelfConfig, backShelfConfig),
+            3,
             groundY, 
             270,
-            (shelfLength * 2) + wallThickness,
-            true
+            sideShelfWidth,
+            rightShelfConfig
         );
+        
         
         // Must do all rotations/translations first before spawning items
         transform.Rotate(Vector3.up, rotationY);
-
+        
+        SpawnHingeDoors();
         SpawnItemsOnAllShelves();
+    }
+
+    void SpawnHingeDoors()
+    {
+        if (!spawnHingeDoors) return;
+
+        float doorDepth = 0.02f;
+        float doorHeight = (shelfLevels * distanceBetweenLevels);
+        
+        Vector3 leftDoorPos = new Vector3(
+            transform.position.x,
+            doorHeight/2 + shelfBootHeight,
+            transform.position.z
+        ) 
+            + transform.forward * (subShelfDepth + 0.03f) 
+            + transform.right * shelfWidth/4; 
+        
+        GameObject leftDoor = Instantiate(hingeDoorPrefab, leftDoorPos, transform.rotation);
+        
+        HingedDoorBuilder leftDoorBuilder = leftDoor.GetComponentInChildren<HingedDoorBuilder>();
+        Vector3 lDoorDims = new Vector3(
+            shelfWidth/2,
+            doorHeight,
+            doorDepth
+        );
+        leftDoorBuilder.BuildHingeDoor(lDoorDims, 0.05f, DoorDirection.Left);
+        
+        // Right door
+        
+        Vector3 rDoorPos = new Vector3(
+            transform.position.x,
+            doorHeight/2 + shelfBootHeight,
+            transform.position.z
+        ) 
+            + transform.forward * (subShelfDepth + 0.03f)
+            - transform.right * shelfWidth/4; 
+        
+        GameObject rDoor = Instantiate(hingeDoorPrefab, rDoorPos, transform.rotation);
+        
+        HingedDoorBuilder rDoorBuilder = rDoor.GetComponentInChildren<HingedDoorBuilder>();
+        Vector3 rDoorDims = new Vector3(
+            shelfWidth/2,
+            doorHeight,
+            doorDepth
+        );
+        rDoorBuilder.BuildHingeDoor(rDoorDims, 0.05f, DoorDirection.Right);
+        
+    }
+
+    float CalculateShelfWidth(float wallThickness, ShelfConfiguration frontShelfCfg, ShelfConfiguration backShelfCfg)
+    {
+        int divisor = 1;
+
+        // If we should build only one shelf, half the width
+        if (frontShelfCfg.buildShelves ^ backShelfCfg.buildShelves) divisor++;
+        
+        return (subShelfDepth*2 + wallThickness) / divisor;
     }
     
     /* 
@@ -108,18 +205,23 @@ public class ShelfBuilder : MonoBehaviour
      *          |----------------------------|
      *     ^    |                            |
      *     |    |----------------------------|
-     *  Height           Length -->
+     *  Height           Depth -->
      *
      *  Width is how much it extrudes.
      */
-    void BuildShelves(Transform parent, Vector3 spawnPos, float floorY, float rotY, float width, bool buildWall)
+    void BuildSubShelf(Transform parent, Vector3 spawnPos, int subShelfId, float floorY, float rotY, float width, ShelfConfiguration shelfConfig)
     {
         
-        GameObject emptyParent = new GameObject("SideShelves");
+        GameObject emptyParent = new GameObject("ShelfGroup" + shelfId);
         emptyParent.transform.position = spawnPos;
         emptyParent.transform.SetParent(parent);
         
-        if (buildWall) BuildShelfWall(shelfHeight, width, shelfLength, emptyParent.transform);
+        if (shelfConfig.buildBackWall) BuildShelfWall(subShelfHeight, width, subShelfDepth, emptyParent.transform);
+        if (!shelfConfig.buildShelves)
+        {
+            emptyParent.transform.Rotate(Vector3.up, rotY);
+            return;
+        }
         
         // Build shelves with the ShelfBuilder empty as the center (x and z-wise) 
         // for the y coordinate, use the y coord of the floor (floorY)
@@ -129,12 +231,17 @@ public class ShelfBuilder : MonoBehaviour
             spawnPos.z
         );
 
-        // summon 1 shelf for each level, starting from the bottom
-        for (int i = 0; i < shelfLevels; i++)
+        // Instantiate 1 shelf for each level, starting from the bottom
+        for (int i = 0; i < shelfLevels + 1; i++)
         {
-            bool isBottomShelf = i == 0;
+            if (!shelfConfig.buildShelfRoof && i == shelfLevels) continue;
             
-            // instantiate shelf
+            bool isBottomShelf = i == 0;
+            bool roof = i == shelfLevels && shelfConfig.buildShelfRoof;
+            
+            if (roof) shelfPosition.y += shelfRoofHeight / 2;
+            
+            // Instantiate shelf
             GameObject shelfExtruded = Instantiate(
                 shelfSideProfile, 
                 shelfPosition, 
@@ -142,24 +249,42 @@ public class ShelfBuilder : MonoBehaviour
                 parent
             );
             
+            // Mark as an occludee for ray-casting later on
+            shelfExtruded.layer = LayerMask.NameToLayer("SariInteractable");
+            shelfExtruded.tag = "Wall";
+            
+            shelfExtruded.GetComponent<Renderer>().material = shelfMaterial;
+            
             shelfExtruded.name = "Shelf" + i;
             
             // extrude the shelf to the desired width via scaling
             Vector3 extrudedScale = shelfSideProfile.transform.localScale;
             extrudedScale.x = width;
-            if (isBottomShelf) extrudedScale.y = shelfBootHeight;
+
+            if (isBottomShelf || roof)
+                extrudedScale.y = roof ? shelfRoofHeight : shelfBootHeight;
             
             shelfExtruded.transform.localScale = extrudedScale;
             
-            
-            if (spawnItems)
+            if (spawnItems && !roof)
             {
                 ItemSpawner spawner = shelfExtruded.GetComponent<ItemSpawner>();
+                ShelfInfo sInfo = new ShelfInfo
+                {
+                    shelfId = shelfId,
+                    subShelfId = subShelfId,
+                    subSubShelfId = i,
+                };
+                
                 
                 spawner.Init(
                     distanceBetweenLevels,
-                    itemsSpawnRandomly,
-                    itemCategory
+                    itemSpawnOption,
+                    spawnPriceTags,
+                    itemCategory,
+                    airMaterial,
+                    priceTagPrefab,
+                    sInfo
                 );
                 
                 shelfObjects.Add(shelfExtruded);
@@ -169,7 +294,7 @@ public class ShelfBuilder : MonoBehaviour
             shelfExtruded.isStatic = true;
             
             // prepare coords for shelf at the next level
-            shelfPosition.y += distanceBetweenLevels + (isBottomShelf ? shelfBootHeight/2 : 0);
+            shelfPosition.y += distanceBetweenLevels + (isBottomShelf ? shelfBootHeight/2 : roof ? shelfRoofHeight/2 : 0);
             
             // set parent to the empty
             shelfExtruded.transform.SetParent(emptyParent.transform);
@@ -193,10 +318,11 @@ public class ShelfBuilder : MonoBehaviour
     // wallOffset is how far from the edge of a shelf the wall will spawn at
     void BuildShelfWall(float wallThickness, float wallWidth, float wallOffset, Transform parent)
     {
-        float wallHeight = distanceBetweenLevels * shelfLevels + shelfBootHeight;
+        float wallHeight = distanceBetweenLevels * shelfLevels + shelfBootHeight + shelfRoofHeight;
         
         GameObject backWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        backWall.layer = LayerMask.NameToLayer("Wall");
+        backWall.layer = LayerMask.NameToLayer("SariInteractable");
+        backWall.tag = "Wall";
         backWall.name = "BackWall";
         backWall.transform.localScale = new Vector3(
             wallWidth,
@@ -219,12 +345,20 @@ public class ShelfBuilder : MonoBehaviour
         backWall.transform.SetParent(parent);
     }
 
-    Vector3 myXWithOffset(float offset)
+    Vector3 myPosWithOffset(float offset, float sideShelfWidth, float rotY, ShelfConfiguration frontShelfCfg, ShelfConfiguration backShelfCfg)
     {
+        float zOffset = 0;
+        
+        if (frontShelfCfg.buildShelves ^ backShelfCfg.buildShelves)
+        {
+            float zOffTemp = sideShelfWidth / 2;
+            zOffset = frontShelfCfg.buildShelves ? zOffTemp : -zOffTemp;
+        }
+        
         return new Vector3(
             transform.position.x + offset, 
             transform.position.y, 
-            transform.position.z
+            transform.position.z + zOffset
         );   
     }
     

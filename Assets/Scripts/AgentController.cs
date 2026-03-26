@@ -7,7 +7,7 @@ public class AgentController : MonoBehaviour
     [SerializeField] float rotateSpeed;
     [SerializeField] float throwStrength;
     private Rigidbody rigidbody;
-    private LayerMask itemLayerMask;
+    private LayerMask interactableLayerMask;
     private GameObject rightHandItem;
     private bool rightHandUsed;
     private NavMeshAgent _agent;
@@ -16,9 +16,10 @@ public class AgentController : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        rigidbody = GetComponent<Rigidbody>();
+        rigidbody = GetComponentInParent<Rigidbody>();
         rightHandUsed = false;
-        itemLayerMask = LayerMask.GetMask("GroceryItemTrigger");
+        // Only trigger items in the "Interactable" layer
+        interactableLayerMask = LayerMask.GetMask("SariInteractable");
         _agent = GetComponent<NavMeshAgent>();
     }
     
@@ -36,20 +37,38 @@ public class AgentController : MonoBehaviour
 
         Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.forward) * 10f, Color.yellow);
         
-        if (Physics.Raycast(
-            transform.position,
-            transform.TransformDirection(Vector3.forward), 
-            out hit,
-            Mathf.Infinity, itemLayerMask)
+        if (
+            Physics.Raycast(
+                transform.position,
+                transform.TransformDirection(Vector3.forward), 
+                out hit,
+                Mathf.Infinity, interactableLayerMask
             )
+        )
         {
             string hitName = hit.transform.name;
+
+            if (hit.collider.CompareTag("Wall")) return;
             
             SariUIHandler.Instance.UpdateInfoText(hitName);
+            
+            OutlineController outlineControllerScript = hit.collider.GetComponent<OutlineController>();
+            if (outlineControllerScript)
+            {
+                outlineControllerScript.OnGaze();
+            }
             
             // For "grabbing" items
             if (Input.GetKey(KeyCode.Return))
             {
+                HingedDoorBuilder hingedDoorHandler = hit.collider.GetComponentInParent<HingedDoorBuilder>();
+
+                if (hingedDoorHandler != null)
+                {
+                    hingedDoorHandler.ToggleDoor();
+                    return;
+                }
+                
                 if (!rightHandUsed)
                 {
                     var selectedItem =
@@ -60,6 +79,9 @@ public class AgentController : MonoBehaviour
                                            + transform.forward * 0.2f 
                                            + transform.right * 0.1f 
                                            + transform.up * -0.1f;
+                    
+                    ItemBBoxInfo itemBBoxInfo = hit.collider.GetComponent<ItemBBoxInfo>();
+                    itemBBoxInfo.DeleteFrontmostItem();
                     
                     DisablePhysics(selectedItem);
 

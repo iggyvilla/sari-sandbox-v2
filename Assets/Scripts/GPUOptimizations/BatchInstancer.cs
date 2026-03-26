@@ -1,14 +1,28 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 
-public struct DrawData {
+public struct DrawData : IEquatable<DrawData> {
     public Vector3 position;
     public Vector4 rotation;
     public Vector3 scale;
+    public bool Equals(DrawData other)
+    {
+        // TODO: could possibly only check for position
+        return position == other.position && 
+               rotation == other.rotation && 
+               scale == other.scale;
+    }
+    
+    public override int GetHashCode()
+    {
+        // High performance, low collision rate, and zero allocations.
+        return HashCode.Combine(position, rotation, scale);
+    }
 };
 
 public class BatchInstancer : MonoBehaviour
@@ -134,20 +148,15 @@ public class BatchInstancer : MonoBehaviour
         _simplePlaneBuffer?.Release();
         _unculledDataBuffer?.Release();
     }
-    
-    public void AddObjectToBatch(DrawData d, float itemHeight)
+
+    public void RemoveSingleDrawData(DrawData drawData)
     {
-        // if mesh pivot point isn't at its center
-        if (instanceMesh.bounds.center == Vector3.zero)
-        {
-            /*
-             * our shelf pos calculations assume the pivot
-             * is at the items bottom, not center, so adjust
-             * for it, without this, items spawn IN the shelves,
-             * not ON
-             */
-            d.position.y += itemHeight/2;
-        }
+        instances.Remove(drawData);
+        _drawDataBuffer.SetData(instances);
+    }
+    
+    public void AddObjectToBatch(DrawData d)
+    {
         
         instances.Add(d);
         
@@ -173,5 +182,7 @@ public class BatchInstancer : MonoBehaviour
         
         // set buffer: stores unculled items 
         frustumCullingShader.SetBuffer(_fKernelId, _fUnculledBufferId, _unculledDataBuffer);
+
+        return;
     }
 }

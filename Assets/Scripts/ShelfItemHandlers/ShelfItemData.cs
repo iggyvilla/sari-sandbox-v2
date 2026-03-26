@@ -1,16 +1,25 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
+[Serializable]
 public class RetailItemData
 {
+    [NonSerialized]
     public GameObject prefab;
-    public string name;
+    [NonSerialized]
     public List<string> tags;
-    public ItemCategoryType itemCategory;
-    public RetailItemDimensions dimensions;
+    [NonSerialized]
     public List<DrawData> itemLocations;
+    
+    public string name;
+    public ItemCategory itemCategory;
+    public RetailItemDimensions dimensions;
 }
 
+[Serializable]
 public class RetailItemDimensions
 {
     public float depth;
@@ -18,8 +27,19 @@ public class RetailItemDimensions
     public float height;
 }
 
+[Serializable]
+public class SaveDataWrapper
+{
+    public List<RetailItemData> items;
+    public float itemsTotalWidth;
+}
+
 public class ShelfItemData : MonoBehaviour
 {
+    /*
+     * Stores all items that will be stored 
+     * on a specific shelf from left to right
+     */
     public List<RetailItemData> shelfItems = new();
     public float itemsTotalWidth = 0f;
     private ItemCategories itemCategories;
@@ -32,7 +52,7 @@ public class ShelfItemData : MonoBehaviour
         }
     }
 
-    public void RandomFillWithCategory(ItemCategoryType itemCategory, float interItemPadding, float widthBudget)
+    public void RandomFillFromCategory(ItemCategory itemCategory, float interItemPadding, float widthBudget)
     {
         float lengthwiseOffset = 0.0f;
         bool firstItem = true;
@@ -89,10 +109,50 @@ public class ShelfItemData : MonoBehaviour
         }
     }
 
-    public void LoadItemsFromJson() {}
+    public void SaveItemsToJson(ShelfInfo si)
+    {
+        if (shelfItems.Count == 0) return;
+
+        string idString = $"ID{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
+        
+        SaveDataWrapper wrapper = new SaveDataWrapper
+        {
+            items = shelfItems,
+            itemsTotalWidth = itemsTotalWidth
+        };
+        string json = JsonUtility.ToJson(wrapper, true);
+        string path = Path.Combine(Application.persistentDataPath, $"ShelfItems-{idString}.json");
+        File.WriteAllText(path, json);
+        Debug.Log($"Saved shelf {idString}'s items to " + path);
+    }
+
+    public void LoadItemsFromJson(ShelfInfo si)
+    {
+        string idString = $"ID{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
+        string path = Path.Combine(Application.persistentDataPath, $"ShelfItems-{idString}.json");
+
+        if (File.Exists(path))
+        {
+            Debug.Log($"Loading shelf {idString}'s items from " + path);
+            string json = File.ReadAllText(path);
+            SaveDataWrapper wrapper = JsonUtility.FromJson<SaveDataWrapper>(json);
+            itemsTotalWidth = wrapper.itemsTotalWidth;
+            
+            foreach (RetailItemData itemData in wrapper.items)
+            {
+                itemData.prefab = Resources.Load<GameObject>("Prefabs/Products/" + itemData.name);
+            }
+            
+            shelfItems = wrapper.items;
+        }
+        else
+        {
+            Debug.LogError($"Shelf {idString}'s items not found");
+        }
+    }
 
     
-    GameObject GetRandomProduct(ItemCategoryType itemCategory)
+    GameObject GetRandomProduct(ItemCategory itemCategory)
     {
         string[] categoryIds = itemCategories.Categories[(int)itemCategory].Items;
         string chosenId = categoryIds[Random.Range(0, categoryIds.Length)];

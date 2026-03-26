@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using JetBrains.Annotations;
 using UnityEngine;
 using Plane = UnityEngine.Plane;
 using Vector3 = UnityEngine.Vector3;
@@ -36,6 +37,17 @@ public class GPUInstanceTracker : MonoBehaviour
     {
         cameraFrustumPlanes = GetFrustumPlanes(mainCamera);
     }
+
+    [CanBeNull]
+    public BatchInstancer GetBatchInstancerFromId(string itemId)
+    {
+        if (trackers.ContainsKey(itemId))
+        {
+            return trackers[itemId];
+        }
+
+        return null;
+    }
     
     private SimplePlane[] GetFrustumPlanes(Camera camera)
     {
@@ -56,11 +68,11 @@ public class GPUInstanceTracker : MonoBehaviour
         return simplePlanes;
     }
     
-    public void AddToInstance(string itemId, GameObject obj, float itemHeight, DrawData drawData)
+    public void AddToInstance(string itemId, GameObject obj, DrawData drawData)
     {
         if (trackers.ContainsKey(itemId))
         {
-            trackers[itemId].AddObjectToBatch(drawData, itemHeight);
+            trackers[itemId].AddObjectToBatch(drawData);
         }
         else
         {
@@ -69,7 +81,7 @@ public class GPUInstanceTracker : MonoBehaviour
             PrepareBatchInstancer(batchInstancer, obj, itemId);
             
             batchInstancer.Init();
-            batchInstancer.AddObjectToBatch(drawData, itemHeight);
+            batchInstancer.AddObjectToBatch(drawData);
             
             trackers[itemId] = batchInstancer;
         }
