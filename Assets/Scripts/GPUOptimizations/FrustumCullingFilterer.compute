@@ -41,3 +41,4 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     unculled_buf.Append(draw_buffer[id.x]);
     
 }
+

@@ -28,7 +28,7 @@ public class OutlineController : MonoBehaviour
     private void Update()
     {
         // If the current time passes the last hit + timeout, we stopped looking
-        if (_isBeingLookedAt && Time.time > _lastLookTime + lookTimeout)
+        if (_isBeingLookedAt && Time.timeAsDouble > _lastLookTime + lookTimeout)
         {
             _isBeingLookedAt = false;
             _outlineFxScript.enabled = false;

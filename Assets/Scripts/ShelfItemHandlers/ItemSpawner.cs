@@ -175,7 +175,7 @@ public class ItemSpawner : MonoBehaviour
             int numRows = CalculateRows(itemDepth);
             int numStack = CalculateStackHeight(itemHeight, itemCategory);
             
-            SpawnPriceTag(shelfItem, lengthwiseOffset);
+            if (spawnPriceTags) SpawnPriceTag(shelfItem, lengthwiseOffset);
             
             for (int j = 0; j < numRows; j++)
             {
@@ -222,6 +222,7 @@ public class ItemSpawner : MonoBehaviour
         Vector3 priceTagSpawnPos = transform.position 
                                    + transform.right * (lengthwiseOffset - widthBudget/2) * (ShelfIsFacingZ() ? -1 : 1) 
                                    + transform.forward * (depthBudget/2 + 0.001f)
+                                   + transform.up * shelfWidth/2
                                    - transform.up * _priceTagHeight/2;
                     
         GameObject pt = Instantiate(
