@@ -12,7 +12,6 @@ obj
 Assets/InputSystem_Actions.inputactions
 Assets/Readme.asset
 Assets/TutorialInfo
-Assets/Settings
 .idea
 Assets/Meshes
 Assets/Samples
@@ -28,7 +27,6 @@ BrewedInk.BNuget.Sample.QRCodes.csproj
 BrewedInk.BNuget.Sample.DadJokes.csproj
 BrewedInk.BNuget.Sample.LlamaSharp.Editor.csproj
 BrewedInk.BNuget.Sample.LlamaSharp.csproj
-Assets/TextMesh Pro
 Assets/XR
 Assets/XRI
 Assets/Resources/Animated Hands
