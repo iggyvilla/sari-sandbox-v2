@@ -1,0 +1,1752 @@
+{
+    "555_FRIED_SARDINES_ESCABECHE_155G": {
+        "netWeight": "155g",
+        "pricePHP": 39.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 80, Calories from Fat: 20, Total Fat: 2g, Saturated Fat: 0.5g, Trans Fat: 0g, Cholesterol: 30mg, Sodium: 220mg, Total Carbohydrates: 8g, Dietary Fiber: 0g, Sugars: 5g, Protein: 7g"
+    },
+    "555_FRIED_SARDINES_TAUSI_155G": {
+        "netWeight": "155g",
+        "pricePHP": 37.0,
+        "allergens": "Fish, Soybeans/Soy/Soya, Milk, Seasame",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 90, Calories from Fat: 25, Total Fat: 3g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 25mg, Sodium: 380mg, Total Carbohydrates: 7g, Dietary Fiber: less than 1g, Sugars: 4g, Protein: 10g"
+    },
+    "555_HOT_SARDINES_IN_TOMATO_SAUCE": {
+        "netWeight": "155g",
+        "pricePHP": 29.0,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings per Container: about 3, Calories: 50, Calories from Fat: 20, Total Fat: 2g, Saturated Fat: 1.5g, Trans Fat: 0g, Omega-3: 735mg, DHA: 241mg, Cholesterol: 25mg, Sodium: 240mg, Total Carbohydrates: 2g, Dietary Fiber: 0g, Sugars: 0g, Protein: 6g"
+    },
+    "555_TUNA_AFRITADA_155G": {
+        "netWeight": "155g",
+        "pricePHP": 34.0,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 60, Calories from Fat: 30, Total Fat: 3g, Saturated Fat: 1.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 380mg, Total Carbohydrates: 4g, Dietary Fiber: less than 1g, Sugars: 3g, Protein: 5g, Vitamin A: 1701 IU"
+    },
+    "555_TUNA_CALDERETA_155G": {
+        "netWeight": "155g",
+        "pricePHP": 34.0,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 60, Calories from Fat: 10, Total Fat: 1g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 5mg, Sodium: 430mg, Total Carbohydrates: 7g, Dietary Fiber: less than 1g, Sugars: 3g, Protein: 5g, Vitamin A: 2148 IU"
+    },
+    "555_TUNA_FLAKES_IN_OIL_155G": {
+        "netWeight": "155g",
+        "pricePHP": 27.0,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 80, Calories from Fat: 60, Total Fat: 7g, Saturated Fat: 3.5g, Trans Fat: 0g, Cholesterol: 5mg, Sodium: 320mg, Total Carbohydrates: 0g, Dietary Fiber: 0g, Sugars: 0g, Protein: 4g, Vitamin A: 1774 IU"
+    },
+    "555_TUNA_HOT&SPICY_155G": {
+        "netWeight": "155g",
+        "pricePHP": 36.0,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 70, Calories from Fat: 40, Total Fat: 4.5g, Saturated Fat: 2.5g, Trans Fat: 0g, Cholesterol: 10mg, Sodium: 330mg, Total Carbohydrates: 3g, Dietary Fiber: 0g, Sugars: 2g, Protein: 4g, Vitamin A: 1767 IU"
+    },
+    "ABSOLUTE_PURE_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 21.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "AJINOMOTO_SOUP&GO_CREAMY_CORN_3x19.2G": {
+        "netWeight": "57.6g",
+        "pricePHP": 85.0,
+        "allergens": "Milk, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 1 sachet (19.2g), Servings per Container: 3, Calories: 77, Total Fat: 2g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 411mg, Total Carbohydrate: 15g, Dietary Fiber: 5g, Sugars: 5g, Protein: 1g"
+    },
+    "AJINOMOTO_SOUP&GO_CREAMY_POTATO_3x19.2G": {
+        "netWeight": "57.6g",
+        "pricePHP": 85.0,
+        "allergens": "Milk, Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 1 sachet (15.8g), Servings per Container: 3, Calories: 62, Total Fat: 1g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 1mg, Sodium: 417mg, Total Carbohydrate: 11g, Dietary Fiber: less than 1g, Sugars: 3g, Protein: 1g"
+    },
+    "AJINOMOTO_SOUP&GO_CREAMY_PUMPKIN_3x19.2G": {
+        "netWeight": "57.6g",
+        "pricePHP": 85.0,
+        "allergens": "Milk, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 1 sachet (18.1g), Servings per Container: 3, Calories: 75, Total Fat: 2g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 393mg, Total Carbohydrate: 13g, Dietary Fiber: 1g, Sugars: 3g, Protein: 1g"
+    },
+    "ARGENTINA_CORNED_BEEF_175G": {
+        "netWeight": "175g",
+        "pricePHP": 45.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 2, Calories: 90, Calories from Fat: 45, Total Fat: 5g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 15mg, Sodium: 260mg, Total Carbohydrates: 5g, Dietary Fiber: 1g, Sugars: 0g, Protein: 6g, Zinc: 30%(RENI), Iron: 35%(RENI)"
+    },
+    "ARGENTINA_FIESTA_SAUSAGE_175G": {
+        "netWeight": "175g",
+        "pricePHP": 30.0,
+        "allergens": "Soybeans/Soy/Soya, Eggs",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 1, Calories: 45, Calories from Fat: 9, Total Fat: 1g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 8mg, Sodium: 351g, Total Carbohydrates: 6g, Dietary Fiber: 1g, Sugars: 4g, Protein: 3g"
+    },
+    "ARGENTINA_LIVER_SPREAD_85G": {
+        "netWeight": "85g",
+        "pricePHP": 29.0,
+        "allergens": "Soybeans/Soy/Soya, Milk, Wheat/Cereals/Gluten",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 2, Calories: 110, Calories from Fat: 50, Total Fat: 6g, Saturated Fat: 2.5g, Trans Fat: 0g, Cholesterol: 50mg, Sodium: 390mg, Total Carbohydrates: 8g, Dietary Fiber: 1g, Sugars: 6g, Protein: 6g"
+    },
+    "ARGENTINA_MEAT_LOAF_100G": {
+        "netWeight": "100g",
+        "pricePHP": 22.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 2, Calories: 66, Calories from Fat: 16, Total Fat: 2g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 10mg, Sodium: 460mg, Total Carbohydrates: 10g, Dietary Fiber: 1g, Sugars: 1g, Protein:32g"
+    },
+    "ARGENTINA_MEATLOAF_170G": {
+        "netWeight": "170g",
+        "pricePHP": 27.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 80, Calories from Fat: 25, Total Fat: 3g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 10mg, Sodium: 570mg, Total Carbohydrates: 12g, Dietary Fiber: 1g, Sugars: 1g, Protein: 2g"
+    },
+    "BAUER_FRUFRU_150G": {
+        "netWeight": "150g",
+        "pricePHP": 55.0,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Energy: 78kcal, Fat: 0.1g, Saturated Fat: less than 0.1g, Carbohydrate: 16.3g, Sugars: 14.1g, Protein: 3g, Salt:0.1g"
+    },
+    "BINGO_CORNED_BEEF_150G": {
+        "netWeight": "150g",
+        "pricePHP": 21.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, No. of Servings per Container: About 3, Calories: 46, Calories from Fat: 20, Total Fat: 2g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 2mg, Sodium: 362mg, Total Carbohydrates: 3g, Dietary Fiber: 1g, Sugar: 1g, Total Protein: 4g"
+    },
+    "BISSIN_BLACKCURRANTWAFERS_PREMIUM_100G": {
+        "netWeight": "100g",
+        "pricePHP": 60.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "BONGGA_CARNE_NORTE_150G": {
+        "netWeight": "150g",
+        "pricePHP": 23.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings per Container: About 3, Calories: 46 kcal, Calories from Fat: 20, Total Fat: 2g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 2mg, Sodium: 362mg, Total Carbohydrates: 3g, Dietary Fiber: 1g, Sugar: 1g, Total Protein: 4g"
+    },
+    "BOY_BAWANG_CORNICK_CHILI_CHEESE_FLAVOR_80G": {
+        "netWeight": "80g",
+        "pricePHP": 21.0,
+        "allergens": "Milk",
+        "possibleAllergens": "Peanuts, Tree Nuts, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "nutritionalFacts": "Serving size: 30g, Servings per container/pack: About 3.0, Calories: 142, Calories from Fat: 50, Total Fat: 6g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 135mg, Total Carbohydrate: 20g, Dietary Fiber: 2g, Sugar: 1g, Protein: 3g, Vitamin A 0mcg, Vitamin C 0mcg, Vitamin D: 0mg, Calcium: 67mg, Iron: 4mg, Potassium: 83mg"
+    },
+    "CDO_BEEF_LOAF_150G": {
+        "netWeight": "150g",
+        "pricePHP": 22.0,
+        "allergens": "Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 76, Calories from Fat: 30, Total Fat: 3g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 7mg, Sodium: 548mg, Total Carbohydrates: 11g, Dietary Fiber: 2g, Sugars: 2g, Protein: 2g"
+    },
+    "CDO_HOME_STYLE_CORNED_BEEF_150G": {
+        "netWeight": "150g",
+        "pricePHP": 38.0,
+        "allergens": "Soybeans/Soy/Soya, Wheat/Cereals/Gluten, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 72, Calories from Fat: 40, Total Fat: 4g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 36mg, Sodium: 342mg, Total Carbohydrates: 2g, Dietary Fiber: 1g, Sugars: 0g, Protein: 7g"
+    },
+    "CDO_KARNE_NORTE_CLASSIC_100G": {
+        "netWeight": "100g",
+        "pricePHP": 25.0,
+        "allergens": "Soybeans/Soy/Soya, Wheat/Cereals/Gluten, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 2, Calories: 58, Calories from Fat: 20, Total Fat: 2g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 3mg, Sodium: 348mg, Total Carbohydrates: 4g, Dietary Fiber: 2g, Sugars: 1g, Protein: 6g"
+    },
+    "CDO_KARNE_NORTE_CLASSIC_150G": {
+        "netWeight": "150g",
+        "pricePHP": 35.0,
+        "allergens": "Soybeans/Soy/Soya, Wheat/Cereals/Gluten, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 58, Calories from Fat: 20, Total Fat: 2g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 3mg, Sodium: 348mg, Total Carbohydrates: 4g, Dietary Fiber: 2g, Sugars: 1g, Protein: 6g"
+    },
+    "CDO_MEAT_LOAF_100G": {
+        "netWeight": "100g",
+        "pricePHP": 26.0,
+        "allergens": "Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 2, Calories: 73, Calories from Fat: 30, Total Fat: 3g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 6mg, Sodium: 491mg, Total Carbohydrates: 10g, Dietary Fiber: 2g, Sugars: 1g, Protein: 2g"
+    },
+    "CENTURY_TUNA_FLAKES_IN_BRINE_155G": {
+        "netWeight": "155g",
+        "pricePHP": 53.0,
+        "allergens": "Fish",
+        "possibleAllergens": "Soybeans/Soy/Soya, Milk, Wheat/Cereals/Gluten, Crustacean Shellfish, Eggs, Peanuts",
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 40, Calories from Fat: 0, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Omega3: 62mg, DHA: 45mg, Cholesterol: 15mg, Sodium: 150mg, Total Carbohydrates: 0g, Dietary Fiber: 0g, Sugars: 2g, Protein: 9g"
+    },
+    "CENTURY_TUNA_FLAKES_IN_OIL_155G": {
+        "netWeight": "155g",
+        "pricePHP": 44.0,
+        "allergens": "Fish, Soybeans/Soy/Soya, Milk",
+        "possibleAllergens": "Wheat/Cereals/Gluten, Crustacean Shellfish, Eggs, Peanuts, Milk",
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3Calories: 40, Calories from Fat: 0, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Omega3: 62mg, DHA: 45mg, Cholesterol: 15mg, Sodium: 150mg, Total Carbohydrates: 0g, Dietary Fiber: 0g, Sugars: 2g, Protein: 9g"
+    },
+    "CENTURY_TUNA_HOT_AND_SPICY_155G": {
+        "netWeight": "155g",
+        "pricePHP": 43.0,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": "Milk, Wheat/Cereals/Gluten, Crustacean Shellfish, Eggs, Peanuts",
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 110, Calories from Fat: 60, Total Fat: 7g, Saturated Fat: 3.5g, Trans Fat: 0g, Omega3: 577mg, DHA: 48mg, Cholesterol: 5mg, Sodium: 370mg, Total Carbohydrates: 4g, Dietary Fiber: 0g, Sugars: 0g, Protein: 7g"
+    },
+    "CENTURY_TUNA_WITH_CALAMANSI_155G": {
+        "netWeight": "155g",
+        "pricePHP": 37.0,
+        "allergens": "Fish, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Milk, Crustacean Shellfish, Eggs, Peanuts",
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 80, Calories from Fat: 40, Total Fat: 4.5g, Saturated Fat: 1g, Trans Fat: 0g, Omega3: 591mg, DHA: 55mg, Cholesterol: 10mg, Sodium: 270mg, Total Carbohydrates: 3g, Dietary Fiber: 0g, Sugars: 3g, Protein: 7g"
+    },
+    "CERES_APPLE_1L": {
+        "netWeight": "1L",
+        "pricePHP": 160.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 200ml, Energy: 110kcal, Protein: 0g, Carbohydrates: 25g, Sugars: 25g, Dietary fibre: 0g, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Sodium: 0mg, Vitamin C: 18mg "
+    },
+    "CHAMPOLA_CHOCOLATE_BELGE_30G": {
+        "netWeight": "30g",
+        "pricePHP": 30.0,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya, Eggs",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings Per Container: 1, Calories: 150, Calories from Fat: 50, Total Fat: 13g, Saturated Fat: 7g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 26mg, Total Carbohydrates: 21g, Dietary Fiber: 0g, Sugars: 13g, Protein: 2g"
+    },
+    "CHAN_YEE_JAI_ORIGINAL ALMOND_JUICE_375ML": {
+        "netWeight": "375ml",
+        "pricePHP": 839.0,
+        "allergens": "Tree Nuts",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 1 bottle (70g), Calories: 10, Calories from Fat: 0, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 3g, Dietary Fiber: 0g, Sugars: 3g, Protein: 0g, Vitamin A: 0g, Calcium: 0g, Vitamin C: 0%, Iron: 0%"
+    },
+    "CHIPSY_CHEESE_RING_CHEESE_FLAVORED_SNACK_60G": {
+        "netWeight": "60g",
+        "pricePHP": 55.0,
+        "allergens": "Wheat/Cereals/Gluten, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Servings per Container: About 2, Calories: 150, Calories from Fat: 70, Total Fat: 7g, Saturated Fat: 3.5g Trans Fat: 0g, Sodium: 280mg, Total Carbohydrates: 19g, Dietary Fiber: less than 1g, Sugars: 2g, Protein: 2g, Calcium: 24mg, Iron: 0.8mg"
+    },
+    "CHIPSY_NACHO_CRISPIES_BBQ_70G": {
+        "netWeight": "70g",
+        "pricePHP": 32.0,
+        "allergens": null,
+        "possibleAllergens": "Milk",
+        "nutritionalFacts": "Serving Size: 30g, Servings per Container: About 2, Calories: 160, Calories from Fat: 70, Total Fat: 8g, Saturated Fat: 3.5g, Polyunsaturated: 0g, Monounsaturated: 0g, Cholesterol: 0mg, Sodium: 170mg, Potassium: 48mg, Total Carbohydrates: 19g, Dietary Fiber: 3g, Sugars: 1g, Protein: 2g, Calcium: 38mg, Iron: 025mg"
+    },
+    "CHIPSY_NACHO_CRISPIES_CHEESE_70G": {
+        "netWeight": "70g",
+        "pricePHP": 32.0,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Servings per Container: About 2, Calories: 160, Calories from Fat: 70, Total Fat: 8g, Saturated Fat: 3.5g, Polyunsaturated: 0g, Monounsaturated: 0g, Cholesterol: 0mg, Sodium: 170mg, Potassium: 48mg, Total Carbohydrates: 19g, Dietary Fiber: 3g, Sugars: 1g, Protein: 2g, Calcium: 38mg, Iron: 0.25mg"
+    },
+    "CHIPSY_POTATO_CHIPS_SPICY_BBQ_25G": {
+        "netWeight": "25g",
+        "pricePHP": 99.0,
+        "allergens": "Milk, Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Peanuts",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 25g, Servings per Pack: 1, Calories: 137, Calories from Fat: 72, Total Fat: 8g, Saturated Fat: 4g, Sodium: 117mg, Total Carbohydrates: 15g, Dietary Fiber: 1g, Sugars: 0.8g, Total Protein: 1.8g"
+    },
+    "CIMORY_YOGURT_ORIGINAL_100G": {
+        "netWeight": "100g",
+        "pricePHP": 57.0,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 100g, Servings per Pack: 1, Calories: 100, Calories from Fat: 25, Calories from Saturated Fat: 15, Total Fat: 3g, Saturated Fat: 2g, Protein:3g, Total Carbohydrates: 17g, Dietary Fiber: 3g, Total Sugar: 10g, Sucrose: 7g, Sodium: 75mg, Potassium: 4% (DV), Calcium: 15%(DV), Phosphor: 15%(DV)"
+    },
+    "COBRA_ENERGY_DRINK_350ML": {
+        "netWeight": "350ml",
+        "pricePHP": 22.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 240 mL No. of Servings per bottle: 1.5, Calories: 90 kcal, Calories from Fat: 0, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 50mg, Total Carbohydrates: 23g, Dietary Fiber: 0g, Sugars: 23g, Total Protein: 0g, Thiamine Hydrochloride (Vit. B1): 1.4 mg, Zinc: 6.4mg, Cholecalciferol (Vit. D3) 200 IU, Niacinamide (Vit. B3): 8.0mg, Pyridoxine Hydrochloride (Vit. B6): 0.9mg, Cyanocobalamin (Vit. B12): 0.8mcg"
+    },
+    "COBRA_ENERGY_DRINK_BERRY_BLAST_350ML": {
+        "netWeight": "350ml",
+        "pricePHP": 22.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 240 mL, No. of Servings per bottle: 1.5, Calories: 85, Calories from Fat: 0, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 50mg, Total Carbohydrates: 21g, Dietary Fiber: 0g, Sugar: 21g, Total Protein: 0g, Zinc: 6.4mg, Cholecalciferol (Vit. D3): 200IU, Niacinamide (Vit. B3): 8.0mg, Pyridoxine Hydrochloride (Vit. B6): 0.9mg, Cyanocobalamin (Vit. B12): 0.8mcg"
+    },
+    "COBRA_ENERGY_DRINK_PLUS_SMART_350ML": {
+        "netWeight": "350ml",
+        "pricePHP": 23.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 240 mL, No. of Servings per bottle: 1.5, Calories: 90, Calories from Fat: 0, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 50mg, Total Carbohydrates: 23g, Dietary Fiber: 0g, Sugars: 23g, Total Protein: 0g, Thiamine Hydrochloride (Vit. B1): 1.4mg, Zinc: 6.4mg, Cholecalciferol (Vit. D3) : 200IU, Niacinamide (Vit. B3) : 8.0mg, Pyridoxine Hydrochloride (Vit. B6) : 0.9mg, Cyanocobalamin (Vit. B12): 0.8mcg"
+    },
+    "COCACOLA_REGULAR_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 36.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "COCACOLA_LIGHT_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 36.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "COCACOLA_ORIGINAL_TASTE_290ML": {
+        "netWeight": "290ml",
+        "pricePHP": 20.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "COCACOLA_ZERO_SUGAR_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 20.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "COWHEAD_PURE_MILK_1L": {
+        "netWeight": "1L",
+        "pricePHP": 102.0,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 250ml, Serving per package: 4, Energy: 173kcal, Protein, 8.5g, Total Fat: 8.8g, Saturated Fat: 6.5g, Trans Fat: 0.3g, Cholesterol: 40mg, Total Carbohydrates: 13g, Sugar: 13g, Lactose: 13g, Sodium:100mg, Calcium: 275mg"
+    },
+    "CRISS_CROSS_CHEESY_SOUR_CREAM_AND_ONION_20G": {
+        "netWeight": "20g",
+        "pricePHP": 6.0,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Crustacean Shellfish, Fish, Tree Nuts, Seasame",
+        "nutritionalFacts": "Serving Size: 20g, Servings Per container: 1, Calories: 100, Calories from Fat: 45, Total Fat: 5g, Saturated Fat:  2.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 250 mg, Total Carbohydrates: 13g, Dietary Fiber: 0g, Sugar: 1g, Protein: 1g, Calcium: 26mg, Iron: 0.42mg"
+    },
+    "CRISS_CROSS_CREAMY_CHEESE_20G": {
+        "netWeight": "20g",
+        "pricePHP": 6.0,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Crustacean Shellfish, Fish, Tree Nuts, Seasame",
+        "nutritionalFacts": "Serving Size: 20g, Servings Per container: 1, Calories: 100, Calories from Fat: 45, Total Fat: 5g, Saturated Fat:  3g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 200 mg, Total Carbohydrates: 13g, Dietary Fiber: 0g, Sugar: 1g, Protein: 1g, Calcium: 23mg, Iron: 0.35mg"
+    },
+    "CRISS_CROSS_SWEET_CORN_20G": {
+        "netWeight": "20g",
+        "pricePHP": 6.0,
+        "allergens": "Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Peanuts",
+        "possibleAllergens": "Crustacean Shellfish, Fish, Milk, Tree Nuts, Seasame",
+        "nutritionalFacts": "Serving Size: 20g, Servings Per container: 1, Calories: 100, Calories from Fat: 45, Total Fat: 5g, Saturated Fat:  3g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 190 mg, Total Carbohydrates: 13g, Dietary Fiber: 0g, Sugar: 2g, Protein: 1g, Calcium: 21mg, Iron: 0.27mg"
+    },
+    "CRISS_CROSS_SWEET_PEPPER_STEAK_20G": {
+        "netWeight": "20g",
+        "pricePHP": 6.0,
+        "allergens": "Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": "Crustacean Shellfish, Fish, Milk, Tree Nuts, Seasame",
+        "nutritionalFacts": "Serving Size: 20g, Servings Per container: 1, Calories: 100, Calories from Fat: 45, Total Fat: 5g, Saturated Fat:  3.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 220 mg, Total Carbohydrates: 12g, Dietary Fiber: 0g, Sugar: 3g, Protein: 1g, Calcium: 22mg, Iron: 0.31mg"
+    },
+    "DELFI_KNICK_KNACKS_50G": {
+        "netWeight": "50g",
+        "pricePHP": 20.0,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Peanuts, Tree Nuts",
+        "nutritionalFacts": "Serving Size: 21g, Servings per pack: About 2, Calories: 97, Calories from Fat: 31, Total Fat: 4g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 19mg, Total Carbohydrates: 15g, Dietary Fiber: 0g, Sugar 9g: Total Protein: 19, Vitamin A: 227 IU, Iron: 1.53mg"
+    },
+    "DELMONTE_FIBER_ENRICHED_220ML": {
+        "netWeight": "220ml",
+        "pricePHP": 43.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DELMONTE_FOUR_SEASONS_220ML": {
+        "netWeight": "220ml",
+        "pricePHP": 41.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DELMONTE_MANGO_220ML": {
+        "netWeight": "220ml",
+        "pricePHP": 41.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DELMONTE_PINEAPPLE_ORANGE_220ML": {
+        "netWeight": "220ml",
+        "pricePHP": 40.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DELMONTE_PINEAPPLEDRINK_HEARTSMART_220ML": {
+        "netWeight": "220ml",
+        "pricePHP": 42.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DINGDONG_MIXED_NUTS_100G": {
+        "netWeight": "100g",
+        "pricePHP": 30.0,
+        "allergens": "Peanuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving size: 30g, Servings per Container: about 3 1/3, Calories: 150, Calories from Fat: 70, Total Fat: 8g, Saturated Fat: 4g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 150mg, Total Carbohydrates: 16g, Dietary Fiber: 5g, Sugars: 3g, Protein 4g, Calcium: 0g, Iron: 0g"
+    },
+    "DINGDONG_SNACK_MIX_100G": {
+        "netWeight": "100g",
+        "pricePHP": 30.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DINGDONG_SNACK_MIX_SWEET_&_SPICY_100G": {
+        "netWeight": "100g",
+        "pricePHP": 30.0,
+        "allergens": "Peanuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving size: 30g, Servings per Container: about 3 1/6, Calories: 150, Calories from Fat: 60, Total Fat: 7g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 200mg, Total Carbohydrates: 19g, Dietary Fiber: 3g, Sugars: 1g, Protein 3g, Calcium: 0g, Iron: 0g"
+    },
+    "DOLE_PINEAPPLE_240ML": {
+        "netWeight": "240ml",
+        "pricePHP": 32.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DOLE_PINEAPPLE_UNSWEETENED_240ML": {
+        "netWeight": "240ml",
+        "pricePHP": 36.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DSFAPS_DANISA_BUTTERCOOKIES_454G": {
+        "netWeight": "454g",
+        "pricePHP": 366.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DUTCHMILL_DELIGHT_ORIGINAL_100ML": {
+        "netWeight": "100ml",
+        "pricePHP": 11.52,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DUTCHMILL_DELIGHT_ORIGINAL_400ML": {
+        "netWeight": "400ml",
+        "pricePHP": 57.4,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 200mL, No. Serving per container: 2, Energy (Per Serving): 158kcal, Protein: 3.2g, Total Fat: 0g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 0mg, Total Carbohydrates: 35.6g, Dietary Fiber: 1g, Total Sugars: 34g, Sodium: 70mg, Calcium: 124mg, Vitamin B2: 0.2mg"
+    },
+    "DUTCHMILL_MIXED_BERRIES_180ML": {
+        "netWeight": "180ml",
+        "pricePHP": 19.3125,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "DUTCHMILL_PROYO_STRAWBERRY_400ML": {
+        "netWeight": "400ml",
+        "pricePHP": 49.5,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 200 ml, No. of Servings per container: 2, Calories: 140kcal, Calories from Fat: 18g, Total Fat: 2g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 9mg, Sodium: 70mg, Total Carbohydrates: 27g, Dietary Fiber: 0.9g, Total Sugars: 24g, Protein: 3.2g, Vitamin A: 3%, Vitamin D: 32%, Vitamin B1: 43%, Vitamin B2: 44%, Calcium: 17%"
+    },
+    "EDEN_MELT_SARAP_CHEESE_160G": {
+        "netWeight": "160g",
+        "pricePHP": 95.75,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Serving Per Package: 63, Energy: 90kcal, Carbohydrate: 2g, Sugars: 1g, Dietary Fiber; <1g, Protein: 4g, Total Fats: 6g, Saturated Fats: 6g, Trans Fats: <1g, Cholesterol 3mg, Sodium 300mg"
+    },
+    "EDEN_ORIGINAL_CHEESE_160G": {
+        "netWeight": "160g",
+        "pricePHP": 26.25,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Serving Per Package: 5, Calories: 90kcal, Carbohydrate: 4g, Sugars: 1g, Dietary Fiber; <1g, Protein: 3g, Total Fats: 7g, Saturated Fats: 6g, Trans Fats: <1g, Cholesterol 4mg, Sodium 420mg, Vitamin A: 38%, Riboflavin (Vitamin B2): 21%, Calcium: 15%, Iron: 10%"
+    },
+    "EL_RANCHO_BEEF_LOAF_155G": {
+        "netWeight": "155g",
+        "pricePHP": 18.25,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": "Eggs, Wheat/Cereals/Gluten, Milk, Fish",
+        "nutritionalFacts": "Serving Size: 55g, Calories: 105, Calories from Fat: 60, Total Fat: 7g,  Trans Fat: 0g, Cholesterol: 8mg, Sodium: 520mg, Total Carbohydrates: 9g, Dietary Fiber: 0g, Sugars: 1g, Protein: 3g"
+    },
+    "FIBISCO_CHOCOCRUNCHIES_ORIGINAL_200G": {
+        "netWeight": "200g",
+        "pricePHP": 80.1,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Eggs, Tree Nuts",
+        "nutritionalFacts": "Serving Size: 20g (2pcs), Servings Per Container: 10 Calories: 100, Calories from Fat: 40, Total Fat: 4g, Saturated Fat: 4g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 40mg, Total Carbohydrates: 14g, Dietary Fiber: 0g, Sugars: 7g, Protein: 1g, Calcium: 3%, Iron: 3%"
+    },
+    "FIBISCO_CHOCOMALLOWS_100G": {
+        "netWeight": "100g",
+        "pricePHP": 38.0,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Eggs, Tree Nuts",
+        "nutritionalFacts": "Serving Size: 36g (2pcs), Servings Per Container: 3, Calories: 160, Total Fat: 6g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 90mg, Total Carbohydrates: 25g, Dietary Fiber: 0g, Total Sugars: 16g, Incl. Added Sugars: 16g, Protein: 2g, Vitamin D: 0mg, Calcium: 40mg, Iron: 0.9mg, Potassium: 100mg"
+    },
+    "FIBISCO_JOLLY_26G": {
+        "netWeight": "27g",
+        "pricePHP": 6.245,
+        "allergens": "Wheat/Cereals/Gluten, Milk",
+        "possibleAllergens": "Eggs, Soybeans/Soy/Soya, Tree Nuts",
+        "nutritionalFacts": "Serving Size: 27g (3pcs), Servings Per Container: 1, Calories: 130, Calories from Fat: 40g, Total Fat: 4g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 0g, Sodium: 75mg, Total Carb: 20g, Dietary Fiber: 0g, Sugars: 9g, Incl. Added Sugars: 9g, Protein: 2g, Iron: 0.5mg"
+    },
+    "GLICO_POCKY_CHOCOLATE_20G": {
+        "netWeight": "20g",
+        "pricePHP": 27.95,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Peanuts, Tree Nuts",
+        "nutritionalFacts": "Serving size: 1 Package (20g) No. Serving per container: 1, Energy: 96kcal, Energy from fat: 33kcal, Total Fat: 3.6g, Saturated fat: 3.0g, Trans fat: 0g, Cholesterol: less than 1mg, Total Protein: 1.7g, Total Carbohydrate: 14.0g, Dietary fiber: 1.6g, Sugars: 7.5g, Sodium: 37 mg"
+    },
+    "GLICO_POCKY_CHOCOLATE_40G": {
+        "netWeight": "40g",
+        "pricePHP": 50.75,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Peanuts, Tree Nuts",
+        "nutritionalFacts": "Serving size: 1 Package (40g) No. Serving per container: 1, Energy: 191kcal, Energy from fat: 65kcal, Total Fat: 7.2g, Saturated fat: 6.0g, Trans fat: 0g, Cholesterol: 1mg, Total Protein: 3.4g, Total Carbohydrate: 28.1g, Dietary fiber: 3.2g, Sugars: 15.1g, Sodium: 73 mg"
+    },
+    "GLICO_POCKY_COOKIES_AND_CREAM_40G": {
+        "netWeight": "40g",
+        "pricePHP": 50.75,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Wheat/Cereals/Gluten, Tree Nuts",
+        "nutritionalFacts": "Serving size: 1 Package (40g) No. Serving per container: 1, Energy: 201kcal, Energy from fat: 82kcal, Total Fat: 9.1g, Saturated fat: 7.6g, Trans fat: 0g, Cholesterol: 3mg, Total Protein: 2.9g, Total Carbohydrate: 26.8g, Dietary fiber: 3.0g, Sugars: 15.0g, Sodium: 58mg"
+    },
+    "GLICO_POCKY_DOUBLE_CHOCO_39G": {
+        "netWeight": "39g",
+        "pricePHP": 44.5,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Tree Nuts, Peanuts",
+        "nutritionalFacts": "Serving size: 1 Package (39g) No. Serving per container: 1, Energy: 193kcal, Energy from fat: 77kcal, Total Fat: 8.5g, Saturated fat: 7.2g, Trans fat: 0g, Cholesterol: 1mg, Total Protein: 3.3g, Total Carbohydrate: 25.7g, Dietary fiber: 3.2g, Sugars: 13.0g, Sodium: 64mg"
+    },
+    "GLICO_POCKY_STRAWBERRY_20G": {
+        "netWeight": "20g",
+        "pricePHP": 27.5,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Tree Nuts",
+        "nutritionalFacts": "Serving Size: 1, Package (40g) No. Serving per Package: 1, Calories: 200, Calories from Fat 70, Total Fat: 8g, Saturated Fat: 4.5g, Trans Fat: 0g, Cholesterol: <5mg, Sodium: 90mg, Total Carbohydrates: 28g, Dietary Fiber: 0g, Sugars: 13g, Protein: 3g, Vitamin A: 0%, Vitamin C: 0%, Calcium: 2%, Iron: 0%"
+    },
+    "GOLDEMBLEM_HIKERSBLENDTRAILMIX_368G": {
+        "netWeight": "368g",
+        "pricePHP": 341.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "GOYA_CHOCOPRETZEL_TWISTS_CREAM_WHITE_21G": {
+        "netWeight": "21g",
+        "pricePHP": 9.35,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Peanuts, Tree Nuts",
+        "nutritionalFacts": "Serving Size: 21g, No. of Servings per pack: 1, Calories: 102kcal, Calories from fat: 28, Total fat: 4g, Saturated Fat: 4g, Trans Fat: 0g, Cholesterol: 1mg, Sodium: 38mg, Total Carbohydrates: 14g, Dietary Fiber: 0g, Sugar: 8g, Total Protein: 2g"
+    },
+    "GOYA_PRETZEL_TWISTS_GOYA_DARK_CHOCOLATE_21G": {
+        "netWeight": "21g",
+        "pricePHP": 9.6,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Peanuts, Tree Nuts",
+        "nutritionalFacts": "Serving Size: 21g, No. of Servings per pack: 1, Calories: 101kcal, Calories from fat: 41, Total fat: 4g, Saturated Fat: 4g, Trans Fat: 0g, Cholesterol: 1mg, Sodium: 40mg, Total Carbohydrates: 15g, Dietary Fiber: 0g, Sugar: 8g, Total Protein: 1g"
+    },
+    "GOYA_PRETZEL_TWISTS_MILK_CHOCOLATE_21G": {
+        "netWeight": "21g",
+        "pricePHP": 9.35,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Peanuts, Tree Nuts",
+        "nutritionalFacts": "Serving Size: 21g, No. of Servings per pack: 1, Calories: 100kcal, Calories from fat: 35, Total fat: 4g, Saturated Fat: 4g, Trans Fat: 0g, Cholesterol: 1mg, Sodium: 40mg, Total Carbohydrates: 15g, Dietary Fiber: 0g, Sugar: 8g, Total Protein: 1g"
+    },
+    "GRANDBISCO_CHOCO_COATED_PIE_WITH_MALLOW_18G": {
+        "netWeight": "18g",
+        "pricePHP": 5.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "GRANDBISCO_CHOCOLATE_CHIP_COOKIES_40G": {
+        "netWeight": "40g",
+        "pricePHP": 11.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "GRANDBISCO_UBE_FILLED_CRACKERS_30G": {
+        "netWeight": "30g",
+        "pricePHP": 6.75,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "GRANDBISCO_WHITE_CHOCO_FILLED_CRACKERS_30G": {
+        "netWeight": "30g",
+        "pricePHP": 6.75,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "GROWERS_GLAZED_PILI_NUTS_80G": {
+        "netWeight": "80g",
+        "pricePHP": 107.35,
+        "allergens": "Tree Nuts",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 1/4 Cup (30g), Servings Per Container: 2.5, Energy: 200kcal, Total Fat: 17g, Saturated Fat: 9g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 20mg, Total Carbohydrates: 9g, Dietary Fiber: 0g, Sugars: 9g, Total Protein: 2g, Calcium: 26mg, Iron: 0.83mg, Phosphorus: 271mg"
+    },
+    "GROWERS_SAVOURY_HOT_80G": {
+        "netWeight": "80g",
+        "pricePHP": 39.65,
+        "allergens": "Peanuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 1/4 Cup (30g), Servings Per Container: 2.5, Energy: 190kcal, Total Fat: 14g, Saturated Fat: 4g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 150mg, Total Carbohydrates: 7g, Dietary Fiber: 5g, Sugars: 2g, Total Protein: 7g, Vitamin D: 1mcg, Iron: 1mg, Potassium: 138mg, Phosphorus: 25mg, Magnesium: 42mg, Copper: 0.22mg"
+    },
+    "HAPPYFLAKES_ROUND_CRACKERS_32G": {
+        "netWeight": "32g",
+        "pricePHP": 10.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "HEINEKEN_330ML": {
+        "netWeight": "330ml",
+        "pricePHP": 73.0,
+        "allergens": "Wheat/Cereals/Gluten",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 300mL, Energy: 150kcal, Protein: 1.5g, Carbohydrates: 11.5g, Fat: 0g"
+    },
+    "HOKKAIDO_MACKAREL_200G": {
+        "netWeight": "200g",
+        "pricePHP": 50.5,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, Servings per Container: 4, Calories: 48, Calories from Fat: 11g, Total Fat: 1g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 31mg, Sodium: 282mg, Total Carbohydrates: 3g, Dietary Fiber: 0g, Sugar: 0g, Protein: 7g, Vitamin A: 0mg, Vitamin C: 0mg, Calcium: 63mg, Iron: 0mg"
+    },
+    "HOUSEOFPOLVORON_SOFTCOOKIES_WITHSTEVIA_18PCS": {
+        "netWeight": "234g",
+        "pricePHP": 150.95,
+        "allergens": "Milk, Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Tree Nuts",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 40g (3pcs), Calories: 190, Calories from Fat: 70, Total Fat: 8g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 10mg, Sodium: 45mg, Potassium: 160mg, Total Carbohydrates: 25g, Dietary Fiber: 1g, Sugars: 9g, Protein: 4g, Vitamin A: 0%, Calcium: 0%, Vitamin C: 8%, Iron: 6%"
+    },
+    "HUNTS_PORK&BEANS_175G": {
+        "netWeight": "175g",
+        "pricePHP": 24.65,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 100g, Servings per Container: about 2, Calories 120, Calories from Fat: 45, Total Fat: 5g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 390mg, Total Carbohydrates: 15g, Dietary Fiber: 7g, Sugars: 5g, Protein: 4g, Lycopene: 2460ug"
+    },
+    "INDOMIE_MI_GORENG_85G": {
+        "netWeight": "85g",
+        "pricePHP": 18.2,
+        "allergens": "Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Seasame",
+        "possibleAllergens": "Peanuts, Crustacean Shellfish, Fish, Eggs, Milk",
+        "nutritionalFacts": "Serving Size: 85g, Calories: 390, Total Fat: 16g, Saturated Fat: 7g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 820mg, Total Carbohydrates: 53g, Dietary Fiber: 3g, Sugars: 6g, Protein: 8g, Includes 3g Added Sugars, Vitamin D: 0mcg, Calcium: 23mg, Iron: 4mg,  Potassium: 182mg"
+    },
+    "JACK_AND_JILL_PIATTOS_SOUR_CREAM_FLAVORED_POTATO_40G": {
+        "netWeight": "40g",
+        "pricePHP": 16.6,
+        "allergens": "Soybeans/Soy/Soya, Wheat/Cereals/Gluten, Milk",
+        "possibleAllergens": "Fish",
+        "nutritionalFacts": "Serving Size: 30g, Calories: 150, Total Fat: 7g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 140mg, Total Carbohydrates: 20g, Dietary Fiber: 1g, Sugars: 2g, Protein: 1g"
+    },
+    "JACK_DANIELS_700ML": {
+        "netWeight": "700ml",
+        "pricePHP": 1101.6,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "JACKNJILL_CHOCOLATE_PRETZELS_40G": {
+        "netWeight": "40g",
+        "pricePHP": 12.45,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 40g, Calories: 190, Total Fat: 7g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 130mg, Total Carbohydrates: 29g, Dietary Fiber: 1g, Sugars: 14g, Protein: 3g, Calcium: 5%, Iron: 6%"
+    },
+    "JACKNJILL_MRCHIPS_NACHOCHEESE_24G": {
+        "netWeight": "24g",
+        "pricePHP": 5.95,
+        "allergens": "Soybeans/Soy/Soya, Wheat/Cereals/Gluten, Milk",
+        "possibleAllergens": "Fish",
+        "nutritionalFacts": "Serving Size: 30g, Calories: 160, Total Fat: 9g, Saturated Fat: 4.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 110mg, Total Carbohydrates: 18g, Dietary Fiber: 3g, Sugars: 1g, Protein: 2g, Calcium: 4%, Iron: 4.7mg, Potassium: 60mg"
+    },
+    "JACKNJILL_PICA_BBQOVERLOAD_180G": {
+        "netWeight": "180g",
+        "pricePHP": 55.45,
+        "allergens": "Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Calories: 140, Calories from Fat: 60, Total Fat: 6g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 180mg, Total Carbohydrates: 21g, Dietary Fiber: 2g, Sugars: 3g, Protein: 2g, Calcium: 2%, Iron: 5%"
+    },
+    "JACKNJILL_VCUT_POTATOCHIPS_CHEESE_25G": {
+        "netWeight": "25g",
+        "pricePHP": 16.95,
+        "allergens": "Soybeans/Soy/Soya, Wheat/Cereals/Gluten, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Calories: 170, Calories from Fat: 110, Total Fat: 12g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 70mg, Total Carbohydrates: 15g, Dietary Fiber: 2g, Sugars: 1g, Protein: 2g, Calcium: 1%, Iron: 21%"
+    },
+    "JACKNJILL_VCUT_POTATOCHIPS_SPICY_BBQ_25G": {
+        "netWeight": "25g",
+        "pricePHP": 16.2,
+        "allergens": "Soybeans/Soy/Soya, Wheat/Cereals/Gluten, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Calories: 180, Total Fat: 12g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 85mg, Total Carbohydrates: 14g, Dietary Fiber: 2g, Sugars: <1g, Includes 0.5g Added Sugars, Protein: 2g, Potassium: 290mg"
+    },
+    "JIN_RAMEN_MILD_120G": {
+        "netWeight": "120ml",
+        "pricePHP": 64.5,
+        "allergens": "Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Milk, Eggs, Fish, Crustacean Shellfish, Tree Nuts, Peanuts",
+        "nutritionalFacts": "Serving Size: 120g, Calories: 500, Total Fat: 15g, Saturated Fat: 8g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 1880mg, Total Carbohydrates: 79g, Dietary Fiber: 0g, Sugars: 4g, Includes 2g Added Sugars, Protein: 11g"
+    },
+    "JOLLYTIME_BUTTERLICIOUS_ORIGINALBUTTER_298G": {
+        "netWeight": "298g",
+        "pricePHP": 176.3,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 34g Unpopped, Calories: 130, Calories from Fat: 45, Total Fat: 5g, Saturated Fat: 2.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 230mg, Total Carbohydrates: 22g, Dietary Fiber: 4g, Sugars: 0g, Protein: 3g, Iron: 4%"
+    },
+    "KANGKONGKING_ORIGINAL_60G": {
+        "netWeight": "60g",
+        "pricePHP": 149.0,
+        "allergens": null,
+        "possibleAllergens": "Milk, Eggs",
+        "nutritionalFacts": "Serving Size: 30g, Calories: 160, Calories from Fat: 86, Total Fat: 10g, Saturated Fat: 9g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 240mg, Total Carbohydrates: 17g, Dietary Fiber: 2g, Sugars: 0g, Protein: 2g, Vitamin D: 3mcg, Calcium: 22mg, Iron: 1mg, Potassium: 104mg"
+    },
+    "KAROKE_GREEN_PEAS_SNACK_70G": {
+        "netWeight": "70g",
+        "pricePHP": 11.45,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 35g, Serving per Container: 2, Energy: 180kcal, Calories from Fat: 90, Total Fat: 10g, Saturated Fat: 5g, Cholesterol: 0mg, Sodium: 201mg, Total CarbohydratesL 21g, Dietary Fiber: 1g, Sugar: 2g, Protein: 2g"
+    },
+    "KELLOGG'S_COCO_POPS_30G": {
+        "netWeight": "30g",
+        "pricePHP": 15.0,
+        "allergens": "Wheat/Cereals/Gluten, Peanuts, Tree Nuts",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Calories: 490kJ, Total Fat: 0.4g, Saturated Fat: 0.1g, Sodium: 99mg, Total Carbohydrates: 26.2g, Dietary Fiber: 0.5g, Sugars: 9.7g, Protein: 1.7g, Riboflavin: 0.42mg, Niacin: 2.5mg, Vitamin B6: 0.4mg, Folate 50ug, Calcium: 80mg, Iron: 3mg, Zinc: 1.8mg"
+    },
+    "KELLOGG'S_FROOT_LOOPS_25G": {
+        "netWeight": "30g",
+        "pricePHP": 15.0,
+        "allergens": "Wheat/Cereals/Gluten, Peanuts, Tree Nuts",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Calories: 500kJ, Total Fat: 1.1g, Saturated Fat: 0.3g, Sodium: 108mg, Total Carbohydrates: 25.3g, Dietary Fiber: 0.7g, Sugars: 11.6g, Protein: 1.6g, Riboflavin: 0.42mg, Niacin: 2.5mg, Vitamin B6: 0.4mg, Folate 50ug, Iron: 3mg, Zinc: 1.8mg"
+    },
+    "KELLOGG'S_FROSTIES_30G": {
+        "netWeight": "30g",
+        "pricePHP": 15.0,
+        "allergens": "Wheat/Cereals/Gluten, Peanuts",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Calories: 478kJ, Total Fat: 0.2g, Saturated Fat: 0.03g, Sodium: 0.25mg, Total Carbohydrates: 26g, Dietary Fiber: 0.6g,  Sugars: 11g, Protein: 1.4g, Vitamin D: 2.5ug, Thiamin: 0.28mg, Riboflavin: 0.35mg, Niacin: 4mg, Vitamin B6: 0.35mg, Folic Acid 50ug, Vitamin B12: 0.63ug"
+    },
+    "KINDER_TRONKY_5x18G": {
+        "netWeight": "90g",
+        "pricePHP": 143.65,
+        "allergens": "Milk, Tree Nuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 18g, No. Servings per pack: 5, Calories: 93kcal, Calories from Fat: 44kcal, Total Fat: 5g, Saturated Fat: 2g, Cholesterol: 1mg, Sodium: 36mg, Total Carbohydrates: 10g, Dietary Fiber: 0g, Sugars: 7g, Protein: 2g"
+    },
+    "KING_CUP_SARDINES_IN_TOMATO_SAUCE_155G": {
+        "netWeight": "155g",
+        "pricePHP": 22.7,
+        "allergens": "Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, No. Servings per pack: about 3, Calories: 46, Calories from Fat: 12, Total Fat: 1g, Saturated Fat: 1g, Cholesterol: 20mg, Sodium: 312mg, Total Carbohydrates: 2g, Dietary Fiber: 0g, Sugars: 1g, Protein: 6g, Vitamin A: <2%, Calcium: 18%, Iron: 8%"
+    },
+    "KING_CUP_SARDINES_IN_TOMATO_SAUCE_WITH_CHILI_155G": {
+        "netWeight": "155g",
+        "pricePHP": 22.95,
+        "allergens": "Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 56g, No. Servings per pack: about 3, Calories: 43, Calories from Fat: 8, Total Fat: 1g, Saturated Fat: 1g, Cholesterol: 20mg, Sodium: 258mg, Total Carbohydrates: 2g, Dietary Fiber: 0g, Sugars: 1g, Protein: 7g, Vitamin A: <2%, Calcium: 18%, Iron: 10%"
+    },
+    "LE_MINERALE_600ML": {
+        "netWeight": "600ml",
+        "pricePHP": 17.75,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Calcium: 13.15mg/L, Magnesium: 7.42mg/L, Sodium: 73.40mg/L, Potassium: 4.11mg/L, Nitrate: 5.32mg/L, Bicarbonate: 162.25mg/L, Sulfate: 10.06mg/L, Chloride: ,32.88mg/L, Total Dissolved Solid: 255.50mg/L, pH: 7.2-7.8"
+    },
+    "LEMONSQUARE_LAVACAKE_ORIGINAL_42G": {
+        "netWeight": "42g",
+        "pricePHP": 7.775,
+        "allergens": "Milk, Eggs, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 42g, Calories: 190, Total Fat: 9g, Saturated Fat: 4g, Cholesterol: 15mg, Sodium: 120mg, Total Carbohydrates: 25g, Dietary Fiber: 1g, Sugars: 17g, Protein: 3g, Calcium: 3%, Iron: 38%"
+    },
+    "LEMONSQUARE_MAMON_CHEESY_264G": {
+        "netWeight": "264g",
+        "pricePHP": 63.0,
+        "allergens": "Milk, Eggs, Wheat/Cereals/Gluten",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 44g, Servings per Container: 6, Calories: 180, Calories from Fat: 55, Total Fat: 6g, Saturated Fat: 3g, Cholesterol: 80mg, Sodium: 110mg, Total Carbohydrates: 27g, Dietary Fiber: 1g, Sugars: 12g, Protein: 4g, Calcium: 35mg, Iron: 0.5mg"
+    },
+    "LESLIE_S_CHEEZY_CORN_CRUNCH_24G": {
+        "netWeight": "24g",
+        "pricePHP": 7.05,
+        "allergens": "Milk",
+        "possibleAllergens": "Crustacean Shellfish, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "nutritionalFacts": "Serving Size: 30g, Serving per Container: about 1, Calories: 160, Calories from Fat: 80, Total Fat: 9g, Saturated Fat: 7g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 230mg, Total Carbohydrates: 18g, Dietary Fiber: <1g, Sugars: <1g, Protein: 2g, Vitamin A: 30%, Vitamin B1: 33%, Vitamin B2: 33%,Vitamin B3: 20%, Vitamin B6: 20%, Vitamin B12: 33%, Folic Acid: 33%"
+    },
+    "LESLIE_S_CHEEZY_CORN_CRUNCH_70G": {
+        "netWeight": "70g",
+        "pricePHP": 26.6,
+        "allergens": "Milk",
+        "possibleAllergens": "Crustacean Shellfish, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "nutritionalFacts": "Serving Size: 30g, Serving per Container: 2, Calories: 160, Calories from Fat: 80, Total Fat: 9g, Saturated Fat: 7g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 230mg, Total Carbohydrates: 18g, Dietary Fiber: <1g, Sugars: <1g, Protein: 2g, Vitamin A: 30%, Vitamin B1: 33%, Vitamin B2: 33%,Vitamin B3: 20%, Vitamin B6: 20%, Vitamin B12: 33%, Folic Acid: 33%"
+    },
+    "LESLIE_S_CLOVER_CHIPS_CHEESE_24G": {
+        "netWeight": "24g",
+        "pricePHP": 7.1,
+        "allergens": "Milk",
+        "possibleAllergens": "Crustacean Shellfish, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "nutritionalFacts": "Serving Size: 30g, Serving per Container: about 1, Calories: 160, Calories from Fat: 90, Total Fat: 10g, Saturated Fat: 7g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 260mg, Total Carbohydrates: 18g, Dietary Fiber: <1g, Sugars: 0g, Protein: <1g, Vitamin A: 30%, Vitamin B1: 33%, Vitamin B2: 33%,Vitamin B3: 20%, Vitamin B6: 20%, Vitamin B12: 33%, Folic Acid: 33%"
+    },
+    "LESLIES_CLOVERCHIPS_CHEESE_85G": {
+        "netWeight": "85g",
+        "pricePHP": 32.5,
+        "allergens": "Milk",
+        "possibleAllergens": "Crustacean Shellfish, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "nutritionalFacts": "Serving Size: 30g, Serving per Container: about 2, Calories: 160, Calories from Fat: 90, Total Fat: 10g, Saturated Fat: 7g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 260mg, Total Carbohydrates: 18g, Dietary Fiber: <1g, Sugars: 0g, Protein: <1g, Vitamin A: 30%, Vitamin B1: 33%, Vitamin B2: 33%,Vitamin B3: 20%, Vitamin B6: 20%, Vitamin B12: 33%, Folic Acid: 33%"
+    },
+    "LESLIES_CLOVERCHIPS_HAMANDCHEESE_85G": {
+        "netWeight": "85g",
+        "pricePHP": 39.15,
+        "allergens": "Milk",
+        "possibleAllergens": "Crustacean Shellfish, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "nutritionalFacts": "Serving Size: 30g, Serving per Container: about 2, Calories: 160, Calories from Fat: 80, Total Fat: 9g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 260mg, Total Carbohydrates: 18g, Dietary Fiber: <1g, Sugars: <1g, Protein: <1g, Vitamin A: 30%, Vitamin B1: 33%, Vitamin B2: 33%,Vitamin B3: 20%, Vitamin B6: 20%, Vitamin B12: 33%, Folic Acid: 33%"
+    },
+    "LIBBYS_VIENNA_SAUSAGE_130G": {
+        "netWeight": "130g",
+        "pricePHP": 59.4,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 130g, Serving per Container: 1, Calories: 221, Calories from Fat: 175.5, Total Fat: 19.5g, Saturated Fat: 5.2g, Trans Fat: 0.1g, Cholesterol: 97.5mg, Sodium: 585mg, Total Carbohydrates: 2g, Dietary Fiber: 0g, Sugars: 0g, Protein: 10g"
+    },
+    "LIGO_SARDINES_IN_TOMATO_SAUCE_CHILI_ADDED_155G": {
+        "netWeight": "155g",
+        "pricePHP": 24.95,
+        "allergens": "Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 85g, Serving per Container: about 2, Calories: 60, Calories from Fat: 20, Total Fat: 2.5g, Saturated Fat: 1g, Cholesterol: 15mg, Sodium: 540mg, Total Carbohydrates: 3g, Dietary Fiber: 0g, Sugars: 2g, Protein: 6g, Vitamin A: 6%, Calcium: 15%, Iron: 6%"
+    },
+    "LINDT_HELLO_CARAMEL_BROWNIE_100G": {
+        "netWeight": "100g",
+        "pricePHP": 187.07,
+        "allergens": "Milk, Tree Nuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 100g, Energy: 540kcal, Total Fat: 33g, Saturated Fat: 17g, Total Carbohydrates: 53g, Sugars: 51g, Protein: 6.6g, Sodium: 0.12g"
+    },
+    "LINDT_HELLO_COOKIES_AND_CREAM_100G": {
+        "netWeight": "100g",
+        "pricePHP": 280.6,
+        "allergens": "Milk, Tree Nuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 100g, Energy: 567kcal, Total Fat: 36g, Saturated Fat: 21g, Total Carbohydrates: 51g, Sugars: 46g, Protein: 6.8g, Sodium: 0.17g"
+    },
+    "LINDT_HELLO_CRUNCHY_NOUGAT_100G": {
+        "netWeight": "100g",
+        "pricePHP": 223.68,
+        "allergens": "Milk, Tree Nuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 100g, Energy: 546kcal, Total Fat: 32g, Saturated Fat: 20g, Total Carbohydrates: 57g, Sugars: 53g, Protein: 6.2g, Sodium: 0.25g"
+    },
+    "LINDT_HELLO_STRAWBERRY_CHEESECAKE_100G": {
+        "netWeight": "100g",
+        "pricePHP": 273.52,
+        "allergens": "Milk, Tree Nuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 100g, Energy: 549kcal, Total Fat: 34g, Saturated Fat: 20g, Total Carbohydrates: 53g, Sugars: 52g, Protein: 7g, Sodium: 0.21g"
+    },
+    "LOADED_CHOCOLATE_FILLED_SNACK_30G": {
+        "netWeight": "30g",
+        "pricePHP": 7.6,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Serving per Container: 1, Calories: 197, Calories from Fat: 117, Total Fat: 13g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 29mg, Total Carbohydrates: 18g, Dietary Fiber: 0g, Sugars: 8g, Protein: 2g, Vitamin A: 33%, Vitamin C: 0%, Calcium: 0%, Iron: 0%"
+    },
+    "LOADED_WHITE_CHOCO_FILLED_FLAVOR_65G": {
+        "netWeight": "65g",
+        "pricePHP": 16.85,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Serving per Container: 1, Calories: 197, Calories from Fat: 117, Total Fat: 13g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 29mg, Total Carbohydrates: 18g, Dietary Fiber: 0g, Sugars: 8g, Protein: 2g, Vitamin A: 33%, Vitamin C: 0%, Calcium: 0%, Iron: 0%"
+    },
+    "LOTTE_PEPERO_CHOCO_FILLED_40G": {
+        "netWeight": "40g",
+        "pricePHP": 56.5,
+        "allergens": "Milk, Eggs, Tree Nuts, Peanuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 40g, Calories: 25, Total Fat: 12g, Saturated Fat: 7g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 33g, Sugars: 17g, Protein: 4g"
+    },
+    "LOTTE_PEPERO_CRUNCHY_40G": {
+        "netWeight": "40g",
+        "pricePHP": 44.0,
+        "allergens": "Milk, Tree Nuts, Peanuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 39g, Calories: 190, Total Fat: 9g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 5mg, Sodium: 115mg, Total Carbohydrates: 26g, Sugars: 12g, Protein: 3g, Potassium: 98mg"
+    },
+    "LOTTE_PEPERO_DOUBLE_CHOCO_FILLED_40G": {
+        "netWeight": "40g",
+        "pricePHP": 55.0,
+        "allergens": "Milk, Tree Nuts, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 40g, Calories: 200, Total Fat: 10g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 5mg, Sodium: 120mg, Total Carbohydrates: 28g, Sugars: 13g, Protein: 3g"
+    },
+    "LOTTE_PEPERO_WHITE_COOKIE_32G": {
+        "netWeight": "32g",
+        "pricePHP": 57.5,
+        "allergens": "Milk, Eggs, Tree Nuts, Peanuts, Wheat/Cereals/Gluten, Seasame, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 32g, Calories: 160, Total Fat: 8g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 2mg, Sodium: 70mg, Total Carbohydrates: 21g, Sugars: 10g, Protein: 3g"
+    },
+    "LUCKY_7_CARNE_NORTE_150G": {
+        "netWeight": "150g",
+        "pricePHP": 19.8,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 150g, Calories: 300, Total Fat: 20g, Saturated Fat: 8g, Trans Fat: 0g, Cholesterol: 60mg, Sodium: 900mg, Total Carbohydrates: 0g, Sugars: 0g, Protein: 28g"
+    },
+    "LUCKY_ME_PANCIT_CANTON_CHILIMANSI_80G": {
+        "netWeight": "80g",
+        "pricePHP": 14.0,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 80g, Calories: 361, Total Fat: 15g, Saturated Fat: 9g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 1069mg, Total Carbohydrates: 49g, Sugars: 3g, Protein: 7g"
+    },
+    "M&M'S_MILK_CHOCOLATE_87.9G": {
+        "netWeight": "87.9g",
+        "pricePHP": 129.95,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 87.9g, Calories: 501, Total Fat: 21g, Saturated Fat: 13g, Trans Fat: 0g, Cholesterol: 10mg, Sodium: 63mg, Total Carbohydrates: 71g, Sugars: 63g, Protein: 4g"
+    },
+    "MAGNOLIA_CHEEZEE_160G": {
+        "netWeight": "160g",
+        "pricePHP": 54.25,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 160g, Calories: 80, Total Fat: 6g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 7mg, Sodium: 520mg, Total Carbohydrates: 2g, Sugars: 1g, Protein: 3g"
+    },
+    "MAGNOLIA_DAILYQUEZO_160G": {
+        "netWeight": "160g",
+        "pricePHP": 36.4,
+        "allergens": "Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 160g, Calories: 90, Total Fat: 6g, Saturated Fat: 4g, Trans Fat: 0g, Cholesterol: 7mg, Sodium: 520mg, Total Carbohydrates: 7g, Sugars: 1g, Protein: 3g"
+    },
+    "MAYA_CHAMPORADO_227G": {
+        "netWeight": "227g",
+        "pricePHP": 74.55,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 227g, Calories: 80, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 65mg, Total Carbohydrates: 18g, Sugars: 0g, Protein: 2g"
+    },
+    "MEGA_SARDINES_IN_TOMATO_SAUCE_CHILI_ADDED_155G": {
+        "netWeight": "155g",
+        "pricePHP": 24.0,
+        "allergens": "Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 155g, Calories: 50, Total Fat: 2g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 21mg, Sodium: 300mg, Total Carbohydrates: 2g, Sugars: 1g, Protein: 6g"
+    },
+    "MEGA_SQUID_IN_SOY_SAUCE_155G": {
+        "netWeight": "155g",
+        "pricePHP": 43.2,
+        "allergens": "Crustacean Shellfish, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Fish",
+        "nutritionalFacts": "Serving Size: 155g, Calories: 41, Total Fat: 1g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 334mg, Total Carbohydrates: 0g, Sugars: 0g, Protein: 8g"
+    },
+    "MEGA_SQUID_IN_SOY_SAUCE_CHILI_ADDED_155G": {
+        "netWeight": "155g",
+        "pricePHP": 43.2,
+        "allergens": "Crustacean Shellfish, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": "Fish",
+        "nutritionalFacts": "Serving Size: 155g, Calories: 45, Total Fat: 0.5g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 240mg, Total Carbohydrates: 0g, Sugars: 0g, Protein: 9g"
+    },
+    "MEIJI_HELLO_PANDA_CARAMEL_43G": {
+        "netWeight": "43g",
+        "pricePHP": 43.0,
+        "allergens": "Milk, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Seasame",
+        "nutritionalFacts": "Serving Size: 43g, Calories: 210, Total Fat: 11g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 26g, Sugars: 14g, Protein: 2g"
+    },
+    "MEIJI_HELLO_PANDA_CHOCOLATE_43G": {
+        "netWeight": "43g",
+        "pricePHP": 43.0,
+        "allergens": "Milk, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Seasame",
+        "nutritionalFacts": "Serving Size: 43g, Calories: 210, Total Fat: 11g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 26g, Sugars: 14g, Protein: 2g"
+    },
+    "MEIJI_HELLO_PANDA_COCOA_BISCUIT_CHOCOLATE_43G": {
+        "netWeight": "43g",
+        "pricePHP": 43.0,
+        "allergens": "Milk, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Seasame",
+        "nutritionalFacts": "Serving Size: 43g, Calories: 210, Total Fat: 11g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 26g, Sugars: 14g, Protein: 2g"
+    },
+    "MEIJI_HELLO_PANDA_STRAWBERRY_43G": {
+        "netWeight": "43g",
+        "pricePHP": 43.0,
+        "allergens": "Milk, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Seasame",
+        "nutritionalFacts": "Serving Size: 43g, Calories: 210, Total Fat: 11g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 26g, Sugars: 14g, Protein: 2g"
+    },
+    "MILKIS_ORIGINAL_300ML": {
+        "netWeight": "300ml",
+        "pricePHP": 60.0,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Wheat/Cereals/Gluten, Seasame",
+        "nutritionalFacts": "Serving Size: 300ml, Calories: 154, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 37g, Sugars: 37g, Protein: 1g"
+    },
+    "MINUTE_MAID_FRESH_800ML": {
+        "netWeight": "800ml",
+        "pricePHP": 38.0,
+        "allergens": null,
+        "possibleAllergens": "Soybeans/Soy/Soya",
+        "nutritionalFacts": "Serving Size: 800ml, Calories: 52, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 13g, Sugars: 12g, Protein: 0g"
+    },
+    "MOUNTAIN_DEW_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 33.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 500ml, Calories: 240, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 85mg, Total Carbohydrates: 65g, Sugars: 65g, Protein: 0g"
+    },
+    "MOUNTAIN_DEW_ZERO_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 33.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 500ml, Calories: 240, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 85mg, Total Carbohydrates: 65g, Sugars: 65g, Protein: 0g"
+    },
+    "MY_SAN_FITA_SPREADZ_BACON_25G": {
+        "netWeight": "25g",
+        "pricePHP": 70.19,
+        "allergens": "Milk, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Peanuts",
+        "nutritionalFacts": "Serving Size: 25g, Calories: 123, Total Fat: 5g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 17g, Sugars: 0g, Protein: 2g"
+    },
+    "MY_SAN_FITA_SPREADZ_SPICY_TUNA_25G": {
+        "netWeight": "25g",
+        "pricePHP": 69.4,
+        "allergens": "Milk, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Peanuts",
+        "nutritionalFacts": "Serving Size: 25g, Calories: 124, Total Fat: 6g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 17g, Sugars: 0g, Protein: 2g"
+    },
+    "NAGARAYA_ADOBO_160G": {
+        "netWeight": "160g",
+        "pricePHP": 42.0,
+        "allergens": "Peanuts, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Tree Nuts",
+        "nutritionalFacts": "Serving Size: 30g, Calories: 150, Total Fat: 6g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 18g, Sugars: 7g, Protein: 4g"
+    },
+    "NAGARAYA_BARBEQUE_160G": {
+        "netWeight": "160g",
+        "pricePHP": 42.0,
+        "allergens": "Peanuts, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Tree Nuts",
+        "nutritionalFacts": "Serving Size: 30g, Calories: 150, Total Fat: 6g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 18g, Sugars: 7g, Protein: 4g"
+    },
+    "NATURE_SPRING_350ML": {
+        "netWeight": "350ml",
+        "pricePHP": 8.25,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 350ml, Calories: 0, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 0g, Sugars: 0g, Protein: 0g"
+    },
+    "NATURE_SPRING_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 10.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 500ml, Calories: 0, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 0g, Sugars: 0g, Protein: 0g"
+    },
+    "NATURE_SPRING_1L": {
+        "netWeight": "1L",
+        "pricePHP": 18.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 1L, Calories: 0, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 0g, Sugars: 0g, Protein: 0g"
+    },
+    "NESTLE_GOLD_CORN_FLAKES_275G": {
+        "netWeight": "275g",
+        "pricePHP": 161.5,
+        "allergens": "Wheat/Cereals/Gluten",
+        "possibleAllergens": "Milk, Tree Nuts, Wheat/Cereals/Gluten",
+        "nutritionalFacts": "Serving Size: 300g, Calories: 113, Total Fat: 0.7g, Saturated Fat: 0.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 134mg, Total Carbohydrates: 24.4g, Sugars: 3.1g, Protein: 2.1g"
+    },
+    "NESTLE_HONEYSTARS_ORIGINAL_300G": {
+        "netWeight": "300g",
+        "pricePHP": 229.0,
+        "allergens": "Wheat/Cereals/Gluten",
+        "possibleAllergens": "Milk, Soybeans/Soy/Soya, Tree Nuts",
+        "nutritionalFacts": "Serving Size: 300g, Calories: 115, Total Fat: 0.8g, Saturated Fat: 0.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 34mg, Total Carbohydrates: 25g, Sugars: 7.5g, Protein: 2.1g"
+    },
+    "NESTLE_KOKOKRUNCH_CHOCOLATE_330G": {
+        "netWeight": "330g",
+        "pricePHP": 208.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": "Milk, Tree Nuts, Soybeans/Soy/Soya",
+        "nutritionalFacts": "Serving Size: 300g, Calories: 112, Total Fat: 0.8g, Saturated Fat: 0.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 54mg, Total Carbohydrates: 25g, Sugars: 8g, Protein: 2.8g"
+    },
+    "NISSIN_CUBEE_VANILLA_WAFER_25G": {
+        "netWeight": "25g",
+        "pricePHP": 10.2,
+        "allergens": "Milk, Soybeans/Soy/Soya, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Eggs",
+        "nutritionalFacts": "Serving Size: 25g, Calories: 133, Total Fat: 7g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 20mg, Total Carbohydrates: 15g, Sugars: 10g, Protein: 2g"
+    },
+    "NISSIN_CUP_NOODLES_CREAMY_SEAFOOD_45G": {
+        "netWeight": "45g",
+        "pricePHP": 21.5,
+        "allergens": "Fish, Crustacean Shellfish, Soybeans/Soy/Soya",
+        "possibleAllergens": "Milk, Eggs",
+        "nutritionalFacts": "Serving Size: 45g, Calories: 210, Total Fat: 9g, Saturated Fat: 7g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 650mg, Total Carbohydrates: 28g, Sugars: 5g, Protein: 5g"
+    },
+    "NISSIN_CUP_NOODLES_SEAFOOD_40G": {
+        "netWeight": "40g",
+        "pricePHP": 21.5,
+        "allergens": "Fish, Crustacean Shellfish, Soybeans/Soy/Soya",
+        "possibleAllergens": "Milk, Eggs",
+        "nutritionalFacts": "Serving Size: 40g, Calories: 180, Total Fat: 7g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 1450mg, Total Carbohydrates: 24g, Sugars: 4g, Protein: 4g"
+    },
+    "NISSIN_CUP_NOODLES_SOTANGHON_30G": {
+        "netWeight": "30g",
+        "pricePHP": 20.0,
+        "allergens": "Fish, Crustacean Shellfish, Soybeans/Soy/Soya",
+        "possibleAllergens": "Milk, Eggs",
+        "nutritionalFacts": "Serving Size: 40g, Calories: 110, Total Fat: 1.5g, Saturated Fat: 0.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105mg, Total Carbohydrates: 21g, Sugars: 2g, Protein: 2g"
+    },
+    "NISSIN_CUP_NOODLES_SPICY_SEAFOOD_45G": {
+        "netWeight": "40g",
+        "pricePHP": 21.5,
+        "allergens": "Fish, Crustacean Shellfish, Soybeans/Soy/Soya",
+        "possibleAllergens": "Milk, Eggs",
+        "nutritionalFacts": "Serving Size: 40g, Calories: 180, Total Fat: 7g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 1450mg, Total Carbohydrates: 24g, Sugars: 4g, Protein: 4g"
+    },
+    "NUTRISNACK_MOBY_CARAMEL_25G": {
+        "netWeight": "25g",
+        "pricePHP": 6.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "NUTRISNACK_MOBY_CARAMEL_60G": {
+        "netWeight": "60g",
+        "pricePHP": 14.9,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "OATSIDE_BARISTA_BLEND_1L": {
+        "netWeight": "1L",
+        "pricePHP": 146.25,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "OATSIDE_CHOCOLATE_1L": {
+        "netWeight": "1L",
+        "pricePHP": 169.25,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "OISHI_PILLOWS_CHOCO-FILLED_CRACKERS_38G": {
+        "netWeight": "38g",
+        "pricePHP": 10.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "OISHI_POTATO_FRIES_50G": {
+        "netWeight": "50g",
+        "pricePHP": 16.95,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "OISHI_PRAWN_CRACKERS_30G": {
+        "netWeight": "30g",
+        "pricePHP": 20.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "OISHI_PRAWN_CRACKERS_90G": {
+        "netWeight": "90g",
+        "pricePHP": 27.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "OREO_WAFER_ROLL_3\u00d718G": {
+        "netWeight": "54g",
+        "pricePHP": 49.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PASCUAL_GREEK_MANGO_250ML": {
+        "netWeight": "250ml",
+        "pricePHP": 41.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PASCUAL_GREEK_PLAIN_250ML": {
+        "netWeight": "250ml",
+        "pricePHP": 41.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PASCUAL_GREEK_STRAWBERRY_250ML": {
+        "netWeight": "250ml",
+        "pricePHP": 41.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PEPSI_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 35.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PEPSI_ZERO_SUGAR_LIME_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 35.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PIKNIK_CHEDDARCHEESE_106G": {
+        "netWeight": "106g",
+        "pricePHP": 109.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PIKNIK_CHEDDARCHEESE_241G": {
+        "netWeight": "241g",
+        "pricePHP": 169.25,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PIKNIK_ORIGINAL_113G": {
+        "netWeight": "113g",
+        "pricePHP": 109.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "POCARI_SWEAT_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 49.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "POCKY_STRAWBERRY_PEACH_YOGURT_30G": {
+        "netWeight": "30g",
+        "pricePHP": 62.95,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "POPPLE_APPLE_FLAVORED_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 33.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PRINGLES_CHEESY_CHEESE_134G": {
+        "netWeight": "134g",
+        "pricePHP": 119.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PRINGLES_ORIGINAL_147G": {
+        "netWeight": "147g",
+        "pricePHP": 119.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "PUREFOODS_CHINESE_STYLE_LUNCHEON_MEAT_350G": {
+        "netWeight": "350g",
+        "pricePHP": 85.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "RC_COLA_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 35.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "REBISCO_HANSEL_CRACKERS_32G": {
+        "netWeight": "32g",
+        "pricePHP": 9.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "REDBULL_ENERGY_DRINK_150ML": {
+        "netWeight": "150ml",
+        "pricePHP": 41.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "REFRESH_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 8.25,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "RELISH_PIECES&STEMS_MUSHROOMS_115G": {
+        "netWeight": "155g",
+        "pricePHP": 25.75,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Eggs, Tree Nuts, Peanuts",
+        "nutritionalFacts": "Serving Size: 32g, Calories: 140, Total Fat: 4g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 100mg, Total Carbohydrates: 24g, Sugars: 12g, Protein: 2g"
+    },
+    "REPUBLIC_BISCUIT_FROOTEES_GRAPE_JAM_32G": {
+        "netWeight": "32g",
+        "pricePHP": 60.65,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Peanuts, Tree Nuts, Eggs",
+        "nutritionalFacts": "Serving Size: 32g, Calories: 140, Total Fat: 4g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 100mg, Total Carbohydrates: 24g, Sugars: 12g, Protein: 2g"
+    },
+    "REPUBLIC_BISCUIT_FROOTEES_MANGO_JAM_32G": {
+        "netWeight": "32g",
+        "pricePHP": 60.65,
+        "allergens": "Milk, Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": "Peanuts, Tree Nuts, Eggs",
+        "nutritionalFacts": "Serving Size: 32g, Calories: 140, Total Fat: 4g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 100mg, Total Carbohydrates: 24g, Sugars: 12g, Protein: 2g"
+    },
+    "REPUBLIC_BISCUIT_FROOTEES_STRAWBERRY_JAM_32G": {
+        "netWeight": "32g",
+        "pricePHP": 60.65,
+        "allergens": "Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Milk",
+        "possibleAllergens": "Eggs, Tree Nuts, Peanuts",
+        "nutritionalFacts": "Serving Size: 32g, Calories: 140, Total Fat: 4g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 100mg, Total Carbohydrates: 24g, Sugars: 12g, Protein: 2g"
+    },
+    "RICHOCO_WAFER_CHOCOLATE_48G": {
+        "netWeight": "48g",
+        "pricePHP": 11.05,
+        "allergens": "Wheat/Cereals/Gluten, Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Eggs",
+        "nutritionalFacts": "Serving Size: 48g, Calories: 221, Total Fat: 10.8g, Saturated Fat: 4.8g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 106mg, Total Carbohydrates: 28.8g, Sugars: 12.5g, Protein: 1.9g"
+    },
+    "RITZ_ORIGINAL_3PACK": {
+        "netWeight": "300g",
+        "pricePHP": 229.0,
+        "allergens": "Wheat/Cereals/Gluten, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "3 x 350g (1,050g total) Wheat, Soy None Per 100g: Calories: 484, Total Fat: 23g, Saturated Fat: 6g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 699mg, Total Carbohydrates: 60g, Sugars: 8g, Protein: 7.7g"
+    },
+    "ROYAL_290ML": {
+        "netWeight": "290ml",
+        "pricePHP": 19.55,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 290ml, Calories: 59, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 19.6mg, Total Carbohydrates: 14.7g, Sugars: 14.7g, Protein: 0g"
+    },
+    "ROYAL_TRU_ORANGE_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 38.25,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 500ml, Calories: 101, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 34mg, Total Carbohydrates: 25.3g, Sugars: 25.3g, Protein: 0g, Vitamin B3: 15% RNI, Vitamin B5: 15% RNI"
+    },
+    "SAN_MARINO_CHILI_CORNED_TUNA_100G": {
+        "netWeight": "100g",
+        "pricePHP": 29.3,
+        "allergens": "Fish, Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Eggs",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Calories: 145, Total Fat: 7.6g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 10mg, Sodium: 465mg, Total Carbohydrates: 8g, Dietary Fiber: 2g, Sugars: 1g, Protein: 11g"
+    },
+    "SAN_MARINO_CHILI_CORNED_TUNA_85G": {
+        "netWeight": "85g",
+        "pricePHP": 28.05,
+        "allergens": "Fish, Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Eggs",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Calories: 141, Total Fat: 7.6g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 10mg, Sodium: 396mg, Total Carbohydrates: 8g, Dietary Fiber: 2g, Sugars: 1g, Protein: 11g"
+    },
+    "SAN_MARINO_CORNED_TUNA_100G": {
+        "netWeight": "100g",
+        "pricePHP": 29.3,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Calories: 145, Total Fat: 7.6g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 20mg, Sodium: 700mg, Total Carbohydrates: 5.3g, Dietary Fiber: 2g, Sugars: 1g, Protein: 10.7g"
+    },
+    "SAN_MARINO_CORNED_TUNA_150G": {
+        "netWeight": "150g",
+        "pricePHP": 37.0,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Calories: 249, Total Fat: 13.4g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 26.8mg, Sodium: 1,061mg, Total Carbohydrates: 13.4g, Dietary Fiber: 5.4g, Sugars: 2.7g, Protein: 18.8g"
+    },
+    "SCHOGETTEN_ALPINE_MILK_100G": {
+        "netWeight": "100g",
+        "pricePHP": 94.0,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Peanuts, Wheat/Cereals/Gluten, Eggs",
+        "nutritionalFacts": "Calories: 560 kcal, Total Fat: 35g, Saturated Fat: 22g, Trans Fat: 0g, Cholesterol: N/A, Sodium: 0.14g, Total Carbohydrates: 55g, Sugars: 55g, Protein: 5.4g"
+    },
+    "SEAPOINT_CORNED_TUNA_150G": {
+        "netWeight": "150g",
+        "pricePHP": 37.0,
+        "allergens": "Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Calories: 90, Total Fat: 4.5g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 30mg, Sodium: 600mg, Total Carbohydrates: 4.5g, Sugars: 0g, Protein: 9g"
+    },
+    "SEAPOINT_MACKEREL_IN_NATURAL_OIL_155G": {
+        "netWeight": "155g",
+        "pricePHP": 50.0,
+        "allergens": "Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Calories: 131, Total Fat: 1.5g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 0g, Sugars: 0g, Protein: 17g"
+    },
+    "SEAPOINT_SARDINES_CHUNKS_IN_TOMATO_SAUCE_155G": {
+        "netWeight": "155g",
+        "pricePHP": 50.0,
+        "allergens": "Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Calories: 130, Total Fat: 7g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 30mg, Sodium: 400mg, Total Carbohydrates: 0g, Sugars: 0g, Protein: 17g"
+    },
+    "SEAPOINT_SARDINES_IN_TOMATO_SAUCE_155G": {
+        "netWeight": "155g",
+        "pricePHP": 23.75,
+        "allergens": "Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Calories: 130, Total Fat: 7g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 30mg, Sodium: 400mg, Total Carbohydrates: 0g, Sugars: 0g, Protein: 17g"
+    },
+    "SEAPOINT_TUNA_FLAKES_IN_SPICY_OIL_150G": {
+        "netWeight": "150g",
+        "pricePHP": 60.0,
+        "allergens": "Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 150g, Calories: 51, Total Fat: 1g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 5g, Sugars: 0g, Protein: 6g"
+    },
+    "SOLA_APPLE_GREEN_TEA_473ML": {
+        "netWeight": "473ml",
+        "pricePHP": 69.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 473ml, Calories: 130, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 32g, Sugars: 32g, Protein: 0g"
+    },
+    "SOLA_ICED_TEA_LEMON_473ML": {
+        "netWeight": "473ml",
+        "pricePHP": 71.55,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 290ml, Calories: 116, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 49mg, Total Carbohydrates: 31g, Sugars: 31g, Protein: 0g"
+    },
+    "SOLA_ICED_TEA_RASPBERRY_473ML": {
+        "netWeight": "473ml",
+        "pricePHP": 69.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 473ml, Calories: 189, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 47g, Sugars: 47g, Protein: 0g"
+    },
+    "SPRITE_LEMON_LIME_DRINK_290ML": {
+        "netWeight": "290ml",
+        "pricePHP": 30.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 290ml, Calories: 55, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 12mg, Total Carbohydrates: 12.8g, Sugars: 12.8g, Protein: 0g"
+    },
+    "SPRITE_LEMON_LIME_DRINK_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 37.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 500ml, Calories: 200, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 85mg, Total Carbohydrates: 54g, Sugars: 54g, Protein: 0g"
+    },
+    "STAR_NUTRIMEATS_BEEF_LOAF_150G": {
+        "netWeight": "150g",
+        "pricePHP": 19.5,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": "Wheat/Cereals/Gluten, Eggs, Milk",
+        "nutritionalFacts": "Calories: 179, Total Fat: 6g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 30mg, Sodium: 400mg, Total Carbohydrates: 16.5g, Dietary Fiber: 0g, Sugars: 1.5g, Protein: 4.5g"
+    },
+    "STAR_NUTRIMEATS_CORNED_BEEF_150G": {
+        "netWeight": "150g",
+        "pricePHP": 34.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": "Wheat/Cereals/Gluten, Eggs, Milk",
+        "nutritionalFacts": "Calories: 114, Total Fat: 7.5g, Saturated Fat: 3.2g, Trans Fat: 0g, Cholesterol: 35mg, Sodium: 450mg, Total Carbohydrates: 2.3g, Dietary Fiber: 0g, Sugars: 0.5g, Protein: 8.9g"
+    },
+    "STAR_NUTRIMEATS_CORNED_BEEF_CHUNKY_CHEESE_150G": {
+        "netWeight": "150g",
+        "pricePHP": 38.5,
+        "allergens": "Milk, Soybeans/Soy/Soya",
+        "possibleAllergens": "Eggs, Wheat/Cereals/Gluten",
+        "nutritionalFacts": "Calories: 284, Total Fat: 21.4g, Saturated Fat: 10.7g, Trans Fat: 0g, Cholesterol: 34.8mg, Sodium: 2063mg, Total Carbohydrates: 8g, Dietary Fiber: 1.5g, Sugars: 1.5g, Protein: 14.3g"
+    },
+    "STAR_NUTRIMEATS_MEAT_LOAF_150G": {
+        "netWeight": "150g",
+        "pricePHP": 21.5,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": "Wheat/Cereals/Gluten, Eggs, Milk",
+        "nutritionalFacts": "Serving Size: 66g, Servings Per Container: about 2.3, Calories: 104, Total Fat: 7g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 30mg, Sodium: 400mg, Total Carbohydrates: 3g, Dietary Fiber: 0g, Sugars: 1g, Protein: 7g"
+    },
+    "STING_330ML": {
+        "netWeight": "330ml",
+        "pricePHP": 22.1,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 330ml, Calories: 242, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 105.3mg, Total Carbohydrates: 63.4g, Sugars: 62.4g, Protein: 0g, Vitamin B3: 3.3mg, Vitamin B6: 0.66mg, Vitamin B12: 12\u03bcg"
+    },
+    "SUGO_CRACKER_NUTS_BBQ_30G": {
+        "netWeight": "30g",
+        "pricePHP": 20.0,
+        "allergens": "Peanuts, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Milk, Eggs",
+        "nutritionalFacts": "Serving Size: 30g, Calories: 151, Total Fat: 7.8g, Saturated Fat: 2.4g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 240mg, Total Carbohydrates: 8.4g, Dietary Fiber: 0g, Sugars: 1g, Protein: 9g"
+    },
+    "SUGO_CRACKER_NUTS_BUTTER_30G": {
+        "netWeight": "30g",
+        "pricePHP": 20.0,
+        "allergens": "Wheat/Cereals/Gluten, Peanuts",
+        "possibleAllergens": "Milk, Eggs",
+        "nutritionalFacts": "Serving Size: 30g, Calories: 150, Total Fat: 6g, Saturated Fat: 1.5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 4mg, Total Carbohydrates: 13g, Dietary Fiber: 2g, Sugars: 4g, Protein: 5g"
+    },
+    "SUGO_CRACKER_NUTS_GARLIC_30G": {
+        "netWeight": "30g",
+        "pricePHP": 20.0,
+        "allergens": "Peanuts, Wheat/Cereals/Gluten",
+        "possibleAllergens": "Soybeans/Soy/Soya, Milk, Eggs",
+        "nutritionalFacts": "Serving Size: 30g, Calories: 151, Total Fat: 7.8g, Saturated Fat: 2.4g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 240mg, Total Carbohydrates: 8.4g, Dietary Fiber: 0g, Sugars: 1g, Protein: 9g"
+    },
+    "SUGO_HONEYROASTEDPEANUTS_100G": {
+        "netWeight": "100g",
+        "pricePHP": 30.55,
+        "allergens": "Peanuts",
+        "possibleAllergens": "Tree Nuts",
+        "nutritionalFacts": "Serving Size: 100g, Calories: 437, Total Fat: 15.7g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 1232.2mg, Total Carbohydrates: 65.5g, Dietary Fiber: 3.9g, Sugars: 3.4g, Protein: 10.4g"
+    },
+    "SUGO_SALTED_PEANUTS_100G": {
+        "netWeight": "100g",
+        "pricePHP": 30.45,
+        "allergens": "Peanuts, Fish",
+        "possibleAllergens": "Tree Nuts",
+        "nutritionalFacts": "Serving Size: 100g, Calories: 633, Total Fat: 50g, Saturated Fat: 20g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 800mg, Total Carbohydrates: 20g, Dietary Fiber: 0g, Sugars: 3.3g, Protein: 30g"
+    },
+    "SUMMIT_1L": {
+        "netWeight": "1L",
+        "pricePHP": 18.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "SUMMIT_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 11.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "SUNBEST_SHIITAKE_MUSHROOM_SLICES_284G": {
+        "netWeight": "284g",
+        "pricePHP": 35.3,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 284g, Calories: 33, Total Fat: 0.9g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 12.7mg, Total Carbohydrates: 6.5g, Dietary Fiber: 2.8g, Sugars: 2.5g, Protein: 3.7g"
+    },
+    "SUPER_CRUNCH_SWEET_CORN_120G": {
+        "netWeight": "120g",
+        "pricePHP": 25.25,
+        "allergens": null,
+        "possibleAllergens": "Milk",
+        "nutritionalFacts": "Serving Size: 120g, Calories: 2845, Total Fat: 44.4g, Saturated Fat: 20.4g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 680mg, Total Carbohydrates: 68.4g, Dietary Fiber: 0g, Sugars: 8.4g, Protein: 8.4g"
+    },
+    "TOSTITOS_ORIGINAL_283G": {
+        "netWeight": "283.5g",
+        "pricePHP": 182.25,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 283.5g, Calories: 1417, Total Fat: 70.9g, Saturated Fat: 10.1g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 1063mg, Total Carbohydrates: 192.4g, Dietary Fiber: 10.1g, Sugars: 0g, Protein: 20.3g"
+    },
+    "TWISTO_SUPER_APPLE_250ML": {
+        "netWeight": "250ml",
+        "pricePHP": 13.14,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 250ml, Calories: 100, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 25g, Sugars: 25g, Protein: 0g "
+    },
+    "UFC_SHIITAKE_198G": {
+        "netWeight": "198g",
+        "pricePHP": 40.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 198g, Calories: 81, Total Fat: 0.3g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 5.8mg, Total Carbohydrates: 21g, Dietary Fiber: 3g, Sugars: 5.6g, Protein: 2.3g"
+    },
+    "ULAM_KING_SAUCY_MECHADO_155G": {
+        "netWeight": "155g",
+        "pricePHP": 23.0,
+        "allergens": "Soybeans/Soy/Soya, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 155g, Calories: 230, Total Fat: 16g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 30mg, Sodium: 500mg, Total Carbohydrates: 6g, Dietary Fiber: 1g, Sugars: 2g, Protein: 16g"
+    },
+    "ULTRA_PURE_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 12.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 500ml"
+    },
+    "UNI-PAK_MACKEREL_FLAKES_IN_OIL_180G": {
+        "netWeight": "180g",
+        "pricePHP": 46.7,
+        "allergens": "Milk, Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": "Wheat/Cereals/Gluten",
+        "nutritionalFacts": "erving Size: 180g, Calories: 180, Total Fat: 10g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 30mg, Sodium: 300mg, Total Carbohydrates: 0g, Dietary Fiber: 0g, Sugars: 0g, Protein: 23g"
+    },
+    "UNI-PAK_MACKEREL_FLAKES_IN_OIL_HOT&SPICY_180G": {
+        "netWeight": "180g",
+        "pricePHP": 46.7,
+        "allergens": "Milk, Fish, Soybeans/Soy/Soya",
+        "possibleAllergens": "Wheat/Cereals/Gluten",
+        "nutritionalFacts": "erving Size: 180g, Calories: 180, Total Fat: 10g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 30mg, Sodium: 300mg, Total Carbohydrates: 0g, Dietary Fiber: 0g, Sugars: 0g, Protein: 23g"
+    },
+    "UNIVERSAL_ROBINA_CALBEE_CHEDDAR_AND _SOUR_CREAM_170G": {
+        "netWeight": "170g",
+        "pricePHP": 124.7,
+        "allergens": "Wheat/Cereals/Gluten, Soybeans/Soy/Soya, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 30g, Servings Per Container: about 5, Calories: 160, Total Fat: 9g, Saturated Fat: 4g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 230mg, Total Carbohydrates: 17g, Dietary Fiber: 1g, Sugars: 1g, Protein: 2g"
+    },
+    "VIT_SUNCOAST_APPLE_600ML": {
+        "netWeight": "600ml",
+        "pricePHP": 49.75,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 600ml, Calories: 175, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 125mg, Total Carbohydrates: 45g, Sugars: 45g, Protein: 0g, Vitamin C: 60mg, Calcium: 78mg, Potassium: 100mg "
+    },
+    "VITAMILK_300ML": {
+        "netWeight": "300ml",
+        "pricePHP": 29.5,
+        "allergens": "Soybeans/Soy/Soya, Milk",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 300ml, Calories: 207, Total Fat: 9g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 95mg, Total Carbohydrates: 25.3g, Sugars: 25.3g, Protein: 6.5g"
+    },
+    "VITAMILK_BANANA_300ML": {
+        "netWeight": "300ml",
+        "pricePHP": 32.45,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 300ml, Calories: 210, Total Fat: 7g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 0mg, Total Carbohydrates: 23g, Sugars: 0g, Protein: 8g"
+    },
+    "VITAMILK_CHOCO_SHAKE_300ML": {
+        "netWeight": "300ml",
+        "pricePHP": 29.45,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 300ml, Calories: 210, Total Fat: 6g, Saturated Fat: 1g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 160mg, Total Carbohydrates: 31g, Sugars: 26.4g, Protein: 10g"
+    },
+    "WAGI_CARNE_NORTE_150G": {
+        "netWeight": "150g",
+        "pricePHP": 50.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 150g, Calories: 110, Total Fat: 7g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 25mg, Sodium: 600mg, Total Carbohydrates: 4g, Sugars: 0g, Protein: 6g"
+    },
+    "WAGI_CORNED_BEEF_150G": {
+        "netWeight": "150g",
+        "pricePHP": 27.5,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 150g, Calories: 380, Total Fat: 25g, Saturated Fat: 7.5g, Trans Fat: 0g, Cholesterol: 160mg, Sodium: 1,260mg, Total Carbohydrates: 3g, Dietary Fiber: 0g, Sugars: 0g, Protein: 28g"
+    },
+    "WAGI_VIENNA_SAUSAGE_150G": {
+        "netWeight": "150g",
+        "pricePHP": 25.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 150g, Calories: 380, Total Fat: 25g, Saturated Fat: 7.5g, Trans Fat: 0g, Cholesterol: 160mg, Sodium: 1,260mg, Total Carbohydrates: 3g, Dietary Fiber: 0g, Sugars: 0g, Protein: 28g"
+    },
+    "WELCHS_GRAPE_JUICE_473ML": {
+        "netWeight": "473ml",
+        "pricePHP": 149.15,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 473ml, Calories: 178, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 20mg, Total Carbohydrates: 47g, Sugars: 46g, Protein: 1g"
+    },
+    "WHITEKING_CHAMPORADO_113G": {
+        "netWeight": "113g",
+        "pricePHP": 36.55,
+        "allergens": "Milk, Wheat/Cereals/Gluten",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 113g, Calories: 398, Total Fat: 1.24g, Saturated Fat: 0.91g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 1,130mg, Total Carbohydrates: 88.1g, Dietary Fiber: 11.3g, Sugars: 0g, Protein: 9.7g"
+    },
+    "WILKINS_DISTILLED_1L": {
+        "netWeight": "1L",
+        "pricePHP": 31.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "WILKINS_PURE_1L": {
+        "netWeight": "1L",
+        "pricePHP": 29.0,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": null
+    },
+    "WINNER_MEAT_LOAF_150G": {
+        "netWeight": "150g",
+        "pricePHP": 19.0,
+        "allergens": "Soybeans/Soy/Soya",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 150g, Calories: 306, Total Fat: 18.17g, Saturated Fat: 5.98g, Trans Fat: 0g, Cholesterol: 119mg, Sodium: 621mg, Total Carbohydrates: 9.78g, Dietary Fiber: 0.6g, Sugars: 2.43g, Protein: 24.24g"
+    },
+    "YOUNGSTOWN_SARDINES_TOMATOSAUCE_155G": {
+        "netWeight": "155g",
+        "pricePHP": 22.8,
+        "allergens": "Fish",
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 155g, Calories: 119, Total Fat: 4g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 882mg, Total Carbohydrates: 2g, Dietary Fiber: 0g, Sugars: 0g, Protein: 16g"
+    },
+    "ZESTO_CALAMANSI_SODA_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 32.85,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 500ml, Calories: 167, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Total Carbohydrates: 42.4g, Sugars: 42.4g, Protein: 0g"
+    },
+    "ZESTO_DALANDAN_SODA_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 33.5,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size: 500ml, Calories: 167, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 15mg, Total Carbohydrates: 41g, Dietary Fiber: 0g, Sugars: 41g, Protein: 0g"
+    },
+    "ZESTO_ROOTBEER_500ML": {
+        "netWeight": "500ml",
+        "pricePHP": 32.75,
+        "allergens": null,
+        "possibleAllergens": null,
+        "nutritionalFacts": "Serving Size:500ml, Calories: 167, Total Fat: 0g, Saturated Fat: 0g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 38mg, Total Carbohydrates: 41g, Sugars: 41g, Protein: 0g"
+    }
+}

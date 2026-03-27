@@ -14,7 +14,6 @@ Assets/Readme.asset
 Assets/TutorialInfo
 Assets/Settings
 .idea
-Assets/Resources
 Assets/Meshes
 Assets/Prefabs
 Assets/Samples
@@ -33,3 +32,9 @@ BrewedInk.BNuget.Sample.LlamaSharp.csproj
 Assets/TextMesh Pro
 Assets/XR
 Assets/XRI
+Assets/Resources/Animated Hands
+Assets/Resources/FBX
+Assets/Resources/Materials
+
+Assets/Resources/Prefabs
+Assets/Resources/Textures
