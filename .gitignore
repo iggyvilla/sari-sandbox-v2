@@ -19,7 +19,7 @@ Assets/Samples
 Unity.RenderPipelines.Core.Samples.Editor.csproj
 Unity.RenderPipelines.Core.Samples.Runtime.csproj
 mono_crash.143e1228bd.0.json
-Assets/Materials/*
+Assets/Materials/Scalable Grid Prototype Materials
 !Assets/Materials/Shaders
 mono_crash.187ac900c0.0.json
 MCPDefinition.csproj
