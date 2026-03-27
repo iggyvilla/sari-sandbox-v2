@@ -15,6 +15,21 @@ Assets/TutorialInfo
 Assets/Settings
 .idea
 Assets/Resources
-Assets/Materials
 Assets/Meshes
 Assets/Prefabs
+Assets/Samples
+Unity.RenderPipelines.Core.Samples.Editor.csproj
+Unity.RenderPipelines.Core.Samples.Runtime.csproj
+mono_crash.143e1228bd.0.json
+Assets/Materials/*
+!Assets/Materials/Shaders
+mono_crash.187ac900c0.0.json
+MCPDefinition.csproj
+BrewedInk.BNuget.csproj
+BrewedInk.BNuget.Sample.QRCodes.csproj
+BrewedInk.BNuget.Sample.DadJokes.csproj
+BrewedInk.BNuget.Sample.LlamaSharp.Editor.csproj
+BrewedInk.BNuget.Sample.LlamaSharp.csproj
+Assets/TextMesh Pro
+Assets/XR
+Assets/XRI
