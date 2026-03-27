@@ -15,7 +15,6 @@ Assets/TutorialInfo
 Assets/Settings
 .idea
 Assets/Meshes
-Assets/Prefabs
 Assets/Samples
 Unity.RenderPipelines.Core.Samples.Editor.csproj
 Unity.RenderPipelines.Core.Samples.Runtime.csproj
