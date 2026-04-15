@@ -89,6 +89,8 @@ public class ShelfBuilder : MonoBehaviour
         spawnPriceTags        = data.spawnPriceTags;
         itemSpawnOption       = data.itemSpawnOption;
         itemCategory          = data.itemCategory;
+        spawnHingeDoors       = data.spawnHingeDoors;
+        fridgeDoorStyle       = data.fridgeDoorStyle;
     }
 
     void Start()

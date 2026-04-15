@@ -929,7 +929,7 @@ MonoBehaviour:
     buildShelfRoof: 0
   spawnItems: 1
   spawnPriceTags: 1
-  itemSpawnOption: 0
+  itemSpawnOption: 1
   itemCategory: 2
   shelfSideProfile: {fileID: 6631391007982317998, guid: 7fcc8c80075bc4173a9eccb352b8d2c2, type: 3}
   shelfMaterial: {fileID: 2100000, guid: 9f1200f208a524fc79e71847e7f7a499, type: 2}
@@ -1544,7 +1544,7 @@ MonoBehaviour:
   itemCategories:
     Categories: []
   storeName: DefaultStore
-  readSave: 0
+  readSave: 1
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   floor: {fileID: 593330296}
 --- !u!114 &713415075
@@ -3057,25 +3057,13 @@ PrefabInstance:
       propertyPath: floor
       value: 
       objectReference: {fileID: 593330296}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: spawnPriceTags
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: itemSpawnOption
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: metalShelfMaterial
-      value: 
-      objectReference: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_Name
       value: ShelfBuilder
       objectReference: {fileID: 0}
     - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -3.5
+      value: 6.5
       objectReference: {fileID: 0}
     - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_LocalPosition.y
