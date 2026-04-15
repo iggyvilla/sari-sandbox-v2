@@ -44,6 +44,8 @@ public class ShelfBuilder : MonoBehaviour
     public GameObject shelfSideProfile;
     [Tooltip("Material used for the shelf")]
     public Material shelfMaterial;
+    [Tooltip("Material used for the fridge")]
+    public Material metalShelfMaterial;
     [Tooltip("Prefab used for the hinge door. Handle has to be at the door's center.")]
     public GameObject hingeDoorPrefab;
     [Tooltip("Prefab used for the price tag.")]
@@ -57,10 +59,14 @@ public class ShelfBuilder : MonoBehaviour
     
     [Tooltip("Reference to the floor, so shelves know where to spawn on")]
     public GameObject floor;
-    [Tooltip("DEBUG ONLY: Spawns template shelves in editor mode")]
-    public bool spawnShelves;
-
+    // [Tooltip("DEBUG ONLY: Spawns template shelves in editor mode")]
+    // public bool spawnShelves;
+    
+    [Header("Fridge Options")]
+    [Tooltip("Spawn fridge hinge doors. Automatically switches shelf material to metal.")]
     public bool spawnHingeDoors;
+    [Tooltip("Single door or double door")]
+    public FridgeDoorStyle fridgeDoorStyle;
     
     private float subShelfHeight;
     private float subShelfDepth;
@@ -101,6 +107,12 @@ public class ShelfBuilder : MonoBehaviour
     {
         float wallThickness = subShelfHeight;
         float groundY = floor.transform.position.y;
+
+        if (spawnHingeDoors)
+        {
+            shelfMaterial = metalShelfMaterial;
+            wallMaterial = metalShelfMaterial;
+        }
         
         // Build the lengthwise shelves
         float shelvesZOffset = (subShelfDepth + wallThickness) / 2;
@@ -168,24 +180,27 @@ public class ShelfBuilder : MonoBehaviour
         float doorDepth = 0.02f;
         float doorHeight = (shelfLevels * distanceBetweenLevels);
         
+        bool isDoubleDoor = fridgeDoorStyle == FridgeDoorStyle.Double;
+        
         Vector3 leftDoorPos = new Vector3(
             transform.position.x,
             doorHeight/2 + shelfBootHeight,
             transform.position.z
         ) 
             + transform.forward * (subShelfDepth + 0.03f) 
-            + transform.right * shelfWidth/4; 
+            + transform.right * (isDoubleDoor ? shelfWidth/4 : 0); 
         
         GameObject leftDoor = Instantiate(hingeDoorPrefab, leftDoorPos, transform.rotation);
         
         HingedDoorBuilder leftDoorBuilder = leftDoor.GetComponentInChildren<HingedDoorBuilder>();
         Vector3 lDoorDims = new Vector3(
-            shelfWidth/2,
+            shelfWidth/(isDoubleDoor ? 2 : 1),
             doorHeight,
             doorDepth
         );
         leftDoorBuilder.BuildHingeDoor(lDoorDims, 0.05f, DoorDirection.Left);
-        
+
+        if (!isDoubleDoor) return;
         // Right door
         
         Vector3 rDoorPos = new Vector3(
@@ -399,17 +414,17 @@ public class ShelfBuilder : MonoBehaviour
     
     void Update()
     {
-        #if UNITY_EDITOR
-        // Only used in the editor
-        if (spawnShelves)
-        {
-            bool prevSpawnItems = spawnItems;
-            DestroyAllChildren();
-            spawnShelves = false;
-            spawnItems = false;
-            // BuildRectangularShelf();
-            spawnItems = prevSpawnItems;
-        }
-        #endif
+        // #if UNITY_EDITOR
+        // // Only used in the editor
+        // if (spawnShelves)
+        // {
+        //     bool prevSpawnItems = spawnItems;
+        //     DestroyAllChildren();
+        //     spawnShelves = false;
+        //     spawnItems = false;
+        //     // BuildRectangularShelf();
+        //     spawnItems = prevSpawnItems;
+        // }
+        // #endif
     }
 }

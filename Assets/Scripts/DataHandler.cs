@@ -17,6 +17,12 @@ public struct ShelfConfiguration
     public bool buildShelfRoof;
 }
 
+public enum FridgeDoorStyle
+{
+    Single,
+    Double
+}
+
 [System.Serializable]
 public class ItemCategoryData
 {
@@ -85,10 +91,12 @@ public class ShelfSaveData
     public ShelfConfiguration backShelfConfig;
     public ShelfConfiguration leftShelfConfig;
     public ShelfConfiguration rightShelfConfig;
+    public FridgeDoorStyle    fridgeDoorStyle;
 
     // Item spawning
     public bool            spawnItems;
     public bool            spawnPriceTags;
+    public bool            spawnHingeDoors;
     public ItemSpawnOption itemSpawnOption;
     public ItemCategory    itemCategory;
 }
@@ -135,7 +143,14 @@ public class DataHandler : MonoBehaviour
         itemPriceData = JsonConvert.DeserializeObject<Dictionary<string, ItemPriceData>>(priceDataText.text);
         Debug.Log($"Done. Loaded data of {itemPriceData.Keys.Count} items.");
 
-        LoadStore();
+        if (readSave)
+        {
+            LoadStore();
+        }
+        else
+        {
+            SaveStore();
+        }
     }
 
     public void LoadStore()
@@ -196,6 +211,8 @@ public class DataHandler : MonoBehaviour
                 spawnPriceTags        = b.spawnPriceTags,
                 itemSpawnOption       = b.itemSpawnOption,
                 itemCategory          = b.itemCategory,
+                spawnHingeDoors       = b.spawnHingeDoors,
+                fridgeDoorStyle       = b.fridgeDoorStyle,
             });
         }
 
