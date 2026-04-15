@@ -14,7 +14,7 @@ public class ShelfBuilder : MonoBehaviour
     [Tooltip("Determines how many layers of shelves there will be")]
     public int shelfLevels;
     [Tooltip("Determines the distance between each layer of shelves")]
-    [SerializeField] private float distanceBetweenLevels;
+    public float distanceBetweenLevels;
     [Tooltip("Determines shelf rotation")]
     [Range(0, 360)]
     public float rotationY;
@@ -67,6 +67,24 @@ public class ShelfBuilder : MonoBehaviour
     
     private List<GameObject> shelfObjects;
     
+    public void InitFromSaveData(ShelfSaveData data)
+    {
+        shelfWidth            = data.shelfWidth;
+        shelfBootHeight       = data.shelfBootHeight;
+        shelfLevels           = data.shelfLevels;
+        distanceBetweenLevels = data.distanceBetweenLevels;
+        rotationY             = data.rotationY;
+        shelfRoofHeight       = data.shelfRoofHeight;
+        frontShelfConfig      = data.frontShelfConfig;
+        backShelfConfig       = data.backShelfConfig;
+        leftShelfConfig       = data.leftShelfConfig;
+        rightShelfConfig      = data.rightShelfConfig;
+        spawnItems            = data.spawnItems;
+        spawnPriceTags        = data.spawnPriceTags;
+        itemSpawnOption       = data.itemSpawnOption;
+        itemCategory          = data.itemCategory;
+    }
+
     void Start()
     {
         shelfObjects = new List<GameObject>();
