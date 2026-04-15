@@ -98,6 +98,8 @@ public class StoreData
 {
     public int version = 1;
     public List<ShelfSaveData> shelves = new();
+    // Keyed by "{shelfId}_{subShelfId}_{subSubShelfId}"
+    public Dictionary<string, SaveDataWrapper> shelfItems = new();
 }
 
 public class DataHandler : MonoBehaviour
@@ -113,6 +115,9 @@ public class DataHandler : MonoBehaviour
     public bool readSave = false;
     public GameObject shelfPrefab;
     public GameObject floor;
+
+    private StoreData _storeData = new StoreData();
+    private string StorePath => Path.Combine(Application.persistentDataPath, storeName + ".json");
 
     void Awake()
     {
@@ -135,29 +140,30 @@ public class DataHandler : MonoBehaviour
         itemPriceData = JsonConvert.DeserializeObject<Dictionary<string, ItemPriceData>>(priceDataText.text);
         Debug.Log($"Done. Loaded data of {itemPriceData.Keys.Count} items.");
 
-        LoadStore();
+        // Always load the store file into memory so shelf items are accessible
+        // regardless of whether readSave is true
+        if (File.Exists(StorePath))
+            _storeData = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(StorePath));
+
+        if (readSave) LoadStore();
     }
 
     public void LoadStore()
     {
-        if (!readSave) return;
-
         foreach (ShelfBuilder existing in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
             Destroy(existing.gameObject);
 
-        string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
-        if (!File.Exists(path))
+        if (_storeData.shelves.Count == 0)
         {
-            Debug.LogWarning($"No store file found at {path}");
+            Debug.LogWarning($"No shelf data in store '{storeName}'.");
             return;
         }
 
-        StoreData storeData = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(path));
-        Debug.Log($"Loading store '{storeName}' — {storeData.shelves.Count} shelf(ves).");
+        Debug.Log($"Loading store '{storeName}' — {_storeData.shelves.Count} shelf(ves).");
 
-        for (int i = 0; i < storeData.shelves.Count; i++)
+        for (int i = 0; i < _storeData.shelves.Count; i++)
         {
-            ShelfSaveData data = storeData.shelves[i];
+            ShelfSaveData data = _storeData.shelves[i];
             Vector3 pos = new Vector3(data.posX, data.posY, data.posZ);
             GameObject go = Instantiate(shelfPrefab, pos, Quaternion.identity);
 
@@ -171,13 +177,12 @@ public class DataHandler : MonoBehaviour
 
     public void SaveStore()
     {
-        ShelfBuilder[] builders = FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None);
-        StoreData storeData = new StoreData();
+        _storeData.shelves.Clear();
 
-        foreach (ShelfBuilder b in builders)
+        foreach (ShelfBuilder b in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
         {
             Vector3 pos = b.transform.position;
-            storeData.shelves.Add(new ShelfSaveData
+            _storeData.shelves.Add(new ShelfSaveData
             {
                 posX                  = pos.x,
                 posY                  = pos.y,
@@ -199,8 +204,32 @@ public class DataHandler : MonoBehaviour
             });
         }
 
-        string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
-        File.WriteAllText(path, JsonConvert.SerializeObject(storeData, Formatting.Indented));
-        Debug.Log($"Store saved to {path}");
+        WriteStoreFile();
     }
+
+    // Called by ShelfItemData to persist generated items into the store file
+    public void SaveShelfItems(ShelfInfo si, SaveDataWrapper data)
+    {
+        _storeData.shelfItems[ShelfKey(si)] = data;
+        WriteStoreFile();
+    }
+
+    // Called by ShelfItemData when ItemSpawnOption is ReadFromSave
+    public SaveDataWrapper LoadShelfItems(ShelfInfo si)
+    {
+        string key = ShelfKey(si);
+        if (_storeData.shelfItems.TryGetValue(key, out SaveDataWrapper data))
+            return data;
+
+        Debug.LogError($"No saved items found for shelf {key}");
+        return null;
+    }
+
+    private void WriteStoreFile()
+    {
+        File.WriteAllText(StorePath, JsonConvert.SerializeObject(_storeData, Formatting.Indented));
+        Debug.Log($"Store saved to {StorePath}");
+    }
+
+    private static string ShelfKey(ShelfInfo si) => $"{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
 }
