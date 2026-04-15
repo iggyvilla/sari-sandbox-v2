@@ -928,7 +928,7 @@ MonoBehaviour:
     buildBackWall: 1
     buildShelfRoof: 0
   spawnItems: 1
-  spawnPriceTags: 0
+  spawnPriceTags: 1
   itemSpawnOption: 0
   itemCategory: 2
   shelfSideProfile: {fileID: 6631391007982317998, guid: 7fcc8c80075bc4173a9eccb352b8d2c2, type: 3}
@@ -2659,87 +2659,6 @@ MonoBehaviour:
   m_MinRegionArea: 2
   m_NavMeshData: {fileID: 23800000, guid: 7e4a734d24dc04cc9b6f8d94ef45f817, type: 2}
   m_BuildHeightMesh: 0
---- !u!1 &1986470074
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1986470076}
-  - component: {fileID: 1986470075}
-  m_Layer: 0
-  m_Name: Fridge (1)
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!114 &1986470075
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1986470074}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4663346d3d5a44159b9fdea97b650af9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  shelfWidth: 1
-  shelfBootHeight: 0.15
-  shelfLevels: 4
-  distanceBetweenLevels: 0.38
-  rotationY: 180
-  shelfRoofHeight: 0.5
-  shelfId: 2
-  frontShelfConfig:
-    buildShelves: 1
-    buildBackWall: 1
-    buildShelfRoof: 1
-  backShelfConfig:
-    buildShelves: 0
-    buildBackWall: 0
-    buildShelfRoof: 0
-  leftShelfConfig:
-    buildShelves: 0
-    buildBackWall: 1
-    buildShelfRoof: 0
-  rightShelfConfig:
-    buildShelves: 0
-    buildBackWall: 1
-    buildShelfRoof: 0
-  spawnItems: 1
-  spawnPriceTags: 1
-  itemSpawnOption: 0
-  itemCategory: 1
-  shelfSideProfile: {fileID: 6631391007982317998, guid: 7fcc8c80075bc4173a9eccb352b8d2c2, type: 3}
-  shelfMaterial: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
-  metalShelfMaterial: {fileID: 0}
-  hingeDoorPrefab: {fileID: 520072958513338024, guid: 1bf1d8a8e76cb44958dbc41575410996, type: 3}
-  priceTagPrefab: {fileID: 7931005315621676498, guid: d57044680a73d4489995adfdda70a9ae, type: 3}
-  wallMaterial: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
-  airMaterial: {fileID: 2100000, guid: a1e0527347dd447dca8ce9830f3e8e10, type: 2}
-  floor: {fileID: 593330296}
-  spawnHingeDoors: 1
-  fridgeDoorStyle: 0
---- !u!4 &1986470076
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1986470074}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -5.35, y: 0.28595147, z: 7.33}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 1
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2054957329
 GameObject:
   m_ObjectHideFlags: 0
@@ -3139,6 +3058,14 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 593330296}
     - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+      propertyPath: spawnPriceTags
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+      propertyPath: itemSpawnOption
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: metalShelfMaterial
       value: 
       objectReference: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
@@ -3203,7 +3130,6 @@ SceneRoots:
   - {fileID: 593330300}
   - {fileID: 5567059867174761712}
   - {fileID: 589810492}
-  - {fileID: 1986470076}
   - {fileID: 1541171728}
   - {fileID: 1145514791}
   - {fileID: 574648007}
