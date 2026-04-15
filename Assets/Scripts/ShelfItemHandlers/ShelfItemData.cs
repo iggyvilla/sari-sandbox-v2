@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
+using Newtonsoft.Json;
 using Random = UnityEngine.Random;
 
 [Serializable]
 public class RetailItemData
 {
-    [NonSerialized]
+    [NonSerialized, JsonIgnore]
     public GameObject prefab;
-    [NonSerialized]
+    [NonSerialized, JsonIgnore]
     public List<string> tags;
-    [NonSerialized]
+    [NonSerialized, JsonIgnore]
     public List<DrawData> itemLocations;
     
     public string name;
@@ -114,40 +114,36 @@ public class ShelfItemData : MonoBehaviour
         if (shelfItems.Count == 0) return;
 
         string idString = $"ID{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
-        
+
         SaveDataWrapper wrapper = new SaveDataWrapper
         {
             items = shelfItems,
             itemsTotalWidth = itemsTotalWidth
         };
-        string json = JsonUtility.ToJson(wrapper, true);
-        string path = Path.Combine(Application.persistentDataPath, $"ShelfItems-{idString}.json");
-        File.WriteAllText(path, json);
-        Debug.Log($"Saved shelf {idString}'s items to " + path);
+
+        DataHandler.Instance.SaveShelfItems(idString, wrapper);
+        Debug.Log($"Saved shelf {idString}'s items to store file.");
     }
 
     public void LoadItemsFromJson(ShelfInfo si)
     {
         string idString = $"ID{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
-        string path = Path.Combine(Application.persistentDataPath, $"ShelfItems-{idString}.json");
 
-        if (File.Exists(path))
+        if (DataHandler.Instance.TryGetShelfItems(idString, out SaveDataWrapper wrapper))
         {
-            Debug.Log($"Loading shelf {idString}'s items from " + path);
-            string json = File.ReadAllText(path);
-            SaveDataWrapper wrapper = JsonUtility.FromJson<SaveDataWrapper>(json);
+            Debug.Log($"Loading shelf {idString}'s items from store file.");
             itemsTotalWidth = wrapper.itemsTotalWidth;
-            
+
             foreach (RetailItemData itemData in wrapper.items)
             {
                 itemData.prefab = Resources.Load<GameObject>("Prefabs/Products/" + itemData.name);
             }
-            
+
             shelfItems = wrapper.items;
         }
         else
         {
-            Debug.LogError($"Shelf {idString}'s items not found");
+            Debug.LogError($"Shelf {idString}'s items not found in store file.");
         }
     }
 

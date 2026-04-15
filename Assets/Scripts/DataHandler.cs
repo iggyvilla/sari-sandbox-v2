@@ -106,6 +106,7 @@ public class StoreData
 {
     public int version = 1;
     public List<ShelfSaveData> shelves = new();
+    public Dictionary<string, SaveDataWrapper> shelfItems = new();
 }
 
 public class DataHandler : MonoBehaviour
@@ -114,6 +115,8 @@ public class DataHandler : MonoBehaviour
     public ItemCategories itemCategories;
     public Dictionary<string, ItemPriceData> itemPriceData;
     public static DataHandler Instance { get; private set; }
+
+    public StoreData currentStoreData { get; private set; } = new StoreData();
 
     [Header("Store")]
     public string storeName = "DefaultStore";
@@ -168,6 +171,7 @@ public class DataHandler : MonoBehaviour
         }
 
         StoreData storeData = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(path));
+        currentStoreData = storeData;
         Debug.Log($"Loading store '{storeName}' — {storeData.shelves.Count} shelf(ves).");
 
         for (int i = 0; i < storeData.shelves.Count; i++)
@@ -184,10 +188,26 @@ public class DataHandler : MonoBehaviour
         }
     }
 
+    public void SaveShelfItems(string idString, SaveDataWrapper data)
+    {
+        currentStoreData.shelfItems[idString] = data;
+        string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
+        File.WriteAllText(path, JsonConvert.SerializeObject(currentStoreData, Formatting.Indented));
+        Debug.Log($"Saved shelf items for {idString} to {path}");
+    }
+
+    public bool TryGetShelfItems(string idString, out SaveDataWrapper data)
+    {
+        return currentStoreData.shelfItems.TryGetValue(idString, out data);
+    }
+
     public void SaveStore()
     {
         ShelfBuilder[] builders = FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None);
-        StoreData storeData = new StoreData();
+        StoreData storeData = new StoreData
+        {
+            shelfItems = currentStoreData.shelfItems
+        };
 
         foreach (ShelfBuilder b in builders)
         {
@@ -216,8 +236,9 @@ public class DataHandler : MonoBehaviour
             });
         }
 
+        currentStoreData = storeData;
         string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
-        File.WriteAllText(path, JsonConvert.SerializeObject(storeData, Formatting.Indented));
+        File.WriteAllText(path, JsonConvert.SerializeObject(currentStoreData, Formatting.Indented));
         Debug.Log($"Store saved to {path}");
     }
 }
