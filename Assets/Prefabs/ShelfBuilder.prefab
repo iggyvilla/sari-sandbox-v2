@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8843657042150263525}
   - component: {fileID: 7942558268310616851}
   - component: {fileID: 8336357347454940391}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: BackWall
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -117,7 +117,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3926887741189780254}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: ShelfGroup3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -158,7 +158,7 @@ GameObject:
   - component: {fileID: 9057003617303115818}
   - component: {fileID: 7719474544195261054}
   - component: {fileID: 3576250933758168496}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf0
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -299,7 +299,7 @@ GameObject:
   - component: {fileID: 6827585958409735350}
   - component: {fileID: 7960419913247490687}
   - component: {fileID: 8477762695197860607}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf3
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -435,7 +435,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6166444023424875503}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: ShelfGroup0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -476,7 +476,7 @@ GameObject:
   - component: {fileID: 7823749005124312129}
   - component: {fileID: 7580956606745299532}
   - component: {fileID: 3640362002091706865}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf1
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -617,7 +617,7 @@ GameObject:
   - component: {fileID: 1114079052207946024}
   - component: {fileID: 5704720440051862727}
   - component: {fileID: 6052011409670399137}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf0
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -753,7 +753,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5976912600632022700}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: ShelfGroup2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -794,7 +794,7 @@ GameObject:
   - component: {fileID: 7826799329663245716}
   - component: {fileID: 6104833969882287519}
   - component: {fileID: 330887167083465307}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf3
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -935,7 +935,7 @@ GameObject:
   - component: {fileID: 5943430794426262004}
   - component: {fileID: 8154420118742943784}
   - component: {fileID: 6268193609395104074}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf2
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -1076,7 +1076,7 @@ GameObject:
   - component: {fileID: 1140126105661381574}
   - component: {fileID: 4949659318468922074}
   - component: {fileID: 7464400129505853889}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf0
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -1217,7 +1217,7 @@ GameObject:
   - component: {fileID: 288701794871133166}
   - component: {fileID: 8458026043542049971}
   - component: {fileID: 5457597031070215615}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf3
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -1358,7 +1358,7 @@ GameObject:
   - component: {fileID: 4452087240190954056}
   - component: {fileID: 6438157697923026918}
   - component: {fileID: 4249925553240009243}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf2
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -1497,7 +1497,7 @@ GameObject:
   - component: {fileID: 5809699987279243546}
   - component: {fileID: 8453248385892852832}
   - component: {fileID: 8548501944308220110}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: BackWall
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -1607,7 +1607,7 @@ GameObject:
   - component: {fileID: 4428264702820372588}
   - component: {fileID: 3577499911667555213}
   - component: {fileID: 386787892917867645}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf3
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -1748,7 +1748,7 @@ GameObject:
   - component: {fileID: 4587907628985040171}
   - component: {fileID: 3170137240236580265}
   - component: {fileID: 9145875446827502544}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf2
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -1889,7 +1889,7 @@ GameObject:
   - component: {fileID: 5783567182549389941}
   - component: {fileID: 7725067704675225905}
   - component: {fileID: 4131527191273798258}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf1
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -2030,7 +2030,7 @@ GameObject:
   - component: {fileID: 68913499316528992}
   - component: {fileID: 5854524024439388086}
   - component: {fileID: 4882491412828873133}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf1
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -2169,7 +2169,7 @@ GameObject:
   - component: {fileID: 6956885475703571334}
   - component: {fileID: 2348619883624114617}
   - component: {fileID: 969326920124146025}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: BackWall
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -2279,7 +2279,7 @@ GameObject:
   - component: {fileID: 7857537879635888842}
   - component: {fileID: 7939012103983001313}
   - component: {fileID: 1512167532449308116}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf0
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -2416,7 +2416,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8696224954924250644}
   - component: {fileID: 5819405705655776731}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: ShelfBuilder
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2477,7 +2477,7 @@ MonoBehaviour:
     buildShelves: 1
     buildBackWall: 1
     buildShelfRoof: 0
-  spawnItems: 1
+  spawnItems: 0
   spawnPriceTags: 1
   itemSpawnOption: 1
   itemCategory: 5
@@ -2505,7 +2505,7 @@ GameObject:
   - component: {fileID: 4392591803239329040}
   - component: {fileID: 8707531411065177888}
   - component: {fileID: 255255909215572841}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf2
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -2646,7 +2646,7 @@ GameObject:
   - component: {fileID: 9032869735969478736}
   - component: {fileID: 7743374690512149530}
   - component: {fileID: 1899598218980783431}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Shelf1
   m_TagString: Wall
   m_Icon: {fileID: 0}
@@ -2782,7 +2782,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 89725632839210545}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: ShelfGroup1
   m_TagString: Untagged
   m_Icon: {fileID: 0}

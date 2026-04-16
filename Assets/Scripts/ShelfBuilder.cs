@@ -67,6 +67,8 @@ public class ShelfBuilder : MonoBehaviour
     public bool spawnHingeDoors;
     [Tooltip("Single door or double door")]
     public FridgeDoorStyle fridgeDoorStyle;
+
+    public float sideShelfWidth;
     
     private float subShelfHeight;
     private float subShelfDepth;
@@ -156,7 +158,7 @@ public class ShelfBuilder : MonoBehaviour
         // Build width-wise shelves
         float shelvesXOffset = subShelfDepth / 2 + shelfWidth / 2 + wallThickness;
 
-        float sideShelfWidth = CalculateShelfWidth(
+        sideShelfWidth = CalculateShelfWidth(
             wallThickness, 
             frontShelfConfig, 
             backShelfConfig
@@ -249,6 +251,13 @@ public class ShelfBuilder : MonoBehaviour
         
         return (subShelfDepth*2 + wallThickness) / divisor;
     }
+
+    public float CalculateShelfHeight()
+    {
+        return ((subShelfHeight + distanceBetweenLevels) * shelfLevels) 
+               + shelfBootHeight
+               + shelfRoofHeight;
+    }
     
     /* 
      *  2D CROSS-SECTION (NOT TOP VIEW):
@@ -307,7 +316,7 @@ public class ShelfBuilder : MonoBehaviour
             
             shelfExtruded.name = "Shelf" + i;
             
-            // extrude the shelf to the desired width via scaling
+            // Extrude the shelf to the desired width via scaling
             Vector3 extrudedScale = shelfSideProfile.transform.localScale;
             extrudedScale.x = width;
 
@@ -370,7 +379,8 @@ public class ShelfBuilder : MonoBehaviour
     // wallOffset is how far from the edge of a shelf the wall will spawn at
     void BuildShelfWall(float wallThickness, float wallWidth, float wallOffset, Transform parent)
     {
-        float wallHeight = distanceBetweenLevels * shelfLevels + shelfBootHeight + shelfRoofHeight;
+        // float wallHeight = distanceBetweenLevels * shelfLevels + shelfBootHeight + shelfRoofHeight;
+        float wallHeight = CalculateShelfHeight();
         
         GameObject backWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
         backWall.layer = LayerMask.NameToLayer("SariInteractable");

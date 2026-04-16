@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using UnityEngine;
 
 public class StoreBuilderCameraController : MonoBehaviour
@@ -11,16 +12,27 @@ public class StoreBuilderCameraController : MonoBehaviour
 
     [Header("References")]
     public StoreBuilderUIHandler uiHandler;
+    public DataHandler dataHandler;
+    public Material airMaterial;
 
     private bool _placementMode = false;
-    private GameObject _previewShelf = null;
+    [CanBeNull] private GameObject _previewShelf = null;
     private Camera _cam;
+    private Vector3 _prevWorldPos;
+    private LayerMask _sariFloorLayerMask;
+    private LayerMask _sariInteractableLayerMask;
 
     void Awake()
     {
         _cam = GetComponentInChildren<Camera>();
         if (_cam == null)
             _cam = Camera.main;
+        
+        ShelfBuilder builder = shelfPrefab.GetComponent<ShelfBuilder>();
+        builder.floor = dataHandler.floor;
+        
+        _sariFloorLayerMask = LayerMask.GetMask("SariFloor");
+        _sariInteractableLayerMask = LayerMask.GetMask("SariInteractable");
     }
 
     void Update()
@@ -61,15 +73,24 @@ public class StoreBuilderCameraController : MonoBehaviour
             Vector3 snapped = SnapToGrid(worldPos);
 
             if (_previewShelf == null)
+            {
                 SpawnPreview(snapped);
+            } 
             else
+            {
                 _previewShelf.transform.position = snapped;
+            }
 
             if (Input.GetMouseButtonDown(0))
+            {
                 ConfirmPlacement();
+            }
+            
+            _prevWorldPos = worldPos;
         }
         else
         {
+            Debug.Log("off floor");
             // Mouse is off the floor — destroy any live preview
             DestroyPreview();
 
@@ -83,10 +104,15 @@ public class StoreBuilderCameraController : MonoBehaviour
     {
         hitPoint = Vector3.zero;
         Ray ray = _cam.ScreenPointToRay(Input.mousePosition);
-        if (Physics.Raycast(ray, out RaycastHit hit) && hit.collider.CompareTag("Floor"))
+        
+        if (Physics.Raycast(ray, out RaycastHit hit, 100f, _sariFloorLayerMask))
         {
-            hitPoint = hit.point;
-            return true;
+            Debug.Log(hit.collider.gameObject.name);
+            if (hit.collider.CompareTag("Floor"))
+            {
+                hitPoint = hit.point;
+                return true;
+            }
         }
         return false;
     }
@@ -111,12 +137,55 @@ public class StoreBuilderCameraController : MonoBehaviour
         if (_previewShelf != null && uiHandler != null)
         {
             ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
+            SummonOutlineBox(builder);
             uiHandler.selectedShelf = builder;
         }
 
         _previewShelf = null; // relinquish ownership — the shelf stays in the scene
         ExitPlacementMode();
     }
+
+    void SummonOutlineBox(ShelfBuilder shelf)
+    {
+        Bounds totalBounds = GetCombinedBounds(shelf.gameObject);
+        totalBounds.Expand(0.01f);
+        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cube.layer = _sariInteractableLayerMask;
+        
+        cube.GetComponent<Renderer>().material = airMaterial;
+        cube.transform.position = shelf.transform.position;
+        
+        cube.AddComponent<OutlineController>();
+        cube.AddComponent<OutlineFx.OutlineFx>();
+        
+        // 3. Match the center and size
+        cube.transform.position = totalBounds.center;
+        cube.transform.localScale = totalBounds.size;
+        
+        // 4. Make it look like a "volume"
+        // Remove the collider so it doesn't mess with physics
+        Destroy(cube.GetComponent<BoxCollider>());
+    }
+    
+    Bounds GetCombinedBounds(GameObject parent)
+    {
+        // Get all renderers in children (including the parent if it has one)
+        Renderer[] renderers = parent.GetComponentsInChildren<Renderer>();
+
+        if (renderers.Length == 0) return new Bounds(parent.transform.position, Vector3.zero);
+
+        // Initialize bounds with the first renderer found
+        Bounds combinedBounds = renderers[0].bounds;
+
+        // Expand the bounds to include every other renderer
+        for (int i = 1; i < renderers.Length; i++)
+        {
+            combinedBounds.Encapsulate(renderers[i].bounds);
+        }
+
+        return combinedBounds;
+    }
+
 
     void DestroyPreview()
     {
