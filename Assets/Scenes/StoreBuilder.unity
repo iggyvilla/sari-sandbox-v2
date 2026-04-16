@@ -2263,35 +2263,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 406272335}
   m_CullTransparentMesh: 1
---- !u!1 &413729107 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-  m_PrefabInstance: {fileID: 5567059867174761712}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &413729108 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-  m_PrefabInstance: {fileID: 5567059867174761712}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 413729107}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4663346d3d5a44159b9fdea97b650af9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &413729110
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 413729107}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4218d78ef2d54d0898b7514e121a781f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _color: {r: 1, g: 1, b: 1, a: 1}
 --- !u!1 &420514301
 GameObject:
   m_ObjectHideFlags: 0
@@ -5257,7 +5228,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1d50a71be66524f6483a350e3f374cf4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  selectedShelf: {fileID: 413729108}
+  selectedShelf: {fileID: 0}
   spawnItemsToggle: {fileID: 93903230}
   priceTagToggle: {fileID: 420514303}
 --- !u!1 &1008796917
@@ -10712,7 +10683,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1839291533}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 2075032117}
+        m_TargetAssemblyTypeName: StoreBuilderCameraController, Assembly-CSharp
+        m_MethodName: OnSpawnShelfPressed
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1839291533
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -12333,6 +12316,7 @@ GameObject:
   - component: {fileID: 2075032114}
   - component: {fileID: 2075032113}
   - component: {fileID: 2075032116}
+  - component: {fileID: 2075032117}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -12567,6 +12551,22 @@ MonoBehaviour:
     m_MipBias: 0
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
+--- !u!114 &2075032117
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2075032111}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5898af90d0114ce99e229cb72f08d50, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rotationSpeed: 90
+  shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+  builderGridSize: 0.5
+  uiHandler: {fileID: 987040918}
 --- !u!1 &2101274901
 GameObject:
   m_ObjectHideFlags: 0
@@ -12700,74 +12700,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2101274901}
   m_CullTransparentMesh: 1
---- !u!1001 &5567059867174761712
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: floor
-      value: 
-      objectReference: {fileID: 593330296}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: spawnItems
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_Name
-      value: ShelfBuilder
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -0.6
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0.28595147
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0.49
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 413729110}
-  m_SourcePrefab: {fileID: 100100000, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -12778,7 +12710,6 @@ SceneRoots:
   - {fileID: 611303190}
   - {fileID: 1917649694}
   - {fileID: 593330300}
-  - {fileID: 5567059867174761712}
   - {fileID: 589810492}
   - {fileID: 574648007}
   - {fileID: 1568667528}

@@ -2477,7 +2477,7 @@ MonoBehaviour:
     buildShelves: 1
     buildBackWall: 1
     buildShelfRoof: 0
-  spawnItems: 1
+  spawnItems: 0
   spawnPriceTags: 1
   itemSpawnOption: 1
   itemCategory: 5
