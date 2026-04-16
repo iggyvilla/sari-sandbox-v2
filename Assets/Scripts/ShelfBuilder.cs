@@ -96,12 +96,20 @@ public class ShelfBuilder : MonoBehaviour
     void Start()
     {
         shelfObjects = new List<GameObject>();
-        
+
         subShelfHeight = shelfSideProfile.transform.localScale.y;
-        subShelfDepth = shelfSideProfile.transform.localScale.z;
-        
+        subShelfDepth   = shelfSideProfile.transform.localScale.z;
+
         DestroyAllChildren();
-        
+
+        BuildRectangularShelf();
+    }
+
+    public void Rebuild()
+    {
+        shelfObjects      = new List<GameObject>();
+        transform.rotation = Quaternion.identity;
+        DestroyAllChildren();
         BuildRectangularShelf();
     }
     
