@@ -20,6 +20,8 @@ public class StoreBuilderUIHandler : MonoBehaviour
     public Toggle spawnItemsToggle;
     public Toggle priceTagToggle;
 
+    public StoreBuilderCameraController cameraController;
+
     // Mirrors the spawn-items toggle so overflow suppression can be undone cleanly
     private bool _userWantsSpawnItems;
     public ShelfEditGroupHandler shelfEditGroupHandler;
@@ -274,7 +276,9 @@ public class StoreBuilderUIHandler : MonoBehaviour
                 $"sub-shelves have items wider than shelfWidth ({selectedShelf.shelfWidth}). " +
                 $"Item spawning disabled until width is sufficient."
             );
+        
         selectedShelf.Rebuild();
+        if (_activeSelector != null) _activeSelector.EncapsulateShelf(selectedShelf);
     }
 
     // Returns true when itemSpawnOption is ReadFromSave and at least one saved

@@ -43,6 +43,40 @@ public class ShelfSelector : MonoBehaviour
         _outlineFx.enabled = true;
     }
 
+    public void EncapsulateShelf(ShelfBuilder shelf)
+    {
+        Bounds totalBounds = GetCombinedBounds(shelf.gameObject);
+        totalBounds.Expand(0.01f);
+        
+        // Match the center and size of the shelf's combined bounds
+        transform.position = totalBounds.center;
+        transform.localScale = totalBounds.size;
+    }
+    
+    Bounds GetCombinedBounds(GameObject parent)
+    {
+        // Get all renderers in children (including the parent if it has one)
+        Renderer[] renderers = parent.GetComponentsInChildren<Renderer>();
+
+        if (renderers.Length == 0) return new Bounds(parent.transform.position, Vector3.zero);
+
+        // Initialize bounds with the first renderer found
+        Bounds combinedBounds = renderers[0].bounds;
+
+        // Expand the bounds to include every other renderer
+        for (int i = 1; i < renderers.Length; i++)
+        {
+            combinedBounds.Encapsulate(renderers[i].bounds);
+        }
+
+        return combinedBounds;
+    }
+
+    public bool IsShelfSelected()
+    {
+        return _outlineFx.enabled;
+    }
+
     // Called by StoreBuilderUIHandler when this selector is deactivated
     public void Deselect()
     {

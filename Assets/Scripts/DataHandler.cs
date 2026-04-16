@@ -124,6 +124,8 @@ public class DataHandler : MonoBehaviour
     public bool readSave = false;
     public GameObject shelfPrefab;
     public GameObject floor;
+    
+    private int currentShelfId = 0;
 
     void Awake()
     {
@@ -154,6 +156,12 @@ public class DataHandler : MonoBehaviour
         {
             SaveStore();
         }
+    }
+
+    public int GetUniqueShelfId()
+    {
+        currentShelfId++;
+        return currentShelfId;
     }
 
     public void LoadStore()

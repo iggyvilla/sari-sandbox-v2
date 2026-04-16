@@ -138,6 +138,7 @@ public class StoreBuilderCameraController : MonoBehaviour
         if (_previewShelf != null)
         {
             ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
+            builder.shelfId = dataHandler.GetUniqueShelfId();
             SummonOutlineBox(builder);
         }
 
@@ -147,9 +148,6 @@ public class StoreBuilderCameraController : MonoBehaviour
 
     void SummonOutlineBox(ShelfBuilder shelf)
     {
-        Bounds totalBounds = GetCombinedBounds(shelf.gameObject);
-        totalBounds.Expand(0.01f);
-
         GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cube.layer = LayerMask.NameToLayer("SariInteractable");
         cube.GetComponent<Renderer>().material = airMaterial;
@@ -157,40 +155,19 @@ public class StoreBuilderCameraController : MonoBehaviour
         // Make collider a trigger so it doesn't interfere with physics
         // but is still hit by raycasts (Physics.queriesHitTriggers = true by default)
         cube.GetComponent<BoxCollider>().isTrigger = true;
-
-        cube.AddComponent<OutlineController>();
+        
+        // Add OutlineFx for the white outline
         cube.AddComponent<OutlineFx.OutlineFx>();
-
-        // Match the center and size of the shelf's combined bounds
-        cube.transform.position = totalBounds.center;
-        cube.transform.localScale = totalBounds.size;
 
         // Wire up the selector
         ShelfSelector selector = cube.AddComponent<ShelfSelector>();
         selector.assignedShelf = shelf;
         selector.uiHandler = uiHandler;
         selector.cameraController = this;
+        
+        // Encapsulate shelf bounds
+        selector.EncapsulateShelf(shelf);
     }
-    
-    Bounds GetCombinedBounds(GameObject parent)
-    {
-        // Get all renderers in children (including the parent if it has one)
-        Renderer[] renderers = parent.GetComponentsInChildren<Renderer>();
-
-        if (renderers.Length == 0) return new Bounds(parent.transform.position, Vector3.zero);
-
-        // Initialize bounds with the first renderer found
-        Bounds combinedBounds = renderers[0].bounds;
-
-        // Expand the bounds to include every other renderer
-        for (int i = 1; i < renderers.Length; i++)
-        {
-            combinedBounds.Encapsulate(renderers[i].bounds);
-        }
-
-        return combinedBounds;
-    }
-
 
     void DestroyPreview()
     {
