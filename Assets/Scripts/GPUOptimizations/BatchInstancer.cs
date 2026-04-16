@@ -92,7 +92,7 @@ public class BatchInstancer : MonoBehaviour
     void Update()
     {
         // Continuously render batches only when Init() has been called at least once
-        if (!ready) return;
+        if (!ready || instances.Count == 0) return;
         
         Profiler.BeginSample("Get Planes");
         // returns 6 planes
@@ -152,6 +152,12 @@ public class BatchInstancer : MonoBehaviour
     public void RemoveSingleDrawData(DrawData drawData)
     {
         instances.Remove(drawData);
+        _drawDataBuffer.SetData(instances);
+    }
+
+    public void ClearAllDrawData()
+    {
+        instances = new();
         _drawDataBuffer.SetData(instances);
     }
     

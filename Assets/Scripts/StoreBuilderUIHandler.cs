@@ -7,14 +7,23 @@ public class StoreBuilderUIHandler : MonoBehaviour
     private const int   DefaultShelfWidth            = 2;
     private const int   DefaultNumberOfLevels        = 3;
     private const float DefaultDistanceBetweenLevels = 0.4f;
-    private const float DefaultBootHeight            = 0.1f;
+    private const float DefaultBootHeight            = 0.4f;
 
     // Set externally (e.g. by a shelf-selection script) before any UI interaction
     public ShelfBuilder selectedShelf;
+    
+    
+    public Toggle spawnItemsToggle;
+    public Toggle priceTagToggle;
 
     // Mirrors the spawn-items toggle so overflow suppression can be undone cleanly
     private bool _userWantsSpawnItems;
 
+    void Start()
+    {
+        spawnItemsToggle.isOn = false;
+    }
+    
     // ── Int / Float input fields ──────────────────────────────────────────────
 
     // Called by the shelfWidth InputField's OnValueChanged event
@@ -157,6 +166,17 @@ public class StoreBuilderUIHandler : MonoBehaviour
     {
         if (selectedShelf == null) return;
         _userWantsSpawnItems = toggle.isOn;
+        
+        if (!_userWantsSpawnItems)
+        {
+            priceTagToggle.isOn = false;
+            priceTagToggle.interactable = false;
+        }
+        else
+        {
+            priceTagToggle.interactable = true;
+        }
+        
         RebuildShelf();
     }
 
@@ -164,7 +184,22 @@ public class StoreBuilderUIHandler : MonoBehaviour
     {
         if (selectedShelf == null) return;
         selectedShelf.spawnPriceTags = toggle.isOn;
-        RebuildShelf();
+
+        if (!selectedShelf.spawnPriceTags) {
+            PriceTag[] instances =
+                FindObjectsByType<PriceTag>(FindObjectsSortMode.None);
+
+            foreach (PriceTag instance in instances)
+            {
+                // Destroy the GameObject the script is attached to
+                Destroy(instance.gameObject);
+            }
+        }
+        else
+        {
+            GPUInstanceTracker.Instance.DespawnAllItems();
+            RebuildShelf();
+        }
     }
 
     // ── Utility functions ─────────────────────────────────────────────────────
@@ -202,7 +237,6 @@ public class StoreBuilderUIHandler : MonoBehaviour
                 $"sub-shelves have items wider than shelfWidth ({selectedShelf.shelfWidth}). " +
                 $"Item spawning disabled until width is sufficient."
             );
-
         selectedShelf.Rebuild();
     }
 

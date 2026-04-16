@@ -72,6 +72,8 @@ public class ShelfBuilder : MonoBehaviour
     private float subShelfDepth;
     
     private List<GameObject> shelfObjects;
+
+    private bool _itemsAlreadySpawned = false;
     
     public void InitFromSaveData(ShelfSaveData data)
     {
@@ -101,7 +103,6 @@ public class ShelfBuilder : MonoBehaviour
         subShelfDepth   = shelfSideProfile.transform.localScale.z;
 
         DestroyAllChildren();
-
         BuildRectangularShelf();
     }
 
@@ -109,6 +110,12 @@ public class ShelfBuilder : MonoBehaviour
     {
         shelfObjects      = new List<GameObject>();
         transform.rotation = Quaternion.identity;
+
+        if (!spawnItems)
+        {
+            GPUInstanceTracker.Instance.DespawnAllItems();
+        }
+        
         DestroyAllChildren();
         BuildRectangularShelf();
     }
@@ -175,11 +182,11 @@ public class ShelfBuilder : MonoBehaviour
             rightShelfConfig
         );
         
-        
         // Must do all rotations/translations first before spawning items
         transform.Rotate(Vector3.up, rotationY);
         
         SpawnHingeDoors();
+        
         SpawnItemsOnAllShelves();
     }
 
@@ -356,6 +363,8 @@ public class ShelfBuilder : MonoBehaviour
                 spawner.SpawnProducts();
             }
         }
+
+        _itemsAlreadySpawned = true;
     }
     
     // wallOffset is how far from the edge of a shelf the wall will spawn at

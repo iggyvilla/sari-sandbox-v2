@@ -48,6 +48,16 @@ public class GPUInstanceTracker : MonoBehaviour
 
         return null;
     }
+
+    public void DespawnAllItems()
+    {
+        Debug.Log("Despawning all items...");
+
+        foreach (KeyValuePair<string, BatchInstancer> kvp in trackers)
+        {
+            kvp.Value.ClearAllDrawData();
+        }
+    }
     
     private SimplePlane[] GetFrustumPlanes(Camera camera)
     {

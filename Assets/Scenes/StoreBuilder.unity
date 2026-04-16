@@ -237,7 +237,19 @@ MonoBehaviour:
       m_Calls: []
   m_OnValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnDistanceBetweenLevelsChanged
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_OnTouchScreenKeyboardStatusChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -724,16 +736,16 @@ RectTransform:
   m_GameObject: {fileID: 93903228}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.3300002, y: 1.3300002, z: 1.3300002}
+  m_LocalScale: {x: 0.6783001, y: 0.6783001, z: 0.6783001}
   m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 1567732863}
   - {fileID: 1729699142}
-  m_Father: {fileID: 363092553}
+  m_Father: {fileID: 1917649694}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -233, y: -699}
+  m_AnchoredPosition: {x: -328, y: -79}
   m_SizeDelta: {x: 160, y: 20}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &93903230
@@ -782,7 +794,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnItemsChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 93903230}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &110373264
 GameObject:
@@ -1306,7 +1330,7 @@ GameObject:
   m_Component:
   - component: {fileID: 198750925}
   m_Layer: 5
-  m_Name: ItemSpawnType
+  m_Name: ItemSpawnOption
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1843,7 +1867,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnBackWallChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 316228698}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &346267432
 GameObject:
@@ -2017,8 +2053,6 @@ RectTransform:
   - {fileID: 680494767}
   - {fileID: 916185185}
   - {fileID: 198750925}
-  - {fileID: 93903229}
-  - {fileID: 420514302}
   - {fileID: 1282497861}
   - {fileID: 1063135381}
   m_Father: {fileID: 1917649694}
@@ -2234,6 +2268,17 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   m_PrefabInstance: {fileID: 5567059867174761712}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &413729108 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+  m_PrefabInstance: {fileID: 5567059867174761712}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 413729107}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4663346d3d5a44159b9fdea97b650af9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!114 &413729110
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2273,16 +2318,16 @@ RectTransform:
   m_GameObject: {fileID: 420514301}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.3300002, y: 1.3300002, z: 1.3300002}
+  m_LocalScale: {x: 0.6783001, y: 0.6783001, z: 0.6783001}
   m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 182355493}
   - {fileID: 1725003985}
-  m_Father: {fileID: 363092553}
+  m_Father: {fileID: 1917649694}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -233, y: -735}
+  m_AnchoredPosition: {x: -328, y: -97.360054}
   m_SizeDelta: {x: 160, y: 20}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &420514303
@@ -2331,7 +2376,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnPriceTagsChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 420514303}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &433604026
 GameObject:
@@ -3049,7 +3106,19 @@ MonoBehaviour:
       m_Calls: []
   m_OnValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnShelfWidthChanged
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_OnTouchScreenKeyboardStatusChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -4330,7 +4399,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemCategories:
     Categories: []
-  storeName: DefaultStore
+  storeName: StoreBuilder1
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   floor: {fileID: 593330296}
@@ -4437,7 +4506,19 @@ MonoBehaviour:
       m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_OnValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnItemSpawnOptionChanged
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_AlphaFadeSpeed: 0.15
 --- !u!114 &750773330
 MonoBehaviour:
@@ -4636,7 +4717,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnRightWallChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 816119838}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &857722176
 GameObject:
@@ -5129,6 +5222,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 987040917}
+  - component: {fileID: 987040918}
   m_Layer: 0
   m_Name: Store Builder UI Handler
   m_TagString: Untagged
@@ -5151,6 +5245,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &987040918
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 987040916}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d50a71be66524f6483a350e3f374cf4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  selectedShelf: {fileID: 413729108}
+  spawnItemsToggle: {fileID: 93903230}
+  priceTagToggle: {fileID: 420514303}
 --- !u!1 &1008796917
 GameObject:
   m_ObjectHideFlags: 0
@@ -6207,7 +6316,19 @@ MonoBehaviour:
       m_Calls: []
   m_OnValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnBootHeightChanged
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_OnTouchScreenKeyboardStatusChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -7042,12 +7163,27 @@ MonoBehaviour:
     - m_Text: "180\xBA"
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
+    - m_Text: "270\xBA"
+      m_Image: {fileID: 0}
+      m_Color: {r: 1, g: 1, b: 1, a: 1}
     - m_Text: "360\xBA"
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_OnValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnRotYChanged
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 1
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_AlphaFadeSpeed: 0.15
 --- !u!114 &1302265018
 MonoBehaviour:
@@ -7706,7 +7842,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnLeftShelfChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 1413532013}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &1471768379
 GameObject:
@@ -8219,7 +8367,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnLeftWallChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 1531024890}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &1544924691
 GameObject:
@@ -8432,7 +8592,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnFrontShelfChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 1559395445}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &1567732862
 GameObject:
@@ -9224,7 +9396,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1651907643
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9445,7 +9617,19 @@ MonoBehaviour:
       m_Calls: []
   m_OnValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnNumberOfLevelsChanged
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_OnTouchScreenKeyboardStatusChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -10773,7 +10957,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnBackShelfChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 1881225837}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &1882007767
 GameObject:
@@ -11152,7 +11348,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnRightShelfChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 1892594787}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &1899810004
 GameObject:
@@ -11371,7 +11579,19 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 987040918}
+        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
+        m_MethodName: OnSpawnFrontWallChanged
+        m_Mode: 2
+        m_Arguments:
+          m_ObjectArgument: {fileID: 1901822483}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.UI.Toggle, UnityEngine.UI
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
 --- !u!1 &1917649690
 GameObject:
@@ -11473,6 +11693,8 @@ RectTransform:
   - {fileID: 857722177}
   - {fileID: 1899810005}
   - {fileID: 677118790}
+  - {fileID: 93903229}
+  - {fileID: 420514302}
   - {fileID: 363092553}
   - {fileID: 1593093419}
   m_Father: {fileID: 0}
@@ -12395,7 +12617,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2101274904}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 713415074}
+        m_TargetAssemblyTypeName: DataHandler, Assembly-CSharp
+        m_MethodName: SaveStore
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &2101274904
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -12446,6 +12680,10 @@ PrefabInstance:
       propertyPath: floor
       value: 
       objectReference: {fileID: 593330296}
+    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+      propertyPath: spawnItems
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_Name
       value: ShelfBuilder
