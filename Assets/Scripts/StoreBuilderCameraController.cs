@@ -1,0 +1,134 @@
+using UnityEngine;
+
+public class StoreBuilderCameraController : MonoBehaviour
+{
+    [Header("Camera Rotation")]
+    public float rotationSpeed = 90f; // degrees per second
+
+    [Header("Shelf Placement")]
+    public GameObject shelfPrefab;
+    public float builderGridSize = 1f;
+
+    [Header("References")]
+    public StoreBuilderUIHandler uiHandler;
+
+    private bool _placementMode = false;
+    private GameObject _previewShelf = null;
+    private Camera _cam;
+
+    void Awake()
+    {
+        _cam = GetComponentInChildren<Camera>();
+        if (_cam == null)
+            _cam = Camera.main;
+    }
+
+    void Update()
+    {
+        HandleCameraRotation();
+
+        if (_placementMode)
+            HandleShelfPlacement();
+    }
+
+    // ── Camera rotation ───────────────────────────────────────────────────────
+
+    void HandleCameraRotation()
+    {
+        float input = 0f;
+        if (Input.GetKey(KeyCode.RightArrow)) input =  1f;
+        if (Input.GetKey(KeyCode.LeftArrow))  input = -1f;
+        if (input == 0f) return;
+
+        // Rotate around parent's position (acts as pivot at world origin)
+        transform.RotateAround(transform.parent.position, Vector3.up, input * rotationSpeed * Time.deltaTime);
+    }
+
+    // ── Shelf placement ───────────────────────────────────────────────────────
+
+    // Called by the "Spawn Shelf" UI button
+    public void OnSpawnShelfPressed()
+    {
+        _placementMode = true;
+    }
+
+    void HandleShelfPlacement()
+    {
+        bool hitFloor = RaycastFloor(out Vector3 worldPos);
+
+        if (hitFloor)
+        {
+            Vector3 snapped = SnapToGrid(worldPos);
+
+            if (_previewShelf == null)
+                SpawnPreview(snapped);
+            else
+                _previewShelf.transform.position = snapped;
+
+            if (Input.GetMouseButtonDown(0))
+                ConfirmPlacement();
+        }
+        else
+        {
+            // Mouse is off the floor — destroy any live preview
+            DestroyPreview();
+
+            // Left-click off the floor: treat as a cancellation (no shelf placed)
+            if (Input.GetMouseButtonDown(0))
+                ExitPlacementMode();
+        }
+    }
+
+    bool RaycastFloor(out Vector3 hitPoint)
+    {
+        hitPoint = Vector3.zero;
+        Ray ray = _cam.ScreenPointToRay(Input.mousePosition);
+        if (Physics.Raycast(ray, out RaycastHit hit) && hit.collider.CompareTag("Floor"))
+        {
+            hitPoint = hit.point;
+            return true;
+        }
+        return false;
+    }
+
+    Vector3 SnapToGrid(Vector3 worldPos)
+    {
+        if (builderGridSize <= 0f) return worldPos;
+        return new Vector3(
+            Mathf.Round(worldPos.x / builderGridSize) * builderGridSize,
+            worldPos.y,
+            Mathf.Round(worldPos.z / builderGridSize) * builderGridSize
+        );
+    }
+
+    void SpawnPreview(Vector3 position)
+    {
+        _previewShelf = Instantiate(shelfPrefab, position, Quaternion.identity);
+    }
+
+    void ConfirmPlacement()
+    {
+        if (_previewShelf != null && uiHandler != null)
+        {
+            ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
+            uiHandler.selectedShelf = builder;
+        }
+
+        _previewShelf = null; // relinquish ownership — the shelf stays in the scene
+        ExitPlacementMode();
+    }
+
+    void DestroyPreview()
+    {
+        if (_previewShelf != null)
+        {
+            Destroy(_previewShelf);
+            _previewShelf = null;
+        }
+    }
+
+    void ExitPlacementMode()
+    {
+        _placementMode = false;
+    }
+}
