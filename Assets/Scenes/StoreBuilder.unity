@@ -736,16 +736,16 @@ RectTransform:
   m_GameObject: {fileID: 93903228}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.6783001, y: 0.6783001, z: 0.6783001}
+  m_LocalScale: {x: 1.3300002, y: 1.3300002, z: 1.3300002}
   m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 1567732863}
   - {fileID: 1729699142}
-  m_Father: {fileID: 1917649694}
+  m_Father: {fileID: 363092553}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -328, y: -79}
+  m_AnchoredPosition: {x: -232, y: -695}
   m_SizeDelta: {x: 160, y: 20}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &93903230
@@ -807,7 +807,7 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
-  m_IsOn: 1
+  m_IsOn: 0
 --- !u!1 &110373264
 GameObject:
   m_ObjectHideFlags: 0
@@ -2056,6 +2056,8 @@ RectTransform:
   - {fileID: 680494767}
   - {fileID: 916185185}
   - {fileID: 198750925}
+  - {fileID: 93903229}
+  - {fileID: 420514302}
   m_Father: {fileID: 1917649694}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
@@ -2290,16 +2292,16 @@ RectTransform:
   m_GameObject: {fileID: 420514301}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.6783001, y: 0.6783001, z: 0.6783001}
+  m_LocalScale: {x: 1.3300002, y: 1.3300002, z: 1.3300002}
   m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 182355493}
   - {fileID: 1725003985}
-  m_Father: {fileID: 1917649694}
+  m_Father: {fileID: 363092553}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -328, y: -97.360054}
+  m_AnchoredPosition: {x: -231.8, y: -733}
   m_SizeDelta: {x: 160, y: 20}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &420514303
@@ -2341,7 +2343,7 @@ MonoBehaviour:
     m_PressedTrigger: Pressed
     m_SelectedTrigger: Selected
     m_DisabledTrigger: Disabled
-  m_Interactable: 1
+  m_Interactable: 0
   m_TargetGraphic: {fileID: 182355494}
   toggleTransition: 1
   graphic: {fileID: 1252960504}
@@ -2361,7 +2363,7 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
-  m_IsOn: 1
+  m_IsOn: 0
 --- !u!1 &433604026
 GameObject:
   m_ObjectHideFlags: 0
@@ -2532,7 +2534,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: -158.82336, y: -55.7}
+  m_AnchoredPosition: {x: -144, y: -55.7}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &451269852
@@ -2588,8 +2590,8 @@ MonoBehaviour:
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
-  m_fontStyle: 1
-  m_HorizontalAlignment: 2
+  m_fontStyle: 5
+  m_HorizontalAlignment: 1
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
@@ -2620,7 +2622,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: 1.0164986, w: 32.724297}
+  m_margin: {x: 0, y: 0, z: 27.242588, w: 32.724297}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -4305,7 +4307,7 @@ GameObject:
   - component: {fileID: 693732634}
   - component: {fileID: 693732633}
   m_Layer: 5
-  m_Name: Current Shelf (1)
+  m_Name: Controls
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5766,7 +5768,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -240.00006}
+  m_AnchoredPosition: {x: 0, y: -215}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &1082254380
@@ -9861,8 +9863,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 7.5, y: 0.10000038}
-  m_SizeDelta: {x: -28, y: -3}
+  m_AnchoredPosition: {x: 17.434996, y: 0.10000038}
+  m_SizeDelta: {x: -8.129993, y: -3}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1725003986
 MonoBehaviour:
@@ -9897,7 +9899,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: Spawn Price Tags
+  m_Text: Should Spawn Price Tags?
 --- !u!222 &1725003987
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -9976,7 +9978,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: Spawn Items
+  m_Text: Should Spawn Items?
 --- !u!222 &1729699144
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -11980,8 +11982,6 @@ RectTransform:
   - {fileID: 857722177}
   - {fileID: 1899810005}
   - {fileID: 677118790}
-  - {fileID: 93903229}
-  - {fileID: 420514302}
   - {fileID: 363092553}
   - {fileID: 1593093419}
   m_Father: {fileID: 0}
@@ -12360,7 +12360,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Re-Generate Items
+  m_text: Spawn Items
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: e510d9d5edd6c4366ba4a3b2b3e52860, type: 2}
   m_sharedMaterial: {fileID: 6306142753287030447, guid: e510d9d5edd6c4366ba4a3b2b3e52860, type: 2}

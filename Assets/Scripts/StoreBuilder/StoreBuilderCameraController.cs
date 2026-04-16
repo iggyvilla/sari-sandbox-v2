@@ -20,7 +20,6 @@ public class StoreBuilderCameraController : MonoBehaviour
     [CanBeNull] private GameObject _previewShelf = null;
     [CanBeNull] private ShelfSelector _movingSelector = null;
     private Camera _cam;
-    private Vector3 _prevWorldPos;
     private LayerMask _sariFloorLayerMask;
     private LayerMask _sariInteractableLayerMask;
 
@@ -69,6 +68,9 @@ public class StoreBuilderCameraController : MonoBehaviour
     // Called by ShelfSelector when the user presses M on a selected shelf
     public void EnterMoveMode(ShelfSelector selector)
     {
+        GPUInstanceTracker.Instance.DespawnAllItems();
+        ShelfBuilder.DeleteAllPriceTags();
+        
         _movingSelector = selector;
         _previewShelf = selector.assignedShelf.gameObject;
         _placementMode = true;
@@ -98,13 +100,9 @@ public class StoreBuilderCameraController : MonoBehaviour
             {
                 ConfirmPlacement();
             }
-
-            _prevWorldPos = worldPos;
         }
         else
         {
-            Debug.Log("off floor");
-
             if (_movingSelector == null)
             {
                 // Normal new-shelf placement: destroy the preview
@@ -135,7 +133,6 @@ public class StoreBuilderCameraController : MonoBehaviour
         
         if (Physics.Raycast(ray, out RaycastHit hit, 100f, _sariFloorLayerMask))
         {
-            Debug.Log(hit.collider.gameObject.name);
             if (hit.collider.CompareTag("Floor"))
             {
                 hitPoint = hit.point;
@@ -166,6 +163,7 @@ public class StoreBuilderCameraController : MonoBehaviour
         {
             // Finalise the repositioned shelf — re-encapsulate the selector outline box
             _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
+            _movingSelector.assignedShelf.Rebuild();
             _movingSelector = null;
         }
         else if (_previewShelf != null)

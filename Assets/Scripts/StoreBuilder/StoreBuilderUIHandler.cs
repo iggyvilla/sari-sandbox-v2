@@ -208,6 +208,8 @@ public class StoreBuilderUIHandler : MonoBehaviour
         
         if (!_userWantsSpawnItems)
         {
+            // Disables spawn price tags toggle
+            // If there are no items, there are definitely no price tags
             priceTagToggle.isOn = false;
             priceTagToggle.interactable = false;
         }
@@ -215,7 +217,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         {
             priceTagToggle.interactable = true;
         }
-        
+
         RebuildShelf();
     }
 
@@ -224,19 +226,12 @@ public class StoreBuilderUIHandler : MonoBehaviour
         if (selectedShelf == null) return;
         selectedShelf.spawnPriceTags = toggle.isOn;
 
-        if (!selectedShelf.spawnPriceTags) {
-            PriceTag[] instances =
-                FindObjectsByType<PriceTag>(FindObjectsSortMode.None);
-
-            foreach (PriceTag instance in instances)
-            {
-                // Destroy the GameObject the script is attached to
-                Destroy(instance.gameObject);
-            }
+        if (!selectedShelf.spawnPriceTags)
+        {
+            ShelfBuilder.DeleteAllPriceTags();
         }
         else
         {
-            GPUInstanceTracker.Instance.DespawnAllItems();
             RebuildShelf();
         }
     }
@@ -276,6 +271,9 @@ public class StoreBuilderUIHandler : MonoBehaviour
                 $"sub-shelves have items wider than shelfWidth ({selectedShelf.shelfWidth}). " +
                 $"Item spawning disabled until width is sufficient."
             );
+        
+        GPUInstanceTracker.Instance.DespawnAllItems();
+        ShelfBuilder.DeleteAllPriceTags();
         
         selectedShelf.Rebuild();
         if (_activeSelector != null) _activeSelector.EncapsulateShelf(selectedShelf);

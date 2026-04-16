@@ -122,6 +122,18 @@ public class ShelfBuilder : MonoBehaviour
         BuildRectangularShelf();
     }
     
+    public static void DeleteAllPriceTags()
+    {
+        PriceTag[] instances =
+            FindObjectsByType<PriceTag>(FindObjectsSortMode.None);
+
+        foreach (PriceTag instance in instances)
+        {
+            // Destroy the GameObject the script is attached to
+            Destroy(instance.gameObject);
+        }
+    }
+    
     void BuildRectangularShelf()
     {
         float wallThickness = subShelfHeight;
