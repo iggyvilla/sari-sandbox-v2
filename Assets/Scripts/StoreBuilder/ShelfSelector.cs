@@ -24,8 +24,15 @@ public class ShelfSelector : MonoBehaviour
 
     void Update()
     {
-        if (!Input.GetMouseButtonDown(0)) return;
         if (cameraController != null && cameraController.IsInPlacementMode) return;
+
+        if (IsShelfSelected() && Input.GetKeyDown(KeyCode.M))
+        {
+            cameraController.EnterMoveMode(this);
+            return;
+        }
+
+        if (!Input.GetMouseButtonDown(0)) return;
 
         Ray ray = _cam.ScreenPointToRay(Input.mousePosition);
         if (!Physics.Raycast(ray, out RaycastHit hit, 100f, _sariInteractableMask)) return;

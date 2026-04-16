@@ -18,6 +18,7 @@ public class StoreBuilderCameraController : MonoBehaviour
     private bool _placementMode = false;
     public bool IsInPlacementMode => _placementMode;
     [CanBeNull] private GameObject _previewShelf = null;
+    [CanBeNull] private ShelfSelector _movingSelector = null;
     private Camera _cam;
     private Vector3 _prevWorldPos;
     private LayerMask _sariFloorLayerMask;
@@ -65,6 +66,15 @@ public class StoreBuilderCameraController : MonoBehaviour
         _placementMode = true;
     }
 
+    // Called by ShelfSelector when the user presses M on a selected shelf
+    public void EnterMoveMode(ShelfSelector selector)
+    {
+        _movingSelector = selector;
+        _previewShelf = selector.assignedShelf.gameObject;
+        _placementMode = true;
+        uiHandler.DeselectShelf();
+    }
+
     void HandleShelfPlacement()
     {
         bool hitFloor = RaycastFloor(out Vector3 worldPos);
@@ -76,28 +86,45 @@ public class StoreBuilderCameraController : MonoBehaviour
             if (_previewShelf == null)
             {
                 SpawnPreview(snapped);
-            } 
+            }
             else
             {
                 _previewShelf.transform.position = snapped;
+                if (_movingSelector != null)
+                    _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
             }
 
             if (Input.GetMouseButtonDown(0))
             {
                 ConfirmPlacement();
             }
-            
+
             _prevWorldPos = worldPos;
         }
         else
         {
             Debug.Log("off floor");
-            // Mouse is off the floor — destroy any live preview
-            DestroyPreview();
 
-            // Left-click off the floor: treat as a cancellation (no shelf placed)
+            if (_movingSelector == null)
+            {
+                // Normal new-shelf placement: destroy the preview
+                DestroyPreview();
+            }
+            // Move mode: keep the shelf at its last valid position until the user clicks
+
+            // Left-click off the floor: treat as a cancellation
             if (Input.GetMouseButtonDown(0))
+            {
+                if (_movingSelector != null)
+                {
+                    // Delete the existing shelf and its selector outline box
+                    Destroy(_movingSelector.assignedShelf.gameObject);
+                    Destroy(_movingSelector.gameObject);
+                    _movingSelector = null;
+                    _previewShelf = null;
+                }
                 ExitPlacementMode();
+            }
         }
     }
 
@@ -135,7 +162,13 @@ public class StoreBuilderCameraController : MonoBehaviour
 
     void ConfirmPlacement()
     {
-        if (_previewShelf != null)
+        if (_movingSelector != null)
+        {
+            // Finalise the repositioned shelf — re-encapsulate the selector outline box
+            _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
+            _movingSelector = null;
+        }
+        else if (_previewShelf != null)
         {
             ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
             builder.shelfId = dataHandler.GetUniqueShelfId();
