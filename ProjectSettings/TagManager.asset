@@ -8,6 +8,8 @@ TagManager:
   - AgentHand
   - Interactable
   - Wall
+  - Grippable
+  - Floor
   layers:
   - Default
   - TransparentFX
