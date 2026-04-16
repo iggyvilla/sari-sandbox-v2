@@ -3561,6 +3561,7 @@ MonoBehaviour:
   floor: {fileID: 593330296}
   spawnHingeDoors: 1
   fridgeDoorStyle: 1
+  sideShelfWidth: 0
 --- !u!4 &589810492
 Transform:
   m_ObjectHideFlags: 0
@@ -3745,8 +3746,7 @@ GameObject:
   - component: {fileID: 593330299}
   - component: {fileID: 593330298}
   - component: {fileID: 593330297}
-  - component: {fileID: 593330301}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Floor
   m_TagString: Floor
   m_Icon: {fileID: 0}
@@ -3843,38 +3843,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &593330301
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 593330296}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7a5ac11cc976e418e8d13136b07e1f52, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_SerializedVersion: 0
-  m_AgentTypeID: 0
-  m_CollectObjects: 0
-  m_Size: {x: 10, y: 10, z: 10}
-  m_Center: {x: 0, y: 2, z: 0}
-  m_LayerMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_UseGeometry: 0
-  m_DefaultArea: 0
-  m_GenerateLinks: 0
-  m_IgnoreNavMeshAgent: 1
-  m_IgnoreNavMeshObstacle: 1
-  m_OverrideTileSize: 0
-  m_TileSize: 256
-  m_OverrideVoxelSize: 0
-  m_VoxelSize: 0.06666667
-  m_MinRegionArea: 2
-  m_NavMeshData: {fileID: 0}
-  m_BuildHeightMesh: 0
 --- !u!1 &611303187
 GameObject:
   m_ObjectHideFlags: 0
@@ -12567,6 +12535,8 @@ MonoBehaviour:
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   builderGridSize: 0.5
   uiHandler: {fileID: 987040918}
+  dataHandler: {fileID: 713415074}
+  airMaterial: {fileID: 2100000, guid: a1e0527347dd447dca8ce9830f3e8e10, type: 2}
 --- !u!1 &2101274901
 GameObject:
   m_ObjectHideFlags: 0
