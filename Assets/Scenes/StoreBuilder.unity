@@ -2047,15 +2047,15 @@ RectTransform:
   m_Children:
   - {fileID: 1860695769}
   - {fileID: 451269851}
-  - {fileID: 125153917}
-  - {fileID: 296663427}
-  - {fileID: 651505133}
-  - {fileID: 680494767}
+  - {fileID: 1904428829}
   - {fileID: 916185185}
   - {fileID: 198750925}
   - {fileID: 1282497861}
   - {fileID: 1063135381}
-  - {fileID: 1904428829}
+  - {fileID: 125153917}
+  - {fileID: 296663427}
+  - {fileID: 651505133}
+  - {fileID: 680494767}
   m_Father: {fileID: 1917649694}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
@@ -2532,7 +2532,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: -158.82336, y: -57.843124}
+  m_AnchoredPosition: {x: -158.82336, y: -55.7}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &451269852
@@ -2582,15 +2582,15 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 10.5
-  m_fontSizeBase: 10.5
+  m_fontSize: 14.23
+  m_fontSizeBase: 14.23
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 1
   m_HorizontalAlignment: 2
-  m_VerticalAlignment: 256
+  m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
   m_wordSpacing: 0
@@ -5202,6 +5202,7 @@ MonoBehaviour:
   selectedShelfText: {fileID: 1904428830}
   spawnItemsToggle: {fileID: 93903230}
   priceTagToggle: {fileID: 420514303}
+  cameraController: {fileID: 0}
   shelfEditGroupHandler: {fileID: 987040919}
 --- !u!114 &987040919
 MonoBehaviour:
@@ -11640,7 +11641,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -144, y: -48}
+  m_AnchoredPosition: {x: -144, y: -53.7}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1904428830
@@ -11728,7 +11729,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: 14.31688, w: 32.43962}
+  m_margin: {x: 0, y: 0, z: 14.31688, w: 36.31166}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
