@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,17 +12,53 @@ public class StoreBuilderUIHandler : MonoBehaviour
 
     // Set externally (e.g. by a shelf-selection script) before any UI interaction
     public ShelfBuilder selectedShelf;
-    
-    
+
+    public TextMeshProUGUI selectedShelfText;
+
+    private ShelfSelector _activeSelector;
+
     public Toggle spawnItemsToggle;
     public Toggle priceTagToggle;
 
     // Mirrors the spawn-items toggle so overflow suppression can be undone cleanly
     private bool _userWantsSpawnItems;
+    public ShelfEditGroupHandler shelfEditGroupHandler;
 
     void Start()
     {
         spawnItemsToggle.isOn = false;
+        UpdateSelectedShelfText();
+    }
+
+    // ── Shelf selection ───────────────────────────────────────────────────────
+
+    public void SelectShelf(ShelfSelector selector)
+    {
+        if (_activeSelector != null && _activeSelector != selector)
+            _activeSelector.Deselect();
+
+        _activeSelector = selector;
+        selector.Select();
+        selectedShelf = selector.assignedShelf;
+        shelfEditGroupHandler.UpdateFromShelf(selectedShelf);
+        UpdateSelectedShelfText();
+    }
+
+    public void DeselectShelf()
+    {
+        if (_activeSelector != null)
+            _activeSelector.Deselect();
+        _activeSelector = null;
+        selectedShelf = null;
+        UpdateSelectedShelfText();
+    }
+
+    private void UpdateSelectedShelfText()
+    {
+        if (selectedShelfText == null) return;
+        selectedShelfText.text = selectedShelf != null
+            ? $"Selected Shelf: Shelf {selectedShelf.shelfId}"
+            : "Selected Shelf: NONE";
     }
     
     // ── Int / Float input fields ──────────────────────────────────────────────

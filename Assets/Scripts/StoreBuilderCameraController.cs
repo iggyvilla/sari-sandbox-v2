@@ -16,6 +16,7 @@ public class StoreBuilderCameraController : MonoBehaviour
     public Material airMaterial;
 
     private bool _placementMode = false;
+    public bool IsInPlacementMode => _placementMode;
     [CanBeNull] private GameObject _previewShelf = null;
     private Camera _cam;
     private Vector3 _prevWorldPos;
@@ -134,11 +135,10 @@ public class StoreBuilderCameraController : MonoBehaviour
 
     void ConfirmPlacement()
     {
-        if (_previewShelf != null && uiHandler != null)
+        if (_previewShelf != null)
         {
             ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
             SummonOutlineBox(builder);
-            uiHandler.selectedShelf = builder;
         }
 
         _previewShelf = null; // relinquish ownership — the shelf stays in the scene
@@ -149,22 +149,27 @@ public class StoreBuilderCameraController : MonoBehaviour
     {
         Bounds totalBounds = GetCombinedBounds(shelf.gameObject);
         totalBounds.Expand(0.01f);
+
         GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        cube.layer = _sariInteractableLayerMask;
-        
+        cube.layer = LayerMask.NameToLayer("SariInteractable");
         cube.GetComponent<Renderer>().material = airMaterial;
-        cube.transform.position = shelf.transform.position;
-        
+
+        // Make collider a trigger so it doesn't interfere with physics
+        // but is still hit by raycasts (Physics.queriesHitTriggers = true by default)
+        cube.GetComponent<BoxCollider>().isTrigger = true;
+
         cube.AddComponent<OutlineController>();
         cube.AddComponent<OutlineFx.OutlineFx>();
-        
-        // 3. Match the center and size
+
+        // Match the center and size of the shelf's combined bounds
         cube.transform.position = totalBounds.center;
         cube.transform.localScale = totalBounds.size;
-        
-        // 4. Make it look like a "volume"
-        // Remove the collider so it doesn't mess with physics
-        Destroy(cube.GetComponent<BoxCollider>());
+
+        // Wire up the selector
+        ShelfSelector selector = cube.AddComponent<ShelfSelector>();
+        selector.assignedShelf = shelf;
+        selector.uiHandler = uiHandler;
+        selector.cameraController = this;
     }
     
     Bounds GetCombinedBounds(GameObject parent)

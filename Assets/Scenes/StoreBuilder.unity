@@ -5163,6 +5163,7 @@ GameObject:
   m_Component:
   - component: {fileID: 987040917}
   - component: {fileID: 987040918}
+  - component: {fileID: 987040919}
   m_Layer: 0
   m_Name: Store Builder UI Handler
   m_TagString: Untagged
@@ -5198,8 +5199,36 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   selectedShelf: {fileID: 0}
+  selectedShelfText: {fileID: 1904428830}
   spawnItemsToggle: {fileID: 93903230}
   priceTagToggle: {fileID: 420514303}
+  shelfEditGroupHandler: {fileID: 987040919}
+--- !u!114 &987040919
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 987040916}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a93062541ab649ffa003d7f12875cdb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  shelfWidth: {fileID: 515346944}
+  shelfLevels: {fileID: 1665589908}
+  distanceBetweenLevels: {fileID: 25212500}
+  bootHeight: {fileID: 1152710087}
+  rotationY: {fileID: 1302265017}
+  itemSpawnOption: {fileID: 750773329}
+  spawnFrontShelf: {fileID: 1559395445}
+  spawnBackShelf: {fileID: 1881225837}
+  spawnLShelf: {fileID: 1413532013}
+  spawnRShelf: {fileID: 1892594787}
+  spawnFrontShelfWall: {fileID: 1901822483}
+  spawnBackShelfWall: {fileID: 316228698}
+  spawnLShelfWall: {fileID: 1531024890}
+  spawnRShelfWall: {fileID: 816119838}
 --- !u!1 &1008796917
 GameObject:
   m_ObjectHideFlags: 0
