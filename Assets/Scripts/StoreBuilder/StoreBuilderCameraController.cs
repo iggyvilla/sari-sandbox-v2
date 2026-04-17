@@ -90,6 +90,18 @@ public class StoreBuilderCameraController : MonoBehaviour
 
     void HandleShelfPlacement()
     {
+        if (Input.GetKeyDown(KeyCode.R) && _previewShelf != null)
+        {
+            ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
+            if (builder != null)
+            {
+                builder.rotationY = (builder.rotationY + 90f) % 360f;
+                builder.Rebuild();
+                if (_movingSelector != null)
+                    _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
+            }
+        }
+
         bool hitFloor = RaycastFloor(out Vector3 worldPos);
 
         if (hitFloor)

@@ -6017,7 +6017,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Press M to reposition shelf
+  m_text: 'Press M to reposition shelf
+
+    Press R to rotate shelf'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ad60cbd6c118c488fa5bf2adebf8e87d, type: 2}
   m_sharedMaterial: {fileID: -5661837413949371451, guid: ad60cbd6c118c488fa5bf2adebf8e87d, type: 2}

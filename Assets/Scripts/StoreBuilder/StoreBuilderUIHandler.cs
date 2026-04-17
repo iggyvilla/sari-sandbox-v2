@@ -329,6 +329,17 @@ public class StoreBuilderUIHandler : MonoBehaviour
         DataHandler.Instance.storeName = name;
     }
 
+    // ── Shelf rotation ────────────────────────────────────────────────────────
+
+    public void RotateSelectedShelf()
+    {
+        if (selectedShelf == null) return;
+        selectedShelf.rotationY = (selectedShelf.rotationY + 90f) % 360f;
+        shelfEditGroupHandler.rotationY?.SetValueWithoutNotify(
+            Mathf.RoundToInt(selectedShelf.rotationY / 90f) % 4);
+        RebuildShelf();
+    }
+
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private void RebuildShelf()

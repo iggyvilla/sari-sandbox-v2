@@ -26,6 +26,12 @@ public class ShelfSelector : MonoBehaviour
     {
         if (cameraController != null && cameraController.IsInPlacementMode) return;
 
+        if (IsShelfSelected() && Input.GetKeyDown(KeyCode.R))
+        {
+            uiHandler.RotateSelectedShelf();
+            return;
+        }
+
         if (IsShelfSelected() && Input.GetKeyDown(KeyCode.M))
         {
             cameraController.EnterMoveMode(this);
