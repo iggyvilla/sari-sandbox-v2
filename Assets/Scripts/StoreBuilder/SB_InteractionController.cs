@@ -1,7 +1,7 @@
 using JetBrains.Annotations;
 using UnityEngine;
 
-public class StoreBuilderCameraController : MonoBehaviour
+public class SB_InteractionController : MonoBehaviour
 {
     [Header("Camera Rotation")]
     public float rotationSpeed = 90f; // degrees per second
@@ -12,7 +12,7 @@ public class StoreBuilderCameraController : MonoBehaviour
     public float builderGridSize = 1f;
 
     [Header("References")]
-    public StoreBuilderUIHandler uiHandler;
+    public SB_UIHandler uiHandler;
     public DataHandler dataHandler;
     public Material airMaterial;
 
@@ -79,8 +79,7 @@ public class StoreBuilderCameraController : MonoBehaviour
     // Called by ShelfSelector when the user presses M on a selected shelf
     public void EnterMoveMode(ShelfSelector selector)
     {
-        selector.assignedShelf.DespawnShelfItems();
-        ShelfBuilder.DeleteAllPriceTags();
+        ShelfBuilder.DespawnAllShelfItemsInScene();
         
         _movingSelector = selector;
         _previewShelf = selector.assignedShelf.gameObject;
@@ -93,9 +92,18 @@ public class StoreBuilderCameraController : MonoBehaviour
     {
         source.DespawnShelfItems();
 
-        _previewShelf = Instantiate(source.gameObject, source.transform.position, source.transform.rotation);
+        _previewShelf = Instantiate(
+            source.gameObject, 
+            source.transform.position, 
+            source.transform.rotation
+        );
+        _previewShelf.GetComponent<ShelfBuilder>().Rebuild();
+        
         _movingSelector = null;
+        
+        // Enter placement mode
         _placementMode = true;
+        // Deselect current shelf
         uiHandler.DeselectShelf();
     }
 
@@ -228,7 +236,7 @@ public class StoreBuilderCameraController : MonoBehaviour
         ShelfSelector selector = cube.AddComponent<ShelfSelector>();
         selector.assignedShelf = shelf;
         selector.uiHandler = uiHandler;
-        selector.cameraController = this;
+        selector.interactionController = this;
         
         // Encapsulate shelf bounds
         selector.EncapsulateShelf(shelf);

@@ -103,22 +103,23 @@ public class ShelfBuilder : MonoBehaviour
         shelfObjects = new List<GameObject>();
 
         subShelfHeight = shelfSideProfile.transform.localScale.y;
-        subShelfDepth   = shelfSideProfile.transform.localScale.z;
+        subShelfDepth  = shelfSideProfile.transform.localScale.z;
 
         DestroyAllChildren();
         BuildRectangularShelf();
+        SpawnItemsOnAllShelves();
     }
 
     public void Rebuild()
     {
-        shelfObjects      = new List<GameObject>();
+        shelfObjects       = new List<GameObject>();
         transform.rotation = Quaternion.identity;
 
         if (!spawnItems)
         {
             DespawnShelfItems();
         }
-        
+
         DestroyAllChildren();
         BuildRectangularShelf();
     }
@@ -142,6 +143,12 @@ public class ShelfBuilder : MonoBehaviour
             // Destroy the GameObject the script is attached to
             Destroy(instance.gameObject);
         }
+    }
+    
+    public static void DespawnAllShelfItemsInScene()
+    {
+        GPUInstanceTracker.Instance.DespawnAllItems();
+        ShelfBuilder.DeleteAllPriceTags();
     }
     
     void BuildRectangularShelf()
@@ -210,8 +217,6 @@ public class ShelfBuilder : MonoBehaviour
         transform.Rotate(Vector3.up, rotationY);
         
         SpawnHingeDoors();
-        
-        SpawnItemsOnAllShelves();
     }
 
     void SpawnHingeDoors()
@@ -394,7 +399,7 @@ public class ShelfBuilder : MonoBehaviour
         emptyParent.transform.Rotate(Vector3.up, rotY);
     }
 
-    void SpawnItemsOnAllShelves()
+    public void SpawnItemsOnAllShelves()
     {
         if (spawnItems)
         {

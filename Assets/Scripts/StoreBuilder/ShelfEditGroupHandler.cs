@@ -50,7 +50,7 @@ public class ShelfEditGroupHandler : MonoBehaviour
     /// Pushes all values from <paramref name="shelf"/> into the UI elements
     /// without triggering their OnValueChanged callbacks.
     /// </summary>
-    public void UpdateFromShelf(ShelfBuilder shelf)
+    public void UpdateFromShelf(ShelfBuilder shelf, bool selectedShelfSpawnItem)
     {
         if (shelf == null) return;
 
@@ -67,7 +67,7 @@ public class ShelfEditGroupHandler : MonoBehaviour
         itemSpawnOption?.SetValueWithoutNotify((int)shelf.itemSpawnOption);
         fridgeDoorStyle?.SetValueWithoutNotify((int)shelf.fridgeDoorStyle);
 
-        spawnItems?.SetIsOnWithoutNotify(shelf.spawnItems);
+        spawnItems?.SetIsOnWithoutNotify(selectedShelfSpawnItem);
         spawnPriceTags?.SetIsOnWithoutNotify(shelf.spawnPriceTags);
         
         // Shelf face toggles

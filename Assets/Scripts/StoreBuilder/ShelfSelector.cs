@@ -7,8 +7,8 @@ using UnityEngine;
 public class ShelfSelector : MonoBehaviour
 {
     public ShelfBuilder assignedShelf;
-    public StoreBuilderUIHandler uiHandler;
-    public StoreBuilderCameraController cameraController;
+    public SB_UIHandler uiHandler;
+    public SB_InteractionController interactionController;
 
     private OutlineFx.OutlineFx _outlineFx;
     private Camera _cam;
@@ -24,7 +24,7 @@ public class ShelfSelector : MonoBehaviour
 
     void Update()
     {
-        if (cameraController != null && cameraController.IsInPlacementMode) return;
+        if (interactionController != null && interactionController.IsInPlacementMode) return;
 
         if (IsShelfSelected() && Input.GetKeyDown(KeyCode.R))
         {
@@ -34,13 +34,13 @@ public class ShelfSelector : MonoBehaviour
 
         if (IsShelfSelected() && Input.GetKeyDown(KeyCode.M))
         {
-            cameraController.EnterMoveMode(this);
+            interactionController.EnterMoveMode(this);
             return;
         }
 
         if (IsShelfSelected() && Input.GetKeyDown(KeyCode.D))
         {
-            cameraController.DuplicateShelf(assignedShelf);
+            interactionController.DuplicateShelf(assignedShelf);
             return;
         }
 

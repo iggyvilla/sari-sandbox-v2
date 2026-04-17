@@ -1,8 +1,9 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class StoreBuilderUIHandler : MonoBehaviour
+public class SB_UIHandler : MonoBehaviour
 {
     [Header("Selection UI")] 
     public GameObject shelfEditCanvas;
@@ -27,6 +28,9 @@ public class StoreBuilderUIHandler : MonoBehaviour
 
     // Mirrors the spawn-items toggle so overflow suppression can be undone cleanly
     private bool _userWantsSpawnItems;
+
+    // Persists each shelf's intended spawnItems state by shelfId (false by default)
+    private readonly Dictionary<int, bool> _shelfSpawnItems = new();
     public ShelfEditGroupHandler shelfEditGroupHandler;
 
     void Start()
@@ -45,9 +49,12 @@ public class StoreBuilderUIHandler : MonoBehaviour
         _activeSelector = selector;
         selector.Select();
         selectedShelf = selector.assignedShelf;
-        shelfEditGroupHandler.UpdateFromShelf(selectedShelf);
+        _userWantsSpawnItems = _shelfSpawnItems.TryGetValue(selectedShelf.shelfId, out bool saved) && saved;
+        shelfEditGroupHandler.UpdateFromShelf(selectedShelf, _userWantsSpawnItems);
+        
         SetSelectionUIView(true);
         UpdateSelectedShelfText();
+        ShelfBuilder.DespawnAllShelfItemsInScene();
     }
 
     public void DeselectShelf()
@@ -83,7 +90,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         if (!int.TryParse(value, out int result) || result <= 0)
             result = DefaultShelfWidth;
         selectedShelf.shelfWidth = result;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // Called by the numberOfLevels InputField's OnValueChanged event
@@ -93,7 +100,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         if (!int.TryParse(value, out int result) || result <= 0)
             result = DefaultNumberOfLevels;
         selectedShelf.shelfLevels = result;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // Called by the distanceBetweenLevels InputField's OnValueChanged event
@@ -103,7 +110,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         if (!float.TryParse(value, out float result) || result <= 0f)
             result = DefaultDistanceBetweenLevels;
         selectedShelf.distanceBetweenLevels = result;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
     
     // Called by the shelfRoofHeight InputField's OnValueChanged event
@@ -113,7 +120,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         if (!float.TryParse(value, out float result) || result <= 0f)
             result = DefaultShelfRoofHeight;
         selectedShelf.shelfRoofHeight = result;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // Called by the bootHeight InputField's OnValueChanged event
@@ -123,7 +130,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         if (!float.TryParse(value, out float result) || result <= 0f)
             result = DefaultBootHeight;
         selectedShelf.shelfBootHeight = result;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // ── Dropdowns ─────────────────────────────────────────────────────────────
@@ -133,7 +140,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
     {
         if (selectedShelf == null) return;
         selectedShelf.rotationY = index * 90f;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // itemSpawnOption dropdown: 0 → GenerateRandom, 1 → GenerateRandomThenSave, 2 → ReadFromSave
@@ -141,14 +148,14 @@ public class StoreBuilderUIHandler : MonoBehaviour
     {
         if (selectedShelf == null) return;
         selectedShelf.itemSpawnOption = (ItemSpawnOption)index;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnFridgeDoorStyleChanged(int index)
     {
         if (selectedShelf == null) return;
         selectedShelf.fridgeDoorStyle = (FridgeDoorStyle)index;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // ── Shelf face toggles ────────────────────────────────────────────────────
@@ -159,7 +166,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.frontShelfConfig;
         cfg.buildShelves = toggle.isOn;
         selectedShelf.frontShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnSpawnBackShelfChanged(Toggle toggle)
@@ -168,7 +175,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.backShelfConfig;
         cfg.buildShelves = toggle.isOn;
         selectedShelf.backShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnSpawnLeftShelfChanged(Toggle toggle)
@@ -177,7 +184,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.leftShelfConfig;
         cfg.buildShelves = toggle.isOn;
         selectedShelf.leftShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnSpawnRightShelfChanged(Toggle toggle)
@@ -186,7 +193,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.rightShelfConfig;
         cfg.buildShelves = toggle.isOn;
         selectedShelf.rightShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // ── Shelf wall toggles ────────────────────────────────────────────────────
@@ -197,7 +204,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.frontShelfConfig;
         cfg.buildBackWall = toggle.isOn;
         selectedShelf.frontShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnSpawnBackWallChanged(Toggle toggle)
@@ -206,7 +213,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.backShelfConfig;
         cfg.buildBackWall = toggle.isOn;
         selectedShelf.backShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnSpawnLeftWallChanged(Toggle toggle)
@@ -215,7 +222,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.leftShelfConfig;
         cfg.buildBackWall = toggle.isOn;
         selectedShelf.leftShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnSpawnRightWallChanged(Toggle toggle)
@@ -224,7 +231,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.rightShelfConfig;
         cfg.buildBackWall = toggle.isOn;
         selectedShelf.rightShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
     
     // ── Shelf roof toggles ────────────────────────────────────────────────────
@@ -235,7 +242,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.frontShelfConfig;
         cfg.buildShelfRoof = toggle.isOn;
         selectedShelf.frontShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnSpawnBackRoofChanged(Toggle toggle)
@@ -244,7 +251,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.backShelfConfig;
         cfg.buildShelfRoof = toggle.isOn;
         selectedShelf.backShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnSpawnLeftRoofChanged(Toggle toggle)
@@ -253,7 +260,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.leftShelfConfig;
         cfg.buildShelfRoof = toggle.isOn;
         selectedShelf.leftShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     public void OnSpawnRightRoofChanged(Toggle toggle)
@@ -262,7 +269,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         ShelfConfiguration cfg = selectedShelf.rightShelfConfig;
         cfg.buildShelfRoof = toggle.isOn;
         selectedShelf.rightShelfConfig = cfg;
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // ── Item spawn toggles ────────────────────────────────────────────────────
@@ -271,11 +278,10 @@ public class StoreBuilderUIHandler : MonoBehaviour
     {
         if (selectedShelf == null) return;
         _userWantsSpawnItems = toggle.isOn;
-        
+        _shelfSpawnItems[selectedShelf.shelfId] = _userWantsSpawnItems;
+
         if (!_userWantsSpawnItems)
         {
-            // Disables spawn price tags toggle
-            // If there are no items, there are definitely no price tags
             priceTagToggle.isOn = false;
             priceTagToggle.interactable = false;
         }
@@ -283,8 +289,19 @@ public class StoreBuilderUIHandler : MonoBehaviour
         {
             priceTagToggle.interactable = true;
         }
+    }
 
-        RebuildShelf();
+    public void OnSpawnItemsOnAllShelvesButtonPressed()
+    {
+        foreach (ShelfBuilder shelf in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
+        {
+            shelf.spawnItems = _shelfSpawnItems.TryGetValue(shelf.shelfId, out bool wantsSpawn) && wantsSpawn;
+            if (!shelf.spawnItems) continue;
+            shelf.DespawnShelfItems();
+            ShelfBuilder.DeleteAllPriceTags();
+            shelf.Rebuild();
+            shelf.SpawnItemsOnAllShelves();
+        }
     }
 
     public void OnSpawnPriceTagsChanged(Toggle toggle)
@@ -298,7 +315,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         }
         else
         {
-            RebuildShelf();
+            SafeRebuildShelf();
         }
     }
 
@@ -308,7 +325,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         
         selectedShelf.spawnHingeDoors = toggle.isOn;
         
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // ── Utility functions ─────────────────────────────────────────────────────
@@ -337,12 +354,12 @@ public class StoreBuilderUIHandler : MonoBehaviour
         selectedShelf.rotationY = (selectedShelf.rotationY + 90f) % 360f;
         shelfEditGroupHandler.rotationY?.SetValueWithoutNotify(
             Mathf.RoundToInt(selectedShelf.rotationY / 90f) % 4);
-        RebuildShelf();
+        SafeRebuildShelf();
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────
 
-    private void RebuildShelf()
+    private void SafeRebuildShelf()
     {
         if (selectedShelf == null) return;
 
@@ -360,12 +377,15 @@ public class StoreBuilderUIHandler : MonoBehaviour
         
         // Despawn all items related to the shelf in case 
         // there is a rotation/translation etc.
-        selectedShelf.DespawnShelfItems();
+        // selectedShelf.DespawnShelfItems();
+        
+        ShelfBuilder.DespawnAllShelfItemsInScene();
         ShelfBuilder.DeleteAllPriceTags();
         
         selectedShelf.Rebuild();
         if (_activeSelector != null) _activeSelector.EncapsulateShelf(selectedShelf);
     }
+    
 
     // Returns true when itemSpawnOption is ReadFromSave and at least one saved
     // sub-shelf for the selected shelf has itemsTotalWidth > current shelfWidth.
