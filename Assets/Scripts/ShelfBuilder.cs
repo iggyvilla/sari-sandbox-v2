@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 
 // [ExecuteInEditMode]
@@ -149,7 +150,7 @@ public class ShelfBuilder : MonoBehaviour
         float shelvesZOffset = (subShelfDepth + wallThickness) / 2;
         BuildSubShelf(
             transform, 
-            myZWithOffset(shelvesZOffset),
+            MyZWithOffset(shelvesZOffset),
             0,
             groundY, 
             0, 
@@ -159,7 +160,7 @@ public class ShelfBuilder : MonoBehaviour
         
         BuildSubShelf(
             transform, 
-            myZWithOffset(-shelvesZOffset),
+            MyZWithOffset(-shelvesZOffset),
             1,
             groundY, 
             180, 
@@ -178,7 +179,7 @@ public class ShelfBuilder : MonoBehaviour
         
         BuildSubShelf(
             transform, 
-            myPosWithOffset(shelvesXOffset, sideShelfWidth, rotationY, frontShelfConfig, backShelfConfig),
+            MyPosWithOffset(shelvesXOffset, sideShelfWidth, rotationY, frontShelfConfig, backShelfConfig),
             2,
             groundY, 
             90,
@@ -188,7 +189,7 @@ public class ShelfBuilder : MonoBehaviour
         
         BuildSubShelf(
             transform, 
-            myPosWithOffset(-shelvesXOffset, sideShelfWidth, rotationY, frontShelfConfig, backShelfConfig),
+            MyPosWithOffset(-shelvesXOffset, sideShelfWidth, rotationY, frontShelfConfig, backShelfConfig),
             3,
             groundY, 
             270,
@@ -221,7 +222,8 @@ public class ShelfBuilder : MonoBehaviour
             + transform.forward * (subShelfDepth + 0.03f) 
             + transform.right * (isDoubleDoor ? shelfWidth/4 : 0); 
         
-        GameObject leftDoor = Instantiate(hingeDoorPrefab, leftDoorPos, transform.rotation);
+        GameObject leftDoor = Instantiate(hingeDoorPrefab, leftDoorPos, transform.rotation, transform);
+        RemovePhysicsIfInStoreBuilder(leftDoor);
         
         HingedDoorBuilder leftDoorBuilder = leftDoor.GetComponentInChildren<HingedDoorBuilder>();
         Vector3 lDoorDims = new Vector3(
@@ -242,7 +244,8 @@ public class ShelfBuilder : MonoBehaviour
             + transform.forward * (subShelfDepth + 0.03f)
             - transform.right * shelfWidth/4; 
         
-        GameObject rDoor = Instantiate(hingeDoorPrefab, rDoorPos, transform.rotation);
+        GameObject rDoor = Instantiate(hingeDoorPrefab, rDoorPos, transform.rotation, transform);
+        RemovePhysicsIfInStoreBuilder(rDoor);
         
         HingedDoorBuilder rDoorBuilder = rDoor.GetComponentInChildren<HingedDoorBuilder>();
         Vector3 rDoorDims = new Vector3(
@@ -252,6 +255,14 @@ public class ShelfBuilder : MonoBehaviour
         );
         rDoorBuilder.BuildHingeDoor(rDoorDims, 0.05f, DoorDirection.Right);
         
+    }
+
+    void RemovePhysicsIfInStoreBuilder(GameObject hingeDoor)
+    {
+        string sceneName = SceneManager.GetActiveScene().name;
+        if (sceneName != "StoreBuilder") return;
+        Destroy(hingeDoor.GetComponent<HingeJoint>());
+        Destroy(hingeDoor.GetComponent<Rigidbody>());
     }
 
     float CalculateShelfWidth(float wallThickness, ShelfConfiguration frontShelfCfg, ShelfConfiguration backShelfCfg)
@@ -266,7 +277,7 @@ public class ShelfBuilder : MonoBehaviour
 
     public float CalculateShelfHeight()
     {
-        return ((subShelfHeight + distanceBetweenLevels) * shelfLevels) 
+        return (distanceBetweenLevels * shelfLevels) 
                + shelfBootHeight
                + shelfRoofHeight;
     }
@@ -419,7 +430,7 @@ public class ShelfBuilder : MonoBehaviour
         backWall.transform.SetParent(parent);
     }
 
-    Vector3 myPosWithOffset(float offset, float sideShelfWidth, float rotY, ShelfConfiguration frontShelfCfg, ShelfConfiguration backShelfCfg)
+    Vector3 MyPosWithOffset(float offset, float sideShelfWidth, float rotY, ShelfConfiguration frontShelfCfg, ShelfConfiguration backShelfCfg)
     {
         float zOffset = 0;
         
@@ -436,7 +447,7 @@ public class ShelfBuilder : MonoBehaviour
         );   
     }
     
-    Vector3 myZWithOffset(float offset)
+    Vector3 MyZWithOffset(float offset)
     {
         return new Vector3(
             transform.position.x, 

@@ -4,10 +4,15 @@ using UnityEngine.UI;
 
 public class StoreBuilderUIHandler : MonoBehaviour
 {
+    [Header("Selection UI")] 
+    public GameObject shelfEditCanvas;
+    public GameObject tooltipText;
+    
     // Default fallback values used when the user enters an invalid input
     private const int   DefaultShelfWidth            = 2;
     private const int   DefaultNumberOfLevels        = 3;
     private const float DefaultDistanceBetweenLevels = 0.4f;
+    private const float DefaultShelfRoofHeight       = 0.4f;
     private const float DefaultBootHeight            = 0.4f;
 
     // Set externally (e.g. by a shelf-selection script) before any UI interaction
@@ -19,8 +24,6 @@ public class StoreBuilderUIHandler : MonoBehaviour
 
     public Toggle spawnItemsToggle;
     public Toggle priceTagToggle;
-
-    public StoreBuilderCameraController cameraController;
 
     // Mirrors the spawn-items toggle so overflow suppression can be undone cleanly
     private bool _userWantsSpawnItems;
@@ -43,6 +46,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
         selector.Select();
         selectedShelf = selector.assignedShelf;
         shelfEditGroupHandler.UpdateFromShelf(selectedShelf);
+        SetSelectionUIView(true);
         UpdateSelectedShelfText();
     }
 
@@ -52,7 +56,14 @@ public class StoreBuilderUIHandler : MonoBehaviour
             _activeSelector.Deselect();
         _activeSelector = null;
         selectedShelf = null;
+        SetSelectionUIView(false);
         UpdateSelectedShelfText();
+    }
+
+    void SetSelectionUIView(bool show)
+    {
+        shelfEditCanvas.SetActive(show);
+        tooltipText.SetActive(show);
     }
 
     private void UpdateSelectedShelfText()
@@ -94,6 +105,16 @@ public class StoreBuilderUIHandler : MonoBehaviour
         selectedShelf.distanceBetweenLevels = result;
         RebuildShelf();
     }
+    
+    // Called by the shelfRoofHeight InputField's OnValueChanged event
+    public void OnShelfRoofHeightChanged(string value)
+    {
+        if (selectedShelf == null) return;
+        if (!float.TryParse(value, out float result) || result <= 0f)
+            result = DefaultShelfRoofHeight;
+        selectedShelf.shelfRoofHeight = result;
+        RebuildShelf();
+    }
 
     // Called by the bootHeight InputField's OnValueChanged event
     public void OnBootHeightChanged(string value)
@@ -120,6 +141,13 @@ public class StoreBuilderUIHandler : MonoBehaviour
     {
         if (selectedShelf == null) return;
         selectedShelf.itemSpawnOption = (ItemSpawnOption)index;
+        RebuildShelf();
+    }
+
+    public void OnFridgeDoorStyleChanged(int index)
+    {
+        if (selectedShelf == null) return;
+        selectedShelf.fridgeDoorStyle = (FridgeDoorStyle)index;
         RebuildShelf();
     }
 
@@ -198,6 +226,44 @@ public class StoreBuilderUIHandler : MonoBehaviour
         selectedShelf.rightShelfConfig = cfg;
         RebuildShelf();
     }
+    
+    // ── Shelf roof toggles ────────────────────────────────────────────────────
+
+    public void OnSpawnFrontRoofChanged(Toggle toggle)
+    {
+        if (selectedShelf == null) return;
+        ShelfConfiguration cfg = selectedShelf.frontShelfConfig;
+        cfg.buildShelfRoof = toggle.isOn;
+        selectedShelf.frontShelfConfig = cfg;
+        RebuildShelf();
+    }
+
+    public void OnSpawnBackRoofChanged(Toggle toggle)
+    {
+        if (selectedShelf == null) return;
+        ShelfConfiguration cfg = selectedShelf.backShelfConfig;
+        cfg.buildShelfRoof = toggle.isOn;
+        selectedShelf.backShelfConfig = cfg;
+        RebuildShelf();
+    }
+
+    public void OnSpawnLeftRoofChanged(Toggle toggle)
+    {
+        if (selectedShelf == null) return;
+        ShelfConfiguration cfg = selectedShelf.leftShelfConfig;
+        cfg.buildShelfRoof = toggle.isOn;
+        selectedShelf.leftShelfConfig = cfg;
+        RebuildShelf();
+    }
+
+    public void OnSpawnRightRoofChanged(Toggle toggle)
+    {
+        if (selectedShelf == null) return;
+        ShelfConfiguration cfg = selectedShelf.rightShelfConfig;
+        cfg.buildShelfRoof = toggle.isOn;
+        selectedShelf.rightShelfConfig = cfg;
+        RebuildShelf();
+    }
 
     // ── Item spawn toggles ────────────────────────────────────────────────────
 
@@ -234,6 +300,15 @@ public class StoreBuilderUIHandler : MonoBehaviour
         {
             RebuildShelf();
         }
+    }
+
+    public void OnSpawnHingeDoorsChange(Toggle toggle)
+    {
+        if (selectedShelf == null) return;
+        
+        selectedShelf.spawnHingeDoors = toggle.isOn;
+        
+        RebuildShelf();
     }
 
     // ── Utility functions ─────────────────────────────────────────────────────

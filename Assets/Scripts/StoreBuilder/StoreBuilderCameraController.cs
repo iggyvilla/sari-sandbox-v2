@@ -7,7 +7,8 @@ public class StoreBuilderCameraController : MonoBehaviour
     public float rotationSpeed = 90f; // degrees per second
 
     [Header("Shelf Placement")]
-    public GameObject shelfPrefab;
+    public GameObject woodShelfPrefab;
+    public GameObject fridgePrefab;
     public float builderGridSize = 1f;
 
     [Header("References")]
@@ -15,6 +16,7 @@ public class StoreBuilderCameraController : MonoBehaviour
     public DataHandler dataHandler;
     public Material airMaterial;
 
+    private GameObject shelfPrefab;
     private bool _placementMode = false;
     public bool IsInPlacementMode => _placementMode;
     [CanBeNull] private GameObject _previewShelf = null;
@@ -28,9 +30,6 @@ public class StoreBuilderCameraController : MonoBehaviour
         _cam = GetComponentInChildren<Camera>();
         if (_cam == null)
             _cam = Camera.main;
-        
-        ShelfBuilder builder = shelfPrefab.GetComponent<ShelfBuilder>();
-        builder.floor = dataHandler.floor;
         
         _sariFloorLayerMask = LayerMask.GetMask("SariFloor");
         _sariInteractableLayerMask = LayerMask.GetMask("SariInteractable");
@@ -62,6 +61,18 @@ public class StoreBuilderCameraController : MonoBehaviour
     // Called by the "Spawn Shelf" UI button
     public void OnSpawnShelfPressed()
     {
+        shelfPrefab = woodShelfPrefab;
+        ShelfBuilder builder = shelfPrefab.GetComponent<ShelfBuilder>();
+        builder.floor = dataHandler.floor;
+        _placementMode = true;
+    }
+    
+    // Called by the "Spawn Fridge" UI button
+    public void OnSpawnFridgePressed()
+    {
+        shelfPrefab = fridgePrefab;
+        ShelfBuilder builder = shelfPrefab.GetComponent<ShelfBuilder>();
+        builder.floor = dataHandler.floor;
         _placementMode = true;
     }
 

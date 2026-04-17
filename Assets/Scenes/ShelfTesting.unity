@@ -875,87 +875,6 @@ MonoBehaviour:
   m_LightCookieSize: {x: 1, y: 1}
   m_LightCookieOffset: {x: 0, y: 0}
   m_SoftShadowQuality: 0
---- !u!1 &589810490
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 589810492}
-  - component: {fileID: 589810491}
-  m_Layer: 0
-  m_Name: Fridge
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &589810491
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 589810490}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4663346d3d5a44159b9fdea97b650af9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  shelfWidth: 1.25
-  shelfBootHeight: 0.15
-  shelfLevels: 4
-  distanceBetweenLevels: 0.38
-  rotationY: 180
-  shelfRoofHeight: 0.5
-  shelfId: 1
-  frontShelfConfig:
-    buildShelves: 1
-    buildBackWall: 1
-    buildShelfRoof: 1
-  backShelfConfig:
-    buildShelves: 0
-    buildBackWall: 0
-    buildShelfRoof: 0
-  leftShelfConfig:
-    buildShelves: 0
-    buildBackWall: 1
-    buildShelfRoof: 0
-  rightShelfConfig:
-    buildShelves: 0
-    buildBackWall: 1
-    buildShelfRoof: 0
-  spawnItems: 1
-  spawnPriceTags: 1
-  itemSpawnOption: 1
-  itemCategory: 2
-  shelfSideProfile: {fileID: 6631391007982317998, guid: 7fcc8c80075bc4173a9eccb352b8d2c2, type: 3}
-  shelfMaterial: {fileID: 2100000, guid: 9f1200f208a524fc79e71847e7f7a499, type: 2}
-  metalShelfMaterial: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
-  hingeDoorPrefab: {fileID: 520072958513338024, guid: 1bf1d8a8e76cb44958dbc41575410996, type: 3}
-  priceTagPrefab: {fileID: 7931005315621676498, guid: d57044680a73d4489995adfdda70a9ae, type: 3}
-  wallMaterial: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
-  airMaterial: {fileID: 2100000, guid: a1e0527347dd447dca8ce9830f3e8e10, type: 2}
-  floor: {fileID: 593330296}
-  spawnHingeDoors: 1
-  fridgeDoorStyle: 1
---- !u!4 &589810492
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 589810490}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.5, y: 0.28595147, z: 7.33}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 1
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &593330296
 GameObject:
   m_ObjectHideFlags: 0
@@ -1544,7 +1463,7 @@ MonoBehaviour:
   itemCategories:
     Categories: []
   storeName: DefaultStore
-  readSave: 1
+  readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   floor: {fileID: 593330296}
 --- !u!114 &713415075
@@ -3045,6 +2964,67 @@ MonoBehaviour:
   rotateSpeed: 50
   throwStrength: 0.1
   target: {fileID: 0}
+--- !u!1001 &1106187033066088107
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -3.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.28595147
+      objectReference: {fileID: 0}
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 7.33
+      objectReference: {fileID: 0}
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1803628740525589053, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2128580248598948549, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: m_Name
+      value: ShelfBuilder-Fridge
+      objectReference: {fileID: 0}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: floor
+      value: 
+      objectReference: {fileID: 593330296}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
 --- !u!1001 &5567059867174761712
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -3057,6 +3037,10 @@ PrefabInstance:
       propertyPath: floor
       value: 
       objectReference: {fileID: 593330296}
+    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+      propertyPath: spawnItems
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_Name
       value: ShelfBuilder
@@ -3117,7 +3101,7 @@ SceneRoots:
   - {fileID: 1917649694}
   - {fileID: 593330300}
   - {fileID: 5567059867174761712}
-  - {fileID: 589810492}
+  - {fileID: 1106187033066088107}
   - {fileID: 1541171728}
   - {fileID: 1145514791}
   - {fileID: 574648007}
