@@ -79,7 +79,7 @@ public class SB_InteractionController : MonoBehaviour
     // Called by ShelfSelector when the user presses M on a selected shelf
     public void EnterMoveMode(ShelfSelector selector)
     {
-        ShelfBuilder.DespawnAllShelfItemsInScene();
+        UndoSpawnedItems();
         
         _movingSelector = selector;
         _previewShelf = selector.assignedShelf.gameObject;
@@ -90,14 +90,13 @@ public class SB_InteractionController : MonoBehaviour
     // Called by ShelfSelector when the user presses D on a selected shelf
     public void DuplicateShelf(ShelfBuilder source)
     {
-        source.DespawnShelfItems();
+        UndoSpawnedItems();
 
         _previewShelf = Instantiate(
             source.gameObject, 
             source.transform.position, 
-            source.transform.rotation
+            Quaternion.identity
         );
-        _previewShelf.GetComponent<ShelfBuilder>().Rebuild();
         
         _movingSelector = null;
         
@@ -105,6 +104,17 @@ public class SB_InteractionController : MonoBehaviour
         _placementMode = true;
         // Deselect current shelf
         uiHandler.DeselectShelf();
+    }
+
+    void UndoSpawnedItems()
+    {
+        ShelfBuilder.DespawnAllShelfItemsInScene();
+        
+        // Reverts shelves to not spawn items again
+        foreach (ShelfBuilder shelf in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
+        {
+            shelf.spawnItems = false;
+        }
     }
 
     void HandleShelfPlacement()

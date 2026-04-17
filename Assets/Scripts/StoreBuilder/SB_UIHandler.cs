@@ -293,12 +293,14 @@ public class SB_UIHandler : MonoBehaviour
 
     public void OnSpawnItemsOnAllShelvesButtonPressed()
     {
+        ShelfBuilder.DeleteAllPriceTags();
+        
+        // Makes shelves spawn items only if inidicated in _shelfSpawnItems
         foreach (ShelfBuilder shelf in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
         {
             shelf.spawnItems = _shelfSpawnItems.TryGetValue(shelf.shelfId, out bool wantsSpawn) && wantsSpawn;
             if (!shelf.spawnItems) continue;
             shelf.DespawnShelfItems();
-            ShelfBuilder.DeleteAllPriceTags();
             shelf.Rebuild();
             shelf.SpawnItemsOnAllShelves();
         }

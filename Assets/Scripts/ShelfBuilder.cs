@@ -77,7 +77,8 @@ public class ShelfBuilder : MonoBehaviour
     private List<GameObject> shelfObjects;
 
     private bool _itemsAlreadySpawned = false;
-    
+    private bool _hasBuilt = false;
+
     public void InitFromSaveData(ShelfSaveData data)
     {
         shelfWidth            = data.shelfWidth;
@@ -114,11 +115,6 @@ public class ShelfBuilder : MonoBehaviour
     {
         shelfObjects       = new List<GameObject>();
         transform.rotation = Quaternion.identity;
-
-        if (!spawnItems)
-        {
-            DespawnShelfItems();
-        }
 
         DestroyAllChildren();
         BuildRectangularShelf();
