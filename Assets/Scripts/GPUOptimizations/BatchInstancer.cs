@@ -160,6 +160,13 @@ public class BatchInstancer : MonoBehaviour
         instances = new();
         _drawDataBuffer.SetData(instances);
     }
+
+    public void RemoveDrawDataRange(List<DrawData> toRemove)
+    {
+        foreach (DrawData d in toRemove)
+            instances.Remove(d);
+        _drawDataBuffer.SetData(instances);
+    }
     
     public void AddObjectToBatch(DrawData d)
     {

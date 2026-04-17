@@ -38,7 +38,7 @@ public class ItemBBoxInfo : MonoBehaviour
 
         if (itemBatchInstancer != null)
         {
-            itemBatchInstancer.ClearAllDrawData();
+            itemBatchInstancer.RemoveDrawDataRange(itemDrawDatas);
         }
 
         itemDrawDatas.Clear();

@@ -5977,7 +5977,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &693732632
 RectTransform:
   m_ObjectHideFlags: 0
@@ -6019,7 +6019,10 @@ MonoBehaviour:
       m_Calls: []
   m_text: 'Press M to reposition shelf
 
-    Press R to rotate shelf'
+    Press R to rotate shelf
+
+    Press D
+    to duplicate shelf'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ad60cbd6c118c488fa5bf2adebf8e87d, type: 2}
   m_sharedMaterial: {fileID: -5661837413949371451, guid: ad60cbd6c118c488fa5bf2adebf8e87d, type: 2}

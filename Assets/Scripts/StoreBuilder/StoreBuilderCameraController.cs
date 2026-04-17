@@ -92,7 +92,6 @@ public class StoreBuilderCameraController : MonoBehaviour
     public void DuplicateShelf(ShelfBuilder source)
     {
         source.DespawnShelfItems();
-        ShelfBuilder.DeleteAllPriceTags();
 
         _previewShelf = Instantiate(source.gameObject, source.transform.position, source.transform.rotation);
         _movingSelector = null;
