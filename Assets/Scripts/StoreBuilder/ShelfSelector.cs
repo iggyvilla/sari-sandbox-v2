@@ -38,6 +38,12 @@ public class ShelfSelector : MonoBehaviour
             return;
         }
 
+        if (IsShelfSelected() && Input.GetKeyDown(KeyCode.D))
+        {
+            cameraController.DuplicateShelf(assignedShelf);
+            return;
+        }
+
         if (!Input.GetMouseButtonDown(0)) return;
 
         Ray ray = _cam.ScreenPointToRay(Input.mousePosition);

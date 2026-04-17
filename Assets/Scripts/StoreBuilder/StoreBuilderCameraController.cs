@@ -88,6 +88,18 @@ public class StoreBuilderCameraController : MonoBehaviour
         uiHandler.DeselectShelf();
     }
 
+    // Called by ShelfSelector when the user presses D on a selected shelf
+    public void DuplicateShelf(ShelfBuilder source)
+    {
+        GPUInstanceTracker.Instance.DespawnAllItems();
+        ShelfBuilder.DeleteAllPriceTags();
+
+        _previewShelf = Instantiate(source.gameObject, source.transform.position, source.transform.rotation);
+        _movingSelector = null;
+        _placementMode = true;
+        uiHandler.DeselectShelf();
+    }
+
     void HandleShelfPlacement()
     {
         if (Input.GetKeyDown(KeyCode.R) && _previewShelf != null)
