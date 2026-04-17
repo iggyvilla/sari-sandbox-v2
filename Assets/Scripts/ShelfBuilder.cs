@@ -116,11 +116,20 @@ public class ShelfBuilder : MonoBehaviour
 
         if (!spawnItems)
         {
-            GPUInstanceTracker.Instance.DespawnAllItems();
+            DespawnShelfItems();
         }
         
         DestroyAllChildren();
         BuildRectangularShelf();
+    }
+
+    public void DespawnShelfItems()
+    {
+        foreach (ItemBBoxInfo bboxInfo in GetComponentsInChildren<ItemBBoxInfo>())
+        {
+            bboxInfo.DeleteAllItems();
+            Destroy(bboxInfo.gameObject);
+        }
     }
     
     public static void DeleteAllPriceTags()

@@ -30,6 +30,10 @@ public class ShelfEditGroupHandler : MonoBehaviour
     [Header("Toggles - Fridge Options")]
     public Toggle spawnHingeDoors;
     
+    [Header("Toggles - Items")]
+    public Toggle spawnItems;
+    public Toggle spawnPriceTags;
+    
     [Header("Toggles - Fridge Roof Options")]
     public Toggle spawnLShelfRoof;
     public Toggle spawnRShelfRoof;
@@ -63,6 +67,9 @@ public class ShelfEditGroupHandler : MonoBehaviour
         itemSpawnOption?.SetValueWithoutNotify((int)shelf.itemSpawnOption);
         fridgeDoorStyle?.SetValueWithoutNotify((int)shelf.fridgeDoorStyle);
 
+        spawnItems?.SetIsOnWithoutNotify(shelf.spawnItems);
+        spawnPriceTags?.SetIsOnWithoutNotify(shelf.spawnPriceTags);
+        
         // Shelf face toggles
         spawnFrontShelf?.SetIsOnWithoutNotify(shelf.frontShelfConfig.buildShelves);
         spawnBackShelf?.SetIsOnWithoutNotify(shelf.backShelfConfig.buildShelves);

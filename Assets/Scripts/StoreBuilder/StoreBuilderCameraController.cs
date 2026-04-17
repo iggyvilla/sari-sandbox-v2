@@ -79,7 +79,7 @@ public class StoreBuilderCameraController : MonoBehaviour
     // Called by ShelfSelector when the user presses M on a selected shelf
     public void EnterMoveMode(ShelfSelector selector)
     {
-        GPUInstanceTracker.Instance.DespawnAllItems();
+        selector.assignedShelf.DespawnShelfItems();
         ShelfBuilder.DeleteAllPriceTags();
         
         _movingSelector = selector;
@@ -91,7 +91,7 @@ public class StoreBuilderCameraController : MonoBehaviour
     // Called by ShelfSelector when the user presses D on a selected shelf
     public void DuplicateShelf(ShelfBuilder source)
     {
-        GPUInstanceTracker.Instance.DespawnAllItems();
+        source.DespawnShelfItems();
         ShelfBuilder.DeleteAllPriceTags();
 
         _previewShelf = Instantiate(source.gameObject, source.transform.position, source.transform.rotation);

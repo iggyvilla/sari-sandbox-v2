@@ -7630,6 +7630,8 @@ MonoBehaviour:
   spawnLShelf: {fileID: 1413532013}
   spawnRShelf: {fileID: 1892594787}
   spawnHingeDoors: {fileID: 861026302}
+  spawnItems: {fileID: 93903230}
+  spawnPriceTags: {fileID: 420514303}
   spawnLShelfRoof: {fileID: 2137636040}
   spawnRShelfRoof: {fileID: 326768229}
   spawnBShelfRoof: {fileID: 1863560165}

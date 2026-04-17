@@ -31,7 +31,7 @@ public class StoreBuilderUIHandler : MonoBehaviour
 
     void Start()
     {
-        spawnItemsToggle.isOn = false;
+        // spawnItemsToggle.isOn = false;
         UpdateSelectedShelfText();
     }
 
@@ -358,7 +358,9 @@ public class StoreBuilderUIHandler : MonoBehaviour
                 $"Item spawning disabled until width is sufficient."
             );
         
-        GPUInstanceTracker.Instance.DespawnAllItems();
+        // Despawn all items related to the shelf in case 
+        // there is a rotation/translation etc.
+        selectedShelf.DespawnShelfItems();
         ShelfBuilder.DeleteAllPriceTags();
         
         selectedShelf.Rebuild();

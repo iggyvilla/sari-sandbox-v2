@@ -12,12 +12,12 @@ public class ItemBBoxInfo : MonoBehaviour
 
     public void DeleteFrontmostItem()
     {
-        if (itemDrawDatas.Count <= 0) return;
-        
+        if (itemDrawDatas.Count == 0) return;
+
         DrawData frontItemDrawData = itemDrawDatas[0];
 
         string myId = gameObject.name;
-        
+
         BatchInstancer itemBatchInstancer =
             GPUInstanceTracker.Instance.GetBatchInstancerFromId(myId);
 
@@ -25,7 +25,22 @@ public class ItemBBoxInfo : MonoBehaviour
         {
             itemBatchInstancer.RemoveSingleDrawData(frontItemDrawData);
         }
-        
+
         itemDrawDatas.RemoveAt(0);
+    }
+
+    public void DeleteAllItems()
+    {
+        if (itemDrawDatas.Count == 0) return;
+
+        BatchInstancer itemBatchInstancer =
+            GPUInstanceTracker.Instance.GetBatchInstancerFromId(gameObject.name);
+
+        if (itemBatchInstancer != null)
+        {
+            itemBatchInstancer.ClearAllDrawData();
+        }
+
+        itemDrawDatas.Clear();
     }
 }
