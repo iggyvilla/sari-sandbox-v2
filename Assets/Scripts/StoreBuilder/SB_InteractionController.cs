@@ -108,7 +108,7 @@ public class SB_InteractionController : MonoBehaviour
 
     void UndoSpawnedItems()
     {
-        ShelfBuilder.DespawnAllShelfItemsInScene();
+        ShelfBuilder.DespawnAllItemsInScene();
         
         // Reverts shelves to not spawn items again
         foreach (ShelfBuilder shelf in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
@@ -222,34 +222,11 @@ public class SB_InteractionController : MonoBehaviour
         {
             ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
             builder.shelfId = dataHandler.GetUniqueShelfId();
-            SummonOutlineBox(builder);
+            builder.SummonOutlineBox(uiHandler, this);
         }
 
         _previewShelf = null; // relinquish ownership — the shelf stays in the scene
         ExitPlacementMode();
-    }
-
-    void SummonOutlineBox(ShelfBuilder shelf)
-    {
-        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        cube.layer = LayerMask.NameToLayer("SariInteractable");
-        cube.GetComponent<Renderer>().material = airMaterial;
-
-        // Make collider a trigger so it doesn't interfere with physics
-        // but is still hit by raycasts (Physics.queriesHitTriggers = true by default)
-        cube.GetComponent<BoxCollider>().isTrigger = true;
-        
-        // Add OutlineFx for the white outline
-        cube.AddComponent<OutlineFx.OutlineFx>();
-
-        // Wire up the selector
-        ShelfSelector selector = cube.AddComponent<ShelfSelector>();
-        selector.assignedShelf = shelf;
-        selector.uiHandler = uiHandler;
-        selector.interactionController = this;
-        
-        // Encapsulate shelf bounds
-        selector.EncapsulateShelf(shelf);
     }
 
     void DestroyPreview()

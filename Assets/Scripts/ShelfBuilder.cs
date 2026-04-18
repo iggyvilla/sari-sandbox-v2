@@ -97,6 +97,7 @@ public class ShelfBuilder : MonoBehaviour
         itemCategory          = data.itemCategory;
         spawnHingeDoors       = data.spawnHingeDoors;
         fridgeDoorStyle       = data.fridgeDoorStyle;
+        shelfId               = data.shelfId;
     }
 
     void Start()
@@ -141,10 +142,10 @@ public class ShelfBuilder : MonoBehaviour
         }
     }
     
-    public static void DespawnAllShelfItemsInScene()
+    public static void DespawnAllItemsInScene()
     {
         GPUInstanceTracker.Instance.DespawnAllItems();
-        ShelfBuilder.DeleteAllPriceTags();
+        DeleteAllPriceTags();
     }
     
     void BuildRectangularShelf()
@@ -407,6 +408,30 @@ public class ShelfBuilder : MonoBehaviour
         }
 
         _itemsAlreadySpawned = true;
+    }
+    
+    
+    public void SummonOutlineBox(SB_UIHandler uiHandler, SB_InteractionController interactionController)
+    {
+        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cube.layer = LayerMask.NameToLayer("SariInteractable");
+        cube.GetComponent<Renderer>().material = airMaterial;
+
+        // Make collider a trigger so it doesn't interfere with physics
+        // but is still hit by raycasts (Physics.queriesHitTriggers = true by default)
+        cube.GetComponent<BoxCollider>().isTrigger = true;
+        
+        // Add OutlineFx for the white outline
+        cube.AddComponent<OutlineFx.OutlineFx>();
+
+        // Wire up the selector
+        ShelfSelector selector = cube.AddComponent<ShelfSelector>();
+        selector.assignedShelf = this;
+        selector.uiHandler = uiHandler;
+        selector.interactionController = interactionController;
+        
+        // Encapsulate shelf bounds
+        selector.EncapsulateShelf(this);
     }
     
     // wallOffset is how far from the edge of a shelf the wall will spawn at

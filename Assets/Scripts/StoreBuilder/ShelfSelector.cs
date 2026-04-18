@@ -65,6 +65,7 @@ public class ShelfSelector : MonoBehaviour
     public void EncapsulateShelf(ShelfBuilder shelf)
     {
         Bounds totalBounds = GetCombinedBounds(shelf.gameObject);
+        // Add some padding
         totalBounds.Expand(0.01f);
         
         // Match the center and size of the shelf's combined bounds

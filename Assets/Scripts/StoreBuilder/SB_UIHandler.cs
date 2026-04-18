@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.IO;
+using Newtonsoft.Json;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,16 +24,25 @@ public class SB_UIHandler : MonoBehaviour
     public TextMeshProUGUI selectedShelfText;
 
     private ShelfSelector _activeSelector;
-
-    public Toggle spawnItemsToggle;
+    
     public Toggle priceTagToggle;
 
     // Mirrors the spawn-items toggle so overflow suppression can be undone cleanly
     private bool _userWantsSpawnItems;
 
-    // Persists each shelf's intended spawnItems state by shelfId (false by default)
-    private readonly Dictionary<int, bool> _shelfSpawnItems = new();
     public ShelfEditGroupHandler shelfEditGroupHandler;
+
+    [Header("Load Store UI")]
+    public GameObject loadStoreCanvas;
+    public TMP_Dropdown loadStoreDropdown;
+    public TextMeshProUGUI loadPersistentDataPathText;
+    
+    [Header("Save Store UI")]
+    public GameObject saveStoreCanvas;
+    public TMP_InputField saveStoreTextField;
+    public TextMeshProUGUI savePersistentDataPathText;
+
+    private List<string> _validStoreFiles = new();
 
     void Start()
     {
@@ -49,12 +60,12 @@ public class SB_UIHandler : MonoBehaviour
         _activeSelector = selector;
         selector.Select();
         selectedShelf = selector.assignedShelf;
-        _userWantsSpawnItems = _shelfSpawnItems.TryGetValue(selectedShelf.shelfId, out bool saved) && saved;
+        _userWantsSpawnItems = DataHandler.Instance.shouldShelfSpawnItems.TryGetValue(selectedShelf.shelfId, out bool saved) && saved;
         shelfEditGroupHandler.UpdateFromShelf(selectedShelf, _userWantsSpawnItems);
         
         SetSelectionUIView(true);
         UpdateSelectedShelfText();
-        ShelfBuilder.DespawnAllShelfItemsInScene();
+        ShelfBuilder.DespawnAllItemsInScene();
     }
 
     public void DeselectShelf()
@@ -278,7 +289,7 @@ public class SB_UIHandler : MonoBehaviour
     {
         if (selectedShelf == null) return;
         _userWantsSpawnItems = toggle.isOn;
-        _shelfSpawnItems[selectedShelf.shelfId] = _userWantsSpawnItems;
+        DataHandler.Instance.shouldShelfSpawnItems[selectedShelf.shelfId] = _userWantsSpawnItems;
 
         if (!_userWantsSpawnItems)
         {
@@ -295,10 +306,10 @@ public class SB_UIHandler : MonoBehaviour
     {
         ShelfBuilder.DeleteAllPriceTags();
         
-        // Makes shelves spawn items only if inidicated in _shelfSpawnItems
+        // Makes shelves spawn items only if inidicated in DataHandler.Instance.shelfSpawnItems
         foreach (ShelfBuilder shelf in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
         {
-            shelf.spawnItems = _shelfSpawnItems.TryGetValue(shelf.shelfId, out bool wantsSpawn) && wantsSpawn;
+            shelf.spawnItems = DataHandler.Instance.shouldShelfSpawnItems.TryGetValue(shelf.shelfId, out bool wantsSpawn) && wantsSpawn;
             if (!shelf.spawnItems) continue;
             shelf.DespawnShelfItems();
             shelf.Rebuild();
@@ -359,6 +370,77 @@ public class SB_UIHandler : MonoBehaviour
         SafeRebuildShelf();
     }
 
+    // ── Load store UI ─────────────────────────────────────────────────────────
+
+    public void LoadStoreDropdownMenu()
+    {
+        /* If the menu is already open, just close it and do no processing */
+        if (loadStoreCanvas.activeInHierarchy)
+        {
+            loadStoreCanvas.SetActive(false);
+            return;
+        }
+        
+        loadStoreCanvas.SetActive(true);
+        _validStoreFiles.Clear();
+        loadStoreDropdown.ClearOptions();
+
+        if (loadPersistentDataPathText != null)
+            loadPersistentDataPathText.text = Application.persistentDataPath;
+
+        string[] files = Directory.GetFiles(Application.persistentDataPath, "*.json");
+        List<string> options = new();
+
+        foreach (string file in files)
+        {
+            try
+            {
+                StoreData data = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(file));
+                if (data == null || data.shelves == null) continue;
+                string name = Path.GetFileNameWithoutExtension(file);
+                _validStoreFiles.Add(name);
+                options.Add(name);
+            }
+            catch { }
+        }
+
+        loadStoreDropdown.AddOptions(options);
+        loadStoreDropdown.interactable = options.Count > 0;
+    }
+    
+    public void LoadStoreConfirm()
+    {
+        if (_validStoreFiles.Count == 0) return;
+        int index = loadStoreDropdown.value;
+        if (index < 0 || index >= _validStoreFiles.Count) return;
+        
+        DataHandler.Instance.storeName = _validStoreFiles[index];
+        DataHandler.Instance.readSave  = true;
+        DataHandler.Instance.LoadStore();
+    }
+    
+    // ── Save store UI ─────────────────────────────────────────────────────────
+
+
+    public void OnSaveStoreMenuPressed()
+    {
+        if (savePersistentDataPathText != null)
+            savePersistentDataPathText.text = Application.persistentDataPath;
+        
+        if (saveStoreCanvas.activeInHierarchy)
+        {
+            saveStoreCanvas.SetActive(false);
+            return;
+        }
+        
+        saveStoreCanvas.SetActive(true);
+    }
+
+    public void OnSaveStoreConfirmPressed()
+    {
+        SetStoreName(saveStoreTextField.text);
+        DataHandler.Instance.SaveStore();
+    }
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private void SafeRebuildShelf()
@@ -381,7 +463,7 @@ public class SB_UIHandler : MonoBehaviour
         // there is a rotation/translation etc.
         // selectedShelf.DespawnShelfItems();
         
-        ShelfBuilder.DespawnAllShelfItemsInScene();
+        ShelfBuilder.DespawnAllItemsInScene();
         ShelfBuilder.DeleteAllPriceTags();
         
         selectedShelf.Rebuild();

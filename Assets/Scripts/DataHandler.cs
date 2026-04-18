@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using Newtonsoft.Json;
+using UnityEngine.SceneManagement;
 
 [System.Serializable]
 public class ItemCategories
@@ -75,6 +77,9 @@ public struct ShelfInfo
 [System.Serializable]
 public class ShelfSaveData
 {
+    // Shelf ID
+    public int shelfId;
+    
     // World position
     public float posX, posY, posZ;
 
@@ -125,6 +130,13 @@ public class DataHandler : MonoBehaviour
     public GameObject shelfPrefab;
     public GameObject floor;
     
+    [Header("Store Builder")]
+    public SB_UIHandler uiHandler;
+    public SB_InteractionController interactionController;
+
+    // Persists each shelf's intended spawnItems state by shelfId
+    public Dictionary<int, bool> shouldShelfSpawnItems = new();
+
     private int currentShelfId = 0;
 
     void Awake()
@@ -166,9 +178,9 @@ public class DataHandler : MonoBehaviour
 
     public void LoadStore()
     {
-        if (!readSave) return;
-
-        foreach (ShelfBuilder existing in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
+        // Clear all shelves in the scene
+        foreach (ShelfBuilder existing in 
+                 FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
             Destroy(existing.gameObject);
 
         string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
@@ -182,17 +194,30 @@ public class DataHandler : MonoBehaviour
         currentStoreData = storeData;
         Debug.Log($"Loading store '{storeName}' — {storeData.shelves.Count} shelf(ves).");
 
-        for (int i = 0; i < storeData.shelves.Count; i++)
+        shouldShelfSpawnItems.Clear();
+        string sceneName = SceneManager.GetActiveScene().name;
+        
+        foreach (ShelfSaveData data in storeData.shelves)
         {
-            ShelfSaveData data = storeData.shelves[i];
-            Vector3 pos = new Vector3(data.posX, data.posY, data.posZ);
+            shouldShelfSpawnItems[data.shelfId] = data.spawnItems;
+            currentShelfId = Math.Max(currentShelfId, data.shelfId);
+
+            Vector3 pos   = new Vector3(data.posX, data.posY, data.posZ);
             GameObject go = Instantiate(shelfPrefab, pos, Quaternion.identity);
 
             ShelfBuilder builder = go.GetComponent<ShelfBuilder>();
-            builder.shelfId = i;
-            builder.floor   = floor;
+            builder.floor      = floor;
+            builder.spawnItems = false;
             builder.InitFromSaveData(data);
-            // Start() fires next frame and calls BuildRectangularShelf()
+            builder.Rebuild();
+            
+            if (sceneName == "StoreBuilder")
+            {
+                builder.SummonOutlineBox(
+                    uiHandler, 
+                    interactionController
+                );
+            }
         }
     }
 
@@ -241,6 +266,7 @@ public class DataHandler : MonoBehaviour
                 itemCategory          = b.itemCategory,
                 spawnHingeDoors       = b.spawnHingeDoors,
                 fridgeDoorStyle       = b.fridgeDoorStyle,
+                shelfId               = b.shelfId
             });
         }
 
