@@ -12,7 +12,7 @@ PlayerSettings:
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: DefaultCompany
+  companyName: Sari Sandbox
   productName: Sari Sandbox V2
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
@@ -113,7 +113,7 @@ PlayerSettings:
   xboxEnableHeadOrientation: 0
   xboxEnableGuest: 0
   xboxEnablePIXSampling: 0
-  metalFramebufferOnly: 0
+  metalFramebufferOnly: 1
   xboxOneResolution: 0
   xboxOneSResolution: 0
   xboxOneXResolution: 3
@@ -532,6 +532,9 @@ PlayerSettings:
   - m_BuildTarget: AndroidPlayer
     m_APIs: 150000000b000000
     m_Automatic: 0
+  - m_BuildTarget: LinuxStandaloneSupport
+    m_APIs: 1100000015000000
+    m_Automatic: 0
   m_BuildTargetVRSettings: []
   m_DefaultShaderChunkSizeInMB: 16
   m_DefaultShaderChunkCount: 0
@@ -547,6 +550,9 @@ PlayerSettings:
   - serializedVersion: 2
     m_BuildTarget: Android
     m_EncodingQuality: 1
+  - serializedVersion: 2
+    m_BuildTarget: Standalone
+    m_EncodingQuality: 2
   m_BuildTargetGroupHDRCubemapEncodingQuality: []
   m_BuildTargetGroupLightmapSettings: []
   m_BuildTargetGroupLoadStoreDebugModeSettings: []
