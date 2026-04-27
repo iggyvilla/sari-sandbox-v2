@@ -1466,6 +1466,8 @@ MonoBehaviour:
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   floor: {fileID: 593330296}
+  uiHandler: {fileID: 0}
+  interactionController: {fileID: 0}
 --- !u!114 &713415075
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3039,7 +3041,7 @@ PrefabInstance:
       objectReference: {fileID: 593330296}
     - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: spawnItems
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_Name
