@@ -75,13 +75,14 @@ public class AgentController : MonoBehaviour
             OutlineController outlineControllerScript = hit.collider.GetComponent<OutlineController>();
             if (outlineControllerScript) outlineControllerScript.OnGaze();
             
-            // For "grabbing" items
+            // For "grabbing" items/opening doors
             if (Input.GetKey(KeyCode.Return))
             {
                 HingedDoorBuilder hingedDoorHandler = hit.collider.GetComponentInParent<HingedDoorBuilder>();
 
                 if (hingedDoorHandler != null)
                 {
+                    // If it's a door, it'll have hingedDoorHandler, open it
                     hingedDoorHandler.ToggleDoor();
                     return;
                 }

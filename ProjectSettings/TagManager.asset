@@ -10,6 +10,7 @@ TagManager:
   - Wall
   - Grippable
   - Floor
+  - RetailItem
   layers:
   - Default
   - TransparentFX

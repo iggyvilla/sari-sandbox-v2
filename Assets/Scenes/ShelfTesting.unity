@@ -3139,8 +3139,8 @@ MonoBehaviour:
   throwStrength: 0.1
   agentHand: {fileID: 1572490009}
   handMoveRange: 0.5
-  handMoveSpeed: 0.5
-  gripSpeed: 2
+  handMoveSpeed: 0.3
+  gripSpeed: 3
   target: {fileID: 0}
 --- !u!1001 &1106187033066088107
 PrefabInstance:
