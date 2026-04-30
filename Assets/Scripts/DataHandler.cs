@@ -25,6 +25,13 @@ public enum FridgeDoorStyle
     Double
 }
 
+public enum AgentInteractionStyle
+{
+    Gaze,
+    Manual,
+    ManualButGazeDoor
+}
+
 [System.Serializable]
 public class ItemCategoryData
 {
@@ -126,6 +133,7 @@ public class DataHandler : MonoBehaviour
     [Header("Agent")]
     public GameObject agentObject;
     public Vector3 AgentPosition => agentObject != null ? agentObject.transform.position : Vector3.zero;
+    public AgentInteractionStyle agentInteractionStyle;
 
     [Header("Store")]
     public string storeName = "DefaultStore";
@@ -163,7 +171,7 @@ public class DataHandler : MonoBehaviour
         TextAsset priceDataText = Resources.Load<TextAsset>("Data/PriceData");
         itemPriceData = JsonConvert.DeserializeObject<Dictionary<string, ItemPriceData>>(priceDataText.text);
         Debug.Log($"Done. Loaded data of {itemPriceData.Keys.Count} items.");
-
+        
         if (readSave)
         {
             LoadStore();

@@ -233,10 +233,11 @@ public class ItemSpawner : MonoBehaviour
                     
         PriceTag ptconfig = pt.GetComponent<PriceTag>();
 
-        if (itemPriceData.TryGetValue(
+        if (
+            itemPriceData.TryGetValue(
                 shelfItem.name,
                 out ItemPriceData ptinfo)
-           )
+            )
         {
             ptconfig.SetValues(
                 shelfItem.name,
@@ -246,7 +247,7 @@ public class ItemSpawner : MonoBehaviour
         }
                     
         pt.isStatic = true;
-        // Helpful when debugging
+        // Set name in Unity hierarchy, helpful when debugging
         pt.name = shelfItem.name + "_PRICE_TAG";
     }
 
@@ -292,7 +293,8 @@ public class ItemSpawner : MonoBehaviour
     {
         /* Setup box collider trigger for item retrieval */
         GameObject itemTrigger = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        BoxCollider b = itemTrigger.AddComponent<BoxCollider>();
+        // BoxCollider b = itemTrigger.AddComponent<BoxCollider>();
+        BoxCollider b = itemTrigger.GetComponent<BoxCollider>();
         ItemBBoxInfo itemBBoxInfo = itemTrigger.AddComponent<ItemBBoxInfo>();
         
         /* Make it so the items are outlined when hovered over */
@@ -317,16 +319,17 @@ public class ItemSpawner : MonoBehaviour
             
         b.name = productName;
         b.isTrigger = true;
-            
-        b.size = new Vector3(
+        b.size = Vector3.one; 
+        
+        itemTrigger.transform.localScale = new Vector3(
             (ShelfIsFacingZ() ? itemWidth : depthBudget) + _bBoxPadding,
             itemHeight * numStack + _bBoxPadding,
             (ShelfIsFacingZ() ? depthBudget : itemWidth) + _bBoxPadding
         );
-
-        itemTrigger.transform.localScale = b.size;
-            
-        itemTrigger.transform.SetParent(transform);
+        
+        // Only enable when debugging, Unity scene performance dislikes
+        // nested things
+        // itemTrigger.transform.SetParent(transform);
     }
 
     InstanceLODData GenerateProductDrawData(GameObject product, Vector3 spawnPosition, float itemHeight)

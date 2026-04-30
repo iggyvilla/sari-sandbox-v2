@@ -3,24 +3,39 @@ using UnityEngine.AI;
 
 public class AgentController : MonoBehaviour
 {
+    [Header("Agent Properties")]
     [SerializeField] float movementSpeed;
     [SerializeField] float rotateSpeed;
     [SerializeField] float throwStrength;
+    
+    [Header("Agent Hand Object")]
+    [SerializeField] GameObject agentHand;
+
+    [Header("Manual Hand Control")]
+    public float handMoveRange = 1f;
+    public float handMoveSpeed = 1f;
+    public float gripSpeed = 2f;
+
     private Rigidbody rigidbody;
     private LayerMask interactableLayerMask;
     private GameObject rightHandItem;
     private bool rightHandUsed;
+    private Animator handAnimator;
+    private float currentGrip;
+    
+    [Header("VoxeLLMap")]
+    /* VoxeLLMap-related variables */
     private NavMeshAgent _agent;
     public GameObject target;
     
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         rigidbody = GetComponentInParent<Rigidbody>();
         rightHandUsed = false;
-        // Only trigger items in the "Interactable" layer
         interactableLayerMask = LayerMask.GetMask("SariInteractable");
         _agent = GetComponent<NavMeshAgent>();
+        if (agentHand != null)
+            handAnimator = agentHand.GetComponentInChildren<Animator>();
     }
     
     void FixedUpdate()
@@ -36,27 +51,29 @@ public class AgentController : MonoBehaviour
         RaycastHit hit;
 
         Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.forward) * 10f, Color.yellow);
-        
+
         if (
+            DataHandler.Instance.agentInteractionStyle != AgentInteractionStyle.Manual &&
             Physics.Raycast(
                 transform.position,
-                transform.TransformDirection(Vector3.forward), 
+                transform.TransformDirection(Vector3.forward),
                 out hit,
-                Mathf.Infinity, interactableLayerMask
+                Mathf.Infinity,
+                interactableLayerMask
             )
         )
         {
-            string hitName = hit.transform.name;
-
             if (hit.collider.CompareTag("Wall")) return;
             
+            string hitName = hit.transform.name;
+            
+            // Update debug UI to show item we're currently looking at
             SariUIHandler.Instance.UpdateInfoText(hitName);
             
+            // If the hit interactable object  
+            // should show an outline, enable it
             OutlineController outlineControllerScript = hit.collider.GetComponent<OutlineController>();
-            if (outlineControllerScript)
-            {
-                outlineControllerScript.OnGaze();
-            }
+            if (outlineControllerScript) outlineControllerScript.OnGaze();
             
             // For "grabbing" items
             if (Input.GetKey(KeyCode.Return))
@@ -85,8 +102,12 @@ public class AgentController : MonoBehaviour
                     
                     DisablePhysics(selectedItem);
 
-                    selectedItem = Instantiate(selectedItem, handLocation,
-                        transform.rotation, transform);
+                    selectedItem = Instantiate(
+                        selectedItem, 
+                        handLocation,
+                        transform.rotation, 
+                        transform
+                    );
                     
                     selectedItem.transform.Rotate(Vector3.up, -60);
                     
@@ -144,6 +165,40 @@ public class AgentController : MonoBehaviour
         Vector3 e = transform.eulerAngles;
         e.z = 0;
         transform.rotation = Quaternion.Euler(e);
+
+        if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
+            HandleManualHandControls();
+    }
+
+    private void HandleManualHandControls()
+    {
+        bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+
+        if (ctrl && agentHand != null)
+        {
+            float speed = handMoveSpeed * Time.fixedDeltaTime;
+            Vector3 handPos = agentHand.transform.position;
+
+            if (Input.GetKey(KeyCode.E)) handPos += Vector3.up * speed;
+            if (Input.GetKey(KeyCode.Q)) handPos -= Vector3.up * speed;
+            if (Input.GetKey(KeyCode.I)) handPos += transform.forward * speed;
+            if (Input.GetKey(KeyCode.K)) handPos -= transform.forward * speed;
+            if (Input.GetKey(KeyCode.J)) handPos -= transform.right * speed;
+            if (Input.GetKey(KeyCode.L)) handPos += transform.right * speed;
+
+            Vector3 offset = handPos - transform.position;
+            if (offset.magnitude > handMoveRange)
+                handPos = transform.position + offset.normalized * handMoveRange;
+
+            agentHand.transform.position = handPos;
+        }
+
+        if (handAnimator != null)
+        {
+            bool gripping = ctrl && Input.GetKey(KeyCode.Return);
+            currentGrip = Mathf.MoveTowards(currentGrip, gripping ? 0.7f : 0f, gripSpeed * Time.fixedDeltaTime);
+            handAnimator.SetFloat("Grip", currentGrip);
+        }
     }
 
     void ThrowItem(GameObject item)
