@@ -15,13 +15,23 @@ struct DrawData {
 
 // in: stores item locations
 StructuredBuffer<DrawData> draw_buffer;
-// in: how many item locations 
+// in: how many item locations
 int num_to_draw;
 // in: holds information about the camera's frustum planes
 StructuredBuffer<Plane> planes;
 
-// out: TRS Matrices to keep (unculled)
-AppendStructuredBuffer<DrawData> unculled_buf;
+// in: agent (player) world position for LOD selection
+float3 agent_position;
+// in: distance threshold — below uses LOD1 (high poly), above uses LOD0 (low poly)
+float lod_distance;
+// in: whether each LOD mesh is assigned (1 = assigned, 0 = not)
+int has_lod1;
+int has_lod0;
+
+// out: unculled items close to agent (LOD1, high poly)
+AppendStructuredBuffer<DrawData> unculled_lod1_buf;
+// out: unculled items far from agent (LOD0, low poly)
+AppendStructuredBuffer<DrawData> unculled_lod0_buf;
 
 [numthreads(64,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
@@ -38,7 +48,17 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             return; // culled
     }
 
-    unculled_buf.Append(draw_buffer[id.x]);
-    
+    // If both LODs are present, split by distance; otherwise route to whichever is assigned
+    if (has_lod1 && has_lod0)
+    {
+        if (distance(pos, agent_position) < lod_distance)
+            // If close up, use HD model
+            unculled_lod0_buf.Append(draw_buffer[id.x]);
+        else
+            unculled_lod1_buf.Append(draw_buffer[id.x]);
+    }
+    else if (has_lod1)
+        unculled_lod1_buf.Append(draw_buffer[id.x]);
+    else
+        unculled_lod0_buf.Append(draw_buffer[id.x]);
 }
-

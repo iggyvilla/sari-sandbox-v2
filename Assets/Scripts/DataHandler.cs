@@ -123,6 +123,10 @@ public class DataHandler : MonoBehaviour
 
     public StoreData currentStoreData { get; private set; } = new StoreData();
 
+    [Header("Agent")]
+    public GameObject agentObject;
+    public Vector3 AgentPosition => agentObject != null ? agentObject.transform.position : Vector3.zero;
+
     [Header("Store")]
     public string storeName = "DefaultStore";
     [Tooltip("If true, destroy scene shelves on Awake and load from saved JSON")]

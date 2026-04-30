@@ -99,20 +99,36 @@ public class GPUInstanceTracker : MonoBehaviour
 
     void PrepareBatchInstancer(BatchInstancer batchInstancer, GameObject obj, string itemId)
     {
-        // Gets LOD0
-        // TODO: implement LOD1 in the future?
-        batchInstancer.instanceMesh = obj.GetComponentInChildren<MeshFilter>().sharedMesh;
-        if (batchInstancer.instanceMesh is null)
+        // Traverse the first child's children to find _LOD0 and _LOD1 meshes
+        Transform prodChild = obj.transform.GetChild(0);
+        Mesh lod0Mesh = null;
+        Mesh lod1Mesh = null;
+
+        foreach (Transform child in prodChild)
         {
-            Debug.LogError("Mesh not found on " + obj.name);
+            MeshFilter mf = child.GetComponent<MeshFilter>();
+            if (mf == null) continue;
+
+            if (child.name.EndsWith("_LOD1"))
+                lod1Mesh = mf.sharedMesh;
+            else if (child.name.EndsWith("_LOD0"))
+                lod0Mesh = mf.sharedMesh;
+        }
+
+        if (lod0Mesh == null)
+        {
+            Debug.LogError("LOD0 mesh not found on " + obj.name);
             return;
-        } 
-        
+        }
+
+        batchInstancer.lodMesh0 = lod0Mesh;
+        batchInstancer.lodMesh1 = lod1Mesh; // may be null — BatchInstancer handles this
+
         batchInstancer.materials = obj.GetComponentInChildren<MeshRenderer>().sharedMaterials;
         batchInstancer.frustumCullingShader = Instantiate(frustumCullingShader);
         batchInstancer.agentCamera = mainCamera;
         batchInstancer.itemId = itemId;
-        
+
         /* Make the material a new clone of itself, since the
          * custom shader renders materials of the same type at
          * the same time, if the same material is used on different
