@@ -22,6 +22,7 @@ public class AgentController : MonoBehaviour
     private bool rightHandUsed;
     private Animator handAnimator;
     private float currentGrip;
+    private HandItemDetector handItemDetector;
     
     [Header("VoxeLLMap")]
     /* VoxeLLMap-related variables */
@@ -35,7 +36,10 @@ public class AgentController : MonoBehaviour
         interactableLayerMask = LayerMask.GetMask("SariInteractable");
         _agent = GetComponent<NavMeshAgent>();
         if (agentHand != null)
+        {
             handAnimator = agentHand.GetComponentInChildren<Animator>();
+            handItemDetector = agentHand.GetComponent<HandItemDetector>();
+        }
     }
     
     void FixedUpdate()
@@ -192,6 +196,36 @@ public class AgentController : MonoBehaviour
                 handPos = transform.position + offset.normalized * handMoveRange;
 
             agentHand.transform.position = handPos;
+        }
+
+        if (ctrl && Input.GetKeyDown(KeyCode.Return) && !rightHandUsed)
+        {
+            if (handItemDetector != null &&
+                handItemDetector.DetectedItem != null &&
+                handItemDetector.DetectedItemBBoxInfo != null)
+            {
+                string itemName = handItemDetector.DetectedItem.name;
+                ItemBBoxInfo itemBBoxInfo = handItemDetector.DetectedItemBBoxInfo;
+
+                var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
+                selectedItem.transform.position = Vector3.zero;
+
+                itemBBoxInfo.DeleteFrontmostItem();
+
+                DisablePhysics(selectedItem);
+
+                selectedItem = Instantiate(
+                    selectedItem,
+                    agentHand.transform.position,
+                    transform.rotation,
+                    agentHand.transform
+                );
+
+                selectedItem.transform.Rotate(Vector3.up, -60);
+
+                rightHandItem = selectedItem;
+                rightHandUsed = true;
+            }
         }
 
         if (handAnimator != null)

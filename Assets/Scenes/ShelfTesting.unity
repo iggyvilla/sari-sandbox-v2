@@ -2284,6 +2284,7 @@ GameObject:
   - component: {fileID: 1572490011}
   - component: {fileID: 1572490012}
   - component: {fileID: 1572490013}
+  - component: {fileID: 1572490014}
   m_Layer: 0
   m_Name: Right Hand
   m_TagString: AgentHand
@@ -2300,7 +2301,7 @@ Transform:
   m_GameObject: {fileID: 1572490009}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.21, y: -0.09, z: 0.35}
+  m_LocalPosition: {x: 0.21, y: -0.09, z: 0.352}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2391,12 +2392,12 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.1, y: 0.14, z: 0.21}
-  m_Center: {x: 0.02, y: -0.04, z: 0.01}
+  m_Size: {x: 0.041966036, y: 0.08157122, z: 0.12819982}
+  m_Center: {x: 0.020983018, y: -0.045842826, z: 0.014382124}
 --- !u!54 &1572490013
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2424,6 +2425,18 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &1572490014
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1572490009}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7679f3f2060a14065b94769c328f8456, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1001 &1609451475
 PrefabInstance:
   m_ObjectHideFlags: 0
