@@ -155,7 +155,7 @@ public class ItemSpawner : MonoBehaviour
         
         foreach (var shelfItem in shelfItemData.shelfItems)
         {
-            List<DrawData> drawDataList = new List<DrawData>();
+            List<InstanceLODData> drawDataList = new List<InstanceLODData>();
             
             GameObject product = shelfItem.prefab;
             
@@ -190,16 +190,16 @@ public class ItemSpawner : MonoBehaviour
                             k
                         );
                     
-                    DrawData drawData = 
+                    InstanceLODData instanceLODData =
                         GenerateProductDrawData(product, spawnPosition, itemHeight);
-                        
+
                     GPUInstanceTracker.Instance.AddToInstance(
                         product.name,
                         product,
-                        drawData
+                        instanceLODData
                     );
-                    
-                    drawDataList.Add(drawData);
+
+                    drawDataList.Add(instanceLODData);
                 }
             }
             
@@ -258,16 +258,16 @@ public class ItemSpawner : MonoBehaviour
         }
     }
 
-    DrawData AdjustDrawDataIfPivotOnCenter(GameObject itemGameObject, DrawData drawData, float itemHeight)
+    InstanceLODData AdjustDrawDataIfPivotOnCenter(GameObject itemGameObject, InstanceLODData data, float itemHeight)
     {
         Mesh instanceMesh = itemGameObject.GetComponentInChildren<MeshFilter>().sharedMesh;
-        
+
         if (instanceMesh is null)
         {
             Debug.LogError("Mesh not found on " + itemGameObject.name);
-            return drawData;
-        } 
-        
+            return data;
+        }
+
         if (instanceMesh.bounds.center == Vector3.zero)
         {
             /*
@@ -276,10 +276,10 @@ public class ItemSpawner : MonoBehaviour
              * for it. Without this, items spawn IN the shelves,
              * not ON.
              */
-            drawData.position.y += itemHeight/2;
+            data.position.y += itemHeight / 2;
         }
-        
-        return drawData;
+
+        return data;
     }
 
     int CalculateRows(float itemWidth)
@@ -288,7 +288,7 @@ public class ItemSpawner : MonoBehaviour
                       (itemWidth + interItemPadding));
     }
 
-    void GenerateBoundingBoxTriggerForItem(float lengthwiseOffset, float itemHeight, float itemWidth, float numStack, string productName, List<DrawData> drawDataList)
+    void GenerateBoundingBoxTriggerForItem(float lengthwiseOffset, float itemHeight, float itemWidth, float numStack, string productName, List<InstanceLODData> drawDataList)
     {
         /* Setup box collider trigger for item retrieval */
         GameObject itemTrigger = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -329,46 +329,44 @@ public class ItemSpawner : MonoBehaviour
         itemTrigger.transform.SetParent(transform);
     }
 
-    DrawData GenerateProductDrawData(GameObject product, Vector3 spawnPosition, float itemHeight)
+    InstanceLODData GenerateProductDrawData(GameObject product, Vector3 spawnPosition, float itemHeight)
     {
         /*
-         * get the transforms of LOD0 (or LOD1)
+         * get the transforms of LOD0 (and LOD1 if present)
          * if you get the transforms of the product itself,
          * some items won't spawn properly (local vs world coords)
          */
         Transform prodChild = product.transform.GetChild(0);
-                    
-        Transform lodTransform = null;
+
+        Transform lod0Transform = null;
+        Transform lod1Transform = null;
         foreach (Transform child in prodChild)
         {
-            if (child.name.EndsWith("_LOD0"))
-            {
-                lodTransform = child;
-                break;
-            }
+            if (child.name.EndsWith("_LOD0")) lod0Transform = child;
+            else if (child.name.EndsWith("_LOD1")) lod1Transform = child;
         }
-                    
-        if (lodTransform is null)
+
+        if (lod0Transform is null)
         {
             Debug.LogWarning("Could not find LOD0 for object " + product.name);
-            lodTransform = prodChild;
+            lod0Transform = prodChild;
         }
-                    
-        /* prepare DrawData used later in custom URP shader */
-        Quaternion q =
-            Quaternion.Euler(0, DegreesToAisle(), 0) *
-            lodTransform.transform.rotation;
-                        
-        DrawData drawData = new DrawData
+
+        Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
+        Quaternion q0 = aisleRot * lod0Transform.rotation;
+        Quaternion q1 = lod1Transform != null ? aisleRot * lod1Transform.rotation : q0;
+        Vector3 s1 = lod1Transform != null ? lod1Transform.lossyScale : lod0Transform.lossyScale;
+
+        InstanceLODData data = new InstanceLODData
         {
-            position = spawnPosition,
-            rotation = new Vector4(q.x, q.y, q.z, q.w),
-            scale = lodTransform.transform.lossyScale
+            position  = spawnPosition,
+            rotation0 = new Vector4(q0.x, q0.y, q0.z, q0.w),
+            scale0    = lod0Transform.lossyScale,
+            rotation1 = new Vector4(q1.x, q1.y, q1.z, q1.w),
+            scale1    = s1
         };
 
-        drawData = AdjustDrawDataIfPivotOnCenter(product, drawData, itemHeight);
-        
-        return drawData;
+        return AdjustDrawDataIfPivotOnCenter(product, data, itemHeight);
     }
     
     Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum, bool bBoxDepth = false)

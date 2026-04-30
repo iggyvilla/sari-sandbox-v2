@@ -6,22 +6,33 @@ using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 
-public struct DrawData : IEquatable<DrawData> {
+public struct DrawData {
     public Vector3 position;
     public Vector4 rotation;
     public Vector3 scale;
-    public bool Equals(DrawData other)
+};
+
+// Per-instance data uploaded to the GPU; carries rotation/scale for both LOD levels
+// so the compute shader can assemble the correct DrawData for whichever LOD it routes to.
+public struct InstanceLODData : IEquatable<InstanceLODData> {
+    public Vector3 position;
+    public Vector4 rotation0;
+    public Vector3 scale0;
+    public Vector4 rotation1;
+    public Vector3 scale1;
+
+    public bool Equals(InstanceLODData other)
     {
-        // TODO: could possibly only check for position
         return position == other.position &&
-               rotation == other.rotation &&
-               scale == other.scale;
+               rotation0 == other.rotation0 &&
+               scale0 == other.scale0 &&
+               rotation1 == other.rotation1 &&
+               scale1 == other.scale1;
     }
 
     public override int GetHashCode()
     {
-        // High performance, low collision rate, and zero allocations.
-        return HashCode.Combine(position, rotation, scale);
+        return HashCode.Combine(position, rotation0, scale0, rotation1, scale1);
     }
 };
 
@@ -31,7 +42,8 @@ public class BatchInstancer : MonoBehaviour
     // LOD1 = high-poly (close), LOD0 = low-poly (far); LOD1 may be null
     public Mesh lodMesh1;
     public Mesh lodMesh0;
-    public Material[] materials;
+    public Material[] materials0;
+    public Material[] materials1;
     private SubMeshInstance[] subMeshInstancesLOD1;
     private SubMeshInstance[] subMeshInstancesLOD0;
 
@@ -39,10 +51,11 @@ public class BatchInstancer : MonoBehaviour
 
     /* custom shader buffers setup */
 
-    /* holds DrawData for ALL items (of one type) to draw */
-    private List<DrawData> instances = new();
+    /* holds InstanceLODData for ALL items (of one type) to draw */
+    private List<InstanceLODData> instances = new();
     public string itemId;
     private ComputeBuffer _drawDataBuffer;
+    private int instanceLODDataSize = Marshal.SizeOf<InstanceLODData>();
     private int drawDataSize = Marshal.SizeOf<DrawData>();
 
     private int _sDrawDataId;
@@ -71,9 +84,9 @@ public class BatchInstancer : MonoBehaviour
 
     public void Init()
     {
-        if (lodMesh1 != null)
+        if (lodMesh1 != null && materials1 != null)
         {
-            int count1 = Mathf.Min(materials.Length, lodMesh1.subMeshCount);
+            int count1 = Mathf.Min(materials1.Length, lodMesh1.subMeshCount);
             subMeshInstancesLOD1 = new SubMeshInstance[count1];
             for (int i = 0; i < count1; i++)
             {
@@ -81,14 +94,14 @@ public class BatchInstancer : MonoBehaviour
                     lodMesh1.GetIndexCount(i),
                     lodMesh1.GetIndexStart(i),
                     lodMesh1.GetBaseVertex(i),
-                    materials[i]
+                    materials1[i]
                 );
             }
         }
 
-        if (lodMesh0 != null)
+        if (lodMesh0 != null && materials0 != null)
         {
-            int count0 = Mathf.Min(materials.Length, lodMesh0.subMeshCount);
+            int count0 = Mathf.Min(materials0.Length, lodMesh0.subMeshCount);
             subMeshInstancesLOD0 = new SubMeshInstance[count0];
             for (int i = 0; i < count0; i++)
             {
@@ -96,7 +109,7 @@ public class BatchInstancer : MonoBehaviour
                     lodMesh0.GetIndexCount(i),
                     lodMesh0.GetIndexStart(i),
                     lodMesh0.GetBaseVertex(i),
-                    materials[i]
+                    materials0[i]
                 );
             }
         }
@@ -124,7 +137,7 @@ public class BatchInstancer : MonoBehaviour
         ready = true;
     }
 
-    // LateUpdate becuse GPUInstanceTracker has to
+    // LateUpdate because GPUInstanceTracker has to
     // calculate cameraFrustumPlanes first at Update()
     void Update()
     {
@@ -212,9 +225,9 @@ public class BatchInstancer : MonoBehaviour
         _unculledLOD0Buffer?.Release();
     }
 
-    public void RemoveSingleDrawData(DrawData drawData)
+    public void RemoveSingleDrawData(InstanceLODData d)
     {
-        instances.Remove(drawData);
+        instances.Remove(d);
         _drawDataBuffer.SetData(instances);
     }
 
@@ -224,20 +237,20 @@ public class BatchInstancer : MonoBehaviour
         _drawDataBuffer.SetData(instances);
     }
 
-    public void RemoveDrawDataRange(List<DrawData> toRemove)
+    public void RemoveDrawDataRange(List<InstanceLODData> toRemove)
     {
-        foreach (DrawData d in toRemove)
+        foreach (InstanceLODData d in toRemove)
             instances.Remove(d);
         _drawDataBuffer.SetData(instances);
     }
 
-    public void AddObjectToBatch(DrawData d)
+    public void AddObjectToBatch(InstanceLODData d)
     {
         instances.Add(d);
 
         // TODO: Might have a better solution but it works for now
         _drawDataBuffer?.Release();
-        _drawDataBuffer = new ComputeBuffer(instances.Count, drawDataSize);
+        _drawDataBuffer = new ComputeBuffer(instances.Count, instanceLODDataSize);
         _drawDataBuffer.SetData(instances);
 
         _unculledLOD1Buffer?.Release();

@@ -13,8 +13,16 @@ struct DrawData {
     float3 scale;
 };
 
-// in: stores item locations
-StructuredBuffer<DrawData> draw_buffer;
+struct InstanceLODData {
+    float3 position;
+    float4 rotation0;
+    float3 scale0;
+    float4 rotation1;
+    float3 scale1;
+};
+
+// in: per-instance data with rotation/scale for both LOD levels
+StructuredBuffer<InstanceLODData> draw_buffer;
 // in: how many item locations
 int num_to_draw;
 // in: holds information about the camera's frustum planes
@@ -22,7 +30,7 @@ StructuredBuffer<Plane> planes;
 
 // in: agent (player) world position for LOD selection
 float3 agent_position;
-// in: distance threshold — below uses LOD1 (high poly), above uses LOD0 (low poly)
+// in: distance threshold — below uses LOD1 (low poly), above uses LOD0 (high poly)
 float lod_distance;
 // in: whether each LOD mesh is assigned (1 = assigned, 0 = not)
 int has_lod1;
@@ -48,17 +56,36 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             return; // culled
     }
 
+    InstanceLODData src = draw_buffer[id.x];
+    DrawData d;
+    d.position = pos;
+
     // If both LODs are present, split by distance; otherwise route to whichever is assigned
     if (has_lod1 && has_lod0)
     {
         if (distance(pos, agent_position) < lod_distance)
-            // If close up, use HD model
-            unculled_lod0_buf.Append(draw_buffer[id.x]);
+        {
+            d.rotation = src.rotation0;
+            d.scale    = src.scale0;
+            unculled_lod0_buf.Append(d);
+        }
         else
-            unculled_lod1_buf.Append(draw_buffer[id.x]);
+        {
+            d.rotation = src.rotation1;
+            d.scale    = src.scale1;
+            unculled_lod1_buf.Append(d);
+        }
     }
     else if (has_lod1)
-        unculled_lod1_buf.Append(draw_buffer[id.x]);
+    {
+        d.rotation = src.rotation1;
+        d.scale    = src.scale1;
+        unculled_lod1_buf.Append(d);
+    }
     else
-        unculled_lod0_buf.Append(draw_buffer[id.x]);
+    {
+        d.rotation = src.rotation0;
+        d.scale    = src.scale0;
+        unculled_lod0_buf.Append(d);
+    }
 }

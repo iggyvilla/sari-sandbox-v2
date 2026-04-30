@@ -78,31 +78,33 @@ public class GPUInstanceTracker : MonoBehaviour
         return simplePlanes;
     }
     
-    public void AddToInstance(string itemId, GameObject obj, DrawData drawData)
+    public void AddToInstance(string itemId, GameObject obj, InstanceLODData instanceLODData)
     {
         if (trackers.ContainsKey(itemId))
         {
-            trackers[itemId].AddObjectToBatch(drawData);
+            trackers[itemId].AddObjectToBatch(instanceLODData);
         }
         else
         {
             BatchInstancer batchInstancer = gameObject.AddComponent<BatchInstancer>();
-            
+
             PrepareBatchInstancer(batchInstancer, obj, itemId);
-            
+
             batchInstancer.Init();
-            batchInstancer.AddObjectToBatch(drawData);
-            
+            batchInstancer.AddObjectToBatch(instanceLODData);
+
             trackers[itemId] = batchInstancer;
         }
     }
 
     void PrepareBatchInstancer(BatchInstancer batchInstancer, GameObject obj, string itemId)
     {
-        // Traverse the first child's children to find _LOD0 and _LOD1 meshes
+        // Traverse the first child's children to find _LOD0 and _LOD1 meshes and renderers
         Transform prodChild = obj.transform.GetChild(0);
         Mesh lod0Mesh = null;
         Mesh lod1Mesh = null;
+        MeshRenderer lod0Renderer = null;
+        MeshRenderer lod1Renderer = null;
 
         foreach (Transform child in prodChild)
         {
@@ -110,39 +112,51 @@ public class GPUInstanceTracker : MonoBehaviour
             if (mf == null) continue;
 
             if (child.name.EndsWith("_LOD1"))
+            {
                 lod1Mesh = mf.sharedMesh;
+                lod1Renderer = child.GetComponent<MeshRenderer>();
+            }
             else if (child.name.EndsWith("_LOD0"))
+            {
                 lod0Mesh = mf.sharedMesh;
+                lod0Renderer = child.GetComponent<MeshRenderer>();
+            }
         }
 
-        if (lod0Mesh == null)
+        if (lod0Mesh == null || lod0Renderer == null)
         {
-            Debug.LogError("LOD0 mesh not found on " + obj.name);
+            Debug.LogError("LOD0 mesh/renderer not found on " + obj.name);
             return;
         }
 
         batchInstancer.lodMesh0 = lod0Mesh;
         batchInstancer.lodMesh1 = lod1Mesh; // may be null — BatchInstancer handles this
-
-        batchInstancer.materials = obj.GetComponentInChildren<MeshRenderer>().sharedMaterials;
         batchInstancer.frustumCullingShader = Instantiate(frustumCullingShader);
         batchInstancer.agentCamera = mainCamera;
         batchInstancer.itemId = itemId;
 
-        /* Make the material a new clone of itself, since the
-         * custom shader renders materials of the same type at
-         * the same time, if the same material is used on different
-         * meshes, it freaks out */
-        for (int i = 0; i < batchInstancer.materials.Length; i++)
+        batchInstancer.materials0 = CloneMaterialsForInstancing(lod0Renderer.sharedMaterials);
+
+        if (lod1Renderer != null)
+            batchInstancer.materials1 = CloneMaterialsForInstancing(lod1Renderer.sharedMaterials);
+    }
+
+    /* Make each material a new clone of itself, since the
+     * custom shader renders materials of the same type at
+     * the same time — if the same material is used on different
+     * meshes, it freaks out */
+    Material[] CloneMaterialsForInstancing(Material[] source)
+    {
+        Material[] cloned = new Material[source.Length];
+        for (int i = 0; i < source.Length; i++)
         {
-            Material currentMaterial = batchInstancer.materials[i];
-            currentMaterial = new Material(currentMaterial)
+            cloned[i] = new Material(source[i])
             {
                 shader = proceduralUrpLitShader,
                 enableInstancing = true
             };
-            batchInstancer.materials[i] = currentMaterial;
         }
+        return cloned;
     }
     
 }

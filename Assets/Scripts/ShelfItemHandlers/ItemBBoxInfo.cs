@@ -3,9 +3,9 @@ using UnityEngine;
 
 public class ItemBBoxInfo : MonoBehaviour
 {
-    public List<DrawData> itemDrawDatas = new();
+    public List<InstanceLODData> itemDrawDatas = new();
 
-    public void UpdateDrawDataList(List<DrawData> drawDataList)
+    public void UpdateDrawDataList(List<InstanceLODData> drawDataList)
     {
         itemDrawDatas = drawDataList;
     }
@@ -14,7 +14,7 @@ public class ItemBBoxInfo : MonoBehaviour
     {
         if (itemDrawDatas.Count == 0) return;
 
-        DrawData frontItemDrawData = itemDrawDatas[0];
+        InstanceLODData frontItemDrawData = itemDrawDatas[0];
 
         string myId = gameObject.name;
 
