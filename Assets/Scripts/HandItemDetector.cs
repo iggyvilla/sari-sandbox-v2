@@ -12,7 +12,7 @@ public class HandItemDetector : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag("RetailItem")) return;
-        Debug.Log($"COLLIDE: {other.gameObject.name}");
+        // Debug.Log($"COLLIDE: {other.gameObject.name}");
         
         /* If the hand is currently in a trigger box, queue the next item */
         if (DetectedItem != null)
@@ -39,7 +39,7 @@ public class HandItemDetector : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        Debug.Log($"EXIT: {other.gameObject.name}");
+        // Debug.Log($"EXIT: {other.gameObject.name}");
         if (other.gameObject != DetectedItem) return;
 
         _itemOutlineController = null;

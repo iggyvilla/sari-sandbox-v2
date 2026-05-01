@@ -1605,6 +1605,7 @@ MonoBehaviour:
     Categories: []
   agentObject: {fileID: 1145514788}
   agentInteractionStyle: 0
+  agentBasketStyle: 1
   storeName: DefaultStore
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
@@ -2541,8 +2542,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -198, y: -130}
-  m_SizeDelta: {x: 1366, y: 1328.8}
+  m_AnchoredPosition: {x: -198, y: -117}
+  m_SizeDelta: {x: 1366, y: 1151}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1860695770
 MonoBehaviour:
@@ -3214,6 +3215,10 @@ PrefabInstance:
     - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
       propertyPath: spawnItems
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: itemCategory
+      value: 3
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

@@ -5,13 +5,13 @@ using UnityEngine;
 using Newtonsoft.Json;
 using UnityEngine.SceneManagement;
 
-[System.Serializable]
+[Serializable]
 public class ItemCategories
 {
     public ItemCategoryData[] Categories;
 }
 
-[System.Serializable]
+[Serializable]
 public struct ShelfConfiguration
 {
     public bool buildShelves;
@@ -32,14 +32,20 @@ public enum AgentInteractionStyle
     ManualButGazeDoor
 }
 
-[System.Serializable]
+public enum AgentBasketStyle
+{
+    None,
+    LeftHand
+}
+
+[Serializable]
 public class ItemCategoryData
 {
     public string Category;
     public string[] Items;
 }
 
-[System.Serializable]
+[Serializable]
 public struct ItemPriceData
 {
     public string netWeight;
@@ -71,7 +77,7 @@ public enum ItemSpawnOption
     ReadFromSave
 }
 
-[System.Serializable]
+[Serializable]
 public struct ShelfInfo
 {
     public int shelfId;
@@ -81,7 +87,7 @@ public struct ShelfInfo
 
 // TODO: getCategoryIndexFromName, itemTags.json
 
-[System.Serializable]
+[Serializable]
 public class ShelfSaveData
 {
     // Shelf ID
@@ -113,7 +119,7 @@ public class ShelfSaveData
     public ItemCategory    itemCategory;
 }
 
-[System.Serializable]
+[Serializable]
 public class StoreData
 {
     public int version = 1;
@@ -134,6 +140,7 @@ public class DataHandler : MonoBehaviour
     public GameObject agentObject;
     public Vector3 AgentPosition => agentObject != null ? agentObject.transform.position : Vector3.zero;
     public AgentInteractionStyle agentInteractionStyle;
+    public AgentBasketStyle agentBasketStyle;
 
     [Header("Store")]
     public string storeName = "DefaultStore";

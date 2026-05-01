@@ -138,62 +138,69 @@ public class AgentController : MonoBehaviour
         Vector3 right = transform.right;
         float m = movementSpeed * Time.deltaTime;
         float r = rotateSpeed * Time.deltaTime;
-        
-        if (Input.GetKey(KeyCode.W))
+        bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+
+        if (!ctrl) {
+            if (Input.GetKey(KeyCode.W))
+            {
+                rigidbody.AddForce(fwd * m, ForceMode.Impulse);
+            }
+            else if (Input.GetKey(KeyCode.A))
+            {
+                rigidbody.AddForce(-right * m, ForceMode.Impulse);
+            }
+            else if (Input.GetKey(KeyCode.S))
+            {
+                rigidbody.AddForce(-fwd * m, ForceMode.Impulse);
+            }
+            else if (Input.GetKey(KeyCode.D))
+            {
+                rigidbody.AddForce(right * m, ForceMode.Impulse);
+            }
+
+            if (Input.GetKey(KeyCode.RightArrow))
+            {
+                transform.Rotate(Vector3.up, r);
+            }
+            else if (Input.GetKey(KeyCode.LeftArrow))
+            {
+                transform.Rotate(Vector3.up, -r);
+            }
+            else if (Input.GetKey(KeyCode.UpArrow))
+            {
+                transform.Rotate(Vector3.right, -r);
+            }
+            else if (Input.GetKey(KeyCode.DownArrow))
+                transform.Rotate(Vector3.right, r);
+        } 
+        else
         {
-            rigidbody.AddForce(fwd * m, ForceMode.Impulse);
+            if (DataHandler.Instance.agentInteractionStyle ==
+                AgentInteractionStyle.Manual)
+                HandleManualHandControls();
         }
-        else if (Input.GetKey(KeyCode.A))
-        {
-            rigidbody.AddForce(-right * m, ForceMode.Impulse);
-        }
-        else if (Input.GetKey(KeyCode.S))
-        {
-            rigidbody.AddForce(-fwd * m, ForceMode.Impulse);
-        }
-        else if (Input.GetKey(KeyCode.D))
-        {
-            rigidbody.AddForce(right * m, ForceMode.Impulse);
-        }
-        
-        if (Input.GetKey(KeyCode.RightArrow))
-        {
-            transform.Rotate(Vector3.up, r);
-        }
-        else if (Input.GetKey(KeyCode.LeftArrow))
-        {
-            transform.Rotate(Vector3.up, -r);
-        }
-        else if (Input.GetKey(KeyCode.UpArrow))
-        {
-            transform.Rotate(Vector3.right, -r);
-        }
-        else if (Input.GetKey(KeyCode.DownArrow)) transform.Rotate(Vector3.right, r);
         
         // Counteract any z-wise rotation (tilting your head right/left)
         Vector3 e = transform.eulerAngles;
         e.z = 0;
         transform.rotation = Quaternion.Euler(e);
-
-        if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
-            HandleManualHandControls();
     }
 
     private void HandleManualHandControls()
     {
-        bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-
-        if (ctrl && agentHand != null)
+        /* CTRL + keys listed below */
+        
+        if (agentHand != null)
         {
             float speed = handMoveSpeed * Time.fixedDeltaTime;
             Vector3 handPos = agentHand.transform.position;
 
             if (Input.GetKey(KeyCode.E)) handPos += Vector3.up * speed;
             if (Input.GetKey(KeyCode.Q)) handPos -= Vector3.up * speed;
-            if (Input.GetKey(KeyCode.I)) handPos += transform.forward * speed;
-            if (Input.GetKey(KeyCode.K)) handPos -= transform.forward * speed;
-            if (Input.GetKey(KeyCode.J)) handPos -= transform.right * speed;
-            if (Input.GetKey(KeyCode.L)) handPos += transform.right * speed;
+            if (Input.GetKey(KeyCode.W)) handPos += transform.forward * speed;
+            if (Input.GetKey(KeyCode.S)) handPos -= transform.forward * speed;
+            if (Input.GetKey(KeyCode.A)) handPos -= transform.right * speed;
+            if (Input.GetKey(KeyCode.D)) handPos += transform.right * speed;
 
             Vector3 offset = handPos - transform.position;
             if (offset.magnitude > handMoveRange)
@@ -201,11 +208,14 @@ public class AgentController : MonoBehaviour
 
             agentHand.transform.position = handPos;
         }
-
-        if (ctrl && Input.GetKeyDown(KeyCode.Return))
+        
+        /* Manual item/door grabbing CTRL+ENTER */
+        if (Input.GetKeyDown(KeyCode.Return))
         {
             if (!isGripped)
             {
+                /* If the agent hand has logged that its 
+                 * within an item's BBox, "grab" the item */
                 if (handItemDetector != null &&
                     handItemDetector.DetectedItem != null &&
                     handItemDetector.DetectedItemBBoxInfo != null)
