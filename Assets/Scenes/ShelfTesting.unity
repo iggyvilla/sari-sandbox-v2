@@ -1604,7 +1604,7 @@ MonoBehaviour:
   itemCategories:
     Categories: []
   agentObject: {fileID: 1145514788}
-  agentInteractionStyle: 1
+  agentInteractionStyle: 0
   storeName: DefaultStore
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}

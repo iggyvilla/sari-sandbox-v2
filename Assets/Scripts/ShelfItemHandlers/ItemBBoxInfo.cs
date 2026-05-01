@@ -27,6 +27,10 @@ public class ItemBBoxInfo : MonoBehaviour
         }
 
         itemDrawDatas.RemoveAt(0);
+        
+        /* If all items assigned to this BBox 
+         * have been taken, destroy it */
+        if (itemDrawDatas.Count == 0) Destroy(gameObject);
     }
 
     public void DeleteAllItems()
