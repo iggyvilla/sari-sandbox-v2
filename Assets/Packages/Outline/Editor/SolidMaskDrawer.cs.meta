@@ -1,0 +1,10 @@
+fileFormatVersion: 2
+guid: 23f3aacd265c4e309d33c46d1253d4b9
+timeCreated: 1694189677
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290431
+  packageName: Outline 2D/3D
+  packageVersion: 1.0
+  assetPath: Assets/Outline/Editor/SolidMaskDrawer.cs
+  uploadId: 678360

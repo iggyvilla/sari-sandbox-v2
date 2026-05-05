@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: bdbbf3324f8e871489bfc4305a67110a
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290431
+  packageName: Outline 2D/3D
+  packageVersion: 1.0
+  assetPath: Assets/Outline/OutlineFx.asmdef
+  uploadId: 678360

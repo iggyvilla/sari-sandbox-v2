@@ -1604,7 +1604,7 @@ MonoBehaviour:
   itemCategories:
     Categories: []
   agentObject: {fileID: 1145514788}
-  agentInteractionStyle: 0
+  agentInteractionStyle: 1
   agentBasketStyle: 1
   storeName: DefaultStore
   readSave: 0
@@ -3218,7 +3218,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
       propertyPath: itemCategory
-      value: 3
+      value: 2
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -3243,7 +3243,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: itemCategory
-      value: 5
+      value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_Name

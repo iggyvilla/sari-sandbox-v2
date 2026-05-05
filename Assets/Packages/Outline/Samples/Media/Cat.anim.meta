@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 0afe78020b253344b9ba42360154b480
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290431
+  packageName: Outline 2D/3D
+  packageVersion: 1.0
+  assetPath: Assets/Outline/Samples/Media/Cat.anim
+  uploadId: 678360

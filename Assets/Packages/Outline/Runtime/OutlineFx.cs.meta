@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 4218d78ef2d54d0898b7514e121a781f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 290431
+  packageName: Outline 2D/3D
+  packageVersion: 1.0
+  assetPath: Assets/Outline/Runtime/OutlineFx.cs
+  uploadId: 678360
