@@ -88,6 +88,18 @@ public class CommandBehavior : WebSocketBehavior
                 session.Send("Hand transformed");
                 break;
 
+            case "TranslateAgent":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.TranslateAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
+                session.Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
+                break;
+
+            case "TranslateHand":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.TranslateHand(ToVec3(cmd.translation), ToVec3(cmd.rotation));
+                session.Send("Hand translated");
+                break;
+
             case "ToggleGrip":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.ToggleGrip();

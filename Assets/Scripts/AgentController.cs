@@ -12,7 +12,7 @@ public class AgentController : MonoBehaviour
     [SerializeField] GameObject agentHand;
 
     [Header("Manual Hand Control")]
-    public float handMoveRange = 1f;
+    public float handMoveRange = 0.5f;
     public float handMoveSpeed = 1f;
     public float gripSpeed = 2f;
 
@@ -210,25 +210,24 @@ public class AgentController : MonoBehaviour
         if (agentHand != null)
         {
             float speed = handMoveSpeed * Time.fixedDeltaTime;
-            Vector3 handPos = agentHand.transform.position;
+            Vector3 localPos = agentHand.transform.localPosition;
 
-            if (Input.GetKey(KeyCode.E)) handPos += Vector3.up * speed;
-            if (Input.GetKey(KeyCode.Q)) handPos -= Vector3.up * speed;
-            if (Input.GetKey(KeyCode.W)) handPos += transform.forward * speed;
-            if (Input.GetKey(KeyCode.S)) handPos -= transform.forward * speed;
-            if (Input.GetKey(KeyCode.A)) handPos -= transform.right * speed;
-            if (Input.GetKey(KeyCode.D)) handPos += transform.right * speed;
+            if (Input.GetKey(KeyCode.E)) localPos += Vector3.up * speed;
+            if (Input.GetKey(KeyCode.Q)) localPos -= Vector3.up * speed;
+            if (Input.GetKey(KeyCode.W)) localPos += Vector3.forward * speed;
+            if (Input.GetKey(KeyCode.S)) localPos -= Vector3.forward * speed;
+            if (Input.GetKey(KeyCode.A)) localPos -= Vector3.right * speed;
+            if (Input.GetKey(KeyCode.D)) localPos += Vector3.right * speed;
 
-            Vector3 offset = handPos - transform.position;
-            if (offset.magnitude > handMoveRange)
-                handPos = transform.position + offset.normalized * handMoveRange;
+            if (localPos.magnitude > handMoveRange)
+                localPos = localPos.normalized * handMoveRange;
 
-            agentHand.transform.position = handPos;
+            agentHand.transform.localPosition = localPos;
+            
+            /* Manual item/door grabbing CTRL+ENTER */
+            if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
         }
         
-        /* Manual item/door grabbing CTRL+ENTER */
-        if (Input.GetKeyDown(KeyCode.Return))
-            ToggleGrip();
     }
 
     public void TransformAgent(Vector3 worldPosition, Vector3 eulerRotation)
@@ -239,11 +238,32 @@ public class AgentController : MonoBehaviour
         transform.rotation = Quaternion.Euler(eulerRotation);
     }
 
+    public void TranslateAgent(Vector3 deltaTranslation, Vector3 deltaRotation)
+    {
+        rigidbody.linearVelocity = Vector3.zero;
+        rigidbody.angularVelocity = Vector3.zero;
+        rigidbody.transform.position += deltaTranslation;
+        Vector3 euler = transform.eulerAngles + deltaRotation;
+        euler.z = 0;
+        transform.rotation = Quaternion.Euler(euler);
+    }
+
     public void TransformHand(Vector3 localPosition, Vector3 eulerRotation)
     {
         if (agentHand == null) return;
+        if (localPosition.magnitude > handMoveRange) return;
         agentHand.transform.position = transform.TransformPoint(localPosition);
         agentHand.transform.rotation = transform.rotation * Quaternion.Euler(eulerRotation);
+    }
+
+    public void TranslateHand(Vector3 deltaLocalPosition, Vector3 deltaRotation)
+    {
+        if (agentHand == null) return;
+        Vector3 localPos = agentHand.transform.localPosition + deltaLocalPosition;
+        if (localPos.magnitude > handMoveRange)
+            localPos = localPos.normalized * handMoveRange;
+        agentHand.transform.localPosition = localPos;
+        agentHand.transform.localRotation *= Quaternion.Euler(deltaRotation);
     }
 
     public void ToggleGrip()
