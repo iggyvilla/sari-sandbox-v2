@@ -248,7 +248,7 @@ public class ShelfBuilder : MonoBehaviour
             doorHeight,
             doorDepth
         );
-        leftDoorBuilder.BuildHingeDoor(lDoorDims, 0.05f, DoorDirection.Left);
+        leftDoorBuilder.BuildHingeDoor(lDoorDims, 0.05f, DoorDirection.Left, subShelfDepth);
 
         if (!isDoubleDoor) return;
         // Right door
@@ -270,7 +270,7 @@ public class ShelfBuilder : MonoBehaviour
             doorHeight,
             doorDepth
         );
-        rDoorBuilder.BuildHingeDoor(rDoorDims, 0.05f, DoorDirection.Right);
+        rDoorBuilder.BuildHingeDoor(rDoorDims, 0.05f, DoorDirection.Right, subShelfDepth);
         
     }
 

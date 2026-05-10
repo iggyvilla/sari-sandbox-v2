@@ -9,13 +9,14 @@ public class HandItemDetector : MonoBehaviour
     private OutlineController _itemOutlineController;
     private Collider _itemQueue;
     private bool _clearQueueFlag;
-    private bool _insideShelfDoor;
+    private int _shelfDoorOverlapCount;
 
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("ShelfDoor"))
         {
-            _insideShelfDoor = true;
+            _shelfDoorOverlapCount++;
+            Debug.Log("INSIDE SHELF DOOR");
             return;
         }
 
@@ -27,10 +28,10 @@ public class HandItemDetector : MonoBehaviour
         }
 
         if (!other.CompareTag("RetailItemBBox")) return;
-        if (_insideShelfDoor) return;
-        // Debug.Log($"COLLIDE: {other.gameObject.name}");
+        if (_shelfDoorOverlapCount > 0) return;
         
-        /* If the hand is currently in a trigger box, queue the next item */
+        /* If the hand is currently in a trigger box but enters
+         * another trigger box, queue the next item */
         if (DetectedItem != null)
         {
             _itemQueue = other;
@@ -58,7 +59,8 @@ public class HandItemDetector : MonoBehaviour
     {
         if (other.CompareTag("ShelfDoor"))
         {
-            _insideShelfDoor = false;
+            _shelfDoorOverlapCount = Mathf.Max(0, _shelfDoorOverlapCount - 1);
+            Debug.Log("EXIT SHELF DOOR");
             return;
         }
 
