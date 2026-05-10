@@ -100,6 +100,17 @@ public class CommandBehavior : WebSocketBehavior
                 session.Send("Hand translated");
                 break;
 
+            case "ResetHandPosition":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.ResetHandPosition();
+                session.Send("Hand position reset");
+                break;
+
+            case "IsHoldingItem":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                session.Send(agent.IsHoldingItem() ? "true" : "false");
+                break;
+
             case "ToggleGrip":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.ToggleGrip();

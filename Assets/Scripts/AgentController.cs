@@ -24,6 +24,8 @@ public class AgentController : MonoBehaviour
     private float currentGrip;
     private bool isGripped;
     private HandItemDetector handItemDetector;
+    private Vector3 _initialHandLocalPosition;
+    private Quaternion _initialHandLocalRotation;
     
     [Header("VoxeLLMap")]
     /* VoxeLLMap-related variables */
@@ -40,6 +42,8 @@ public class AgentController : MonoBehaviour
         {
             handAnimator = agentHand.GetComponentInChildren<Animator>();
             handItemDetector = agentHand.GetComponent<HandItemDetector>();
+            _initialHandLocalPosition = agentHand.transform.localPosition;
+            _initialHandLocalRotation = agentHand.transform.localRotation;
         }
     }
     
@@ -265,6 +269,15 @@ public class AgentController : MonoBehaviour
         agentHand.transform.localPosition = localPos;
         agentHand.transform.localRotation *= Quaternion.Euler(deltaRotation);
     }
+
+    public void ResetHandPosition()
+    {
+        if (agentHand == null) return;
+        agentHand.transform.localPosition = _initialHandLocalPosition;
+        agentHand.transform.localRotation = _initialHandLocalRotation;
+    }
+
+    public bool IsHoldingItem() => rightHandUsed;
 
     public void ToggleGrip()
     {
