@@ -139,6 +139,7 @@ public class DataHandler : MonoBehaviour
     [Header("Agent")]
     public GameObject agentObject;
     public Vector3 AgentPosition => agentObject != null ? agentObject.transform.position : Vector3.zero;
+    public Vector3 agentSpawnPosition;
     public AgentInteractionStyle agentInteractionStyle;
     public AgentBasketStyle agentBasketStyle;
 
@@ -293,5 +294,24 @@ public class DataHandler : MonoBehaviour
         string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
         File.WriteAllText(path, JsonConvert.SerializeObject(currentStoreData, Formatting.Indented));
         Debug.Log($"Store saved to {path}");
+    }
+
+    public void ResetEnvironment()
+    {
+        foreach (GameObject obj in GameObject.FindGameObjectsWithTag("RetailItem"))
+            Destroy(obj);
+
+        if (agentObject != null)
+        {
+            agentObject.transform.position = agentSpawnPosition;
+            Rigidbody rb = agentObject.GetComponentInChildren<Rigidbody>();
+            if (rb != null)
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+        }
+
+        LoadStore();
     }
 }

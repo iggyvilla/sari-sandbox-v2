@@ -11,7 +11,7 @@ public class HandItemDetector : MonoBehaviour
     
     private void OnTriggerEnter(Collider other)
     {
-        if (!other.CompareTag("RetailItem")) return;
+        if (!other.CompareTag("RetailItemBBox")) return;
         // Debug.Log($"COLLIDE: {other.gameObject.name}");
         
         /* If the hand is currently in a trigger box, queue the next item */

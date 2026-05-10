@@ -297,7 +297,7 @@ public class ItemSpawner : MonoBehaviour
         BoxCollider b = itemTrigger.GetComponent<BoxCollider>();
         ItemBBoxInfo itemBBoxInfo = itemTrigger.AddComponent<ItemBBoxInfo>();
 
-        itemTrigger.tag = "RetailItem";
+        itemTrigger.tag = "RetailItemBBox";
         
         /* Make it so the items are outlined when hovered over */
         itemTrigger.AddComponent<OutlineFx.OutlineFx>();

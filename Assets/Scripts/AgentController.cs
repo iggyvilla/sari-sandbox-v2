@@ -87,7 +87,8 @@ public class AgentController : MonoBehaviour
             if (Input.GetKey(KeyCode.Return))
             {
                 HingedDoorBuilder hingedDoorHandler = hit.collider.GetComponentInParent<HingedDoorBuilder>();
-
+                
+                // This is only true if the raycast hit a door
                 if (hingedDoorHandler != null)
                 {
                     // If it's a door, it'll have hingedDoorHandler, open it
@@ -112,14 +113,15 @@ public class AgentController : MonoBehaviour
                     DisablePhysics(selectedItem);
 
                     selectedItem = Instantiate(
-                        selectedItem, 
+                        selectedItem,
                         handLocation,
-                        transform.rotation, 
+                        transform.rotation,
                         transform
                     );
-                    
+
                     selectedItem.transform.Rotate(Vector3.up, -60);
-                    
+                    selectedItem.tag = "RetailItem";
+
                     rightHandItem = selectedItem;
                     rightHandUsed = true;
                 }
@@ -232,13 +234,13 @@ public class AgentController : MonoBehaviour
 
                     selectedItem = Instantiate(
                         selectedItem,
-                        agentHand.transform.position 
-                        - new Vector3(0, 0.1f, 0), // offset downwards
+                        agentHand.transform.position - new Vector3(0, 0.1f, 0),
                         transform.rotation,
                         agentHand.transform
                     );
 
                     selectedItem.transform.Rotate(Vector3.up, -60);
+                    selectedItem.tag = "RetailItem";
 
                     rightHandItem = selectedItem;
                     rightHandUsed = true;
@@ -268,6 +270,60 @@ public class AgentController : MonoBehaviour
                 rightHandItem = null;
                 rightHandUsed = false;
             }
+        }
+    }
+
+    public void TransformAgent(Vector3 worldPosition, Vector3 eulerRotation)
+    {
+        rigidbody.linearVelocity = Vector3.zero;
+        rigidbody.angularVelocity = Vector3.zero;
+        rigidbody.transform.position = worldPosition;
+        transform.rotation = Quaternion.Euler(eulerRotation);
+    }
+
+    public void TransformHand(Vector3 worldPosition, Vector3 eulerRotation)
+    {
+        if (agentHand == null) return;
+        agentHand.transform.position = worldPosition;
+        agentHand.transform.rotation = Quaternion.Euler(eulerRotation);
+    }
+
+    public void ToggleGrip()
+    {
+        if (!isGripped)
+        {
+            if (agentHand != null &&
+                handItemDetector != null &&
+                handItemDetector.DetectedItem != null &&
+                handItemDetector.DetectedItemBBoxInfo != null)
+            {
+                string itemName = handItemDetector.DetectedItem.name;
+                ItemBBoxInfo itemBBoxInfo = handItemDetector.DetectedItemBBoxInfo;
+
+                var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
+                selectedItem.transform.position = Vector3.zero;
+
+                itemBBoxInfo.DeleteFrontmostItem();
+                DisablePhysics(selectedItem);
+
+                selectedItem = Instantiate(
+                    selectedItem,
+                    agentHand.transform.position - new Vector3(0, 0.1f, 0),
+                    transform.rotation,
+                    agentHand.transform
+                );
+
+                selectedItem.transform.Rotate(Vector3.up, -60);
+                selectedItem.tag = "RetailItem";
+
+                rightHandItem = selectedItem;
+                rightHandUsed = true;
+            }
+            isGripped = true;
+        }
+        else
+        {
+            isGripped = false;
         }
     }
 
