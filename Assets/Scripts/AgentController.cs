@@ -181,11 +181,26 @@ public class AgentController : MonoBehaviour
                 AgentInteractionStyle.Manual)
                 HandleManualHandControls();
         }
+
+        AnimateHand();
         
         // Counteract any z-wise rotation (tilting your head right/left)
         Vector3 e = transform.eulerAngles;
         e.z = 0;
         transform.rotation = Quaternion.Euler(e);
+    }
+
+    private void AnimateHand()
+    {
+        if (handAnimator != null)
+        {
+            currentGrip = Mathf.MoveTowards(
+                currentGrip, 
+                isGripped ? 1f : 0f, 
+                gripSpeed * Time.fixedDeltaTime
+            );
+            handAnimator.SetFloat("Grip", currentGrip);
+        }
     }
 
     private void HandleManualHandControls()
@@ -213,64 +228,7 @@ public class AgentController : MonoBehaviour
         
         /* Manual item/door grabbing CTRL+ENTER */
         if (Input.GetKeyDown(KeyCode.Return))
-        {
-            if (!isGripped)
-            {
-                /* If the agent hand has logged that its 
-                 * within an item's BBox, "grab" the item */
-                if (handItemDetector != null &&
-                    handItemDetector.DetectedItem != null &&
-                    handItemDetector.DetectedItemBBoxInfo != null)
-                {
-                    string itemName = handItemDetector.DetectedItem.name;
-                    ItemBBoxInfo itemBBoxInfo = handItemDetector.DetectedItemBBoxInfo;
-
-                    var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
-                    selectedItem.transform.position = Vector3.zero;
-
-                    itemBBoxInfo.DeleteFrontmostItem();
-
-                    DisablePhysics(selectedItem);
-
-                    selectedItem = Instantiate(
-                        selectedItem,
-                        agentHand.transform.position - new Vector3(0, 0.1f, 0),
-                        transform.rotation,
-                        agentHand.transform
-                    );
-
-                    selectedItem.transform.Rotate(Vector3.up, -60);
-                    selectedItem.tag = "RetailItem";
-
-                    rightHandItem = selectedItem;
-                    rightHandUsed = true;
-                }
-                isGripped = true;
-            }
-            else
-            {
-                isGripped = false;
-            }
-        }
-
-        if (handAnimator != null)
-        {
-            currentGrip = Mathf.MoveTowards(currentGrip, isGripped ? 1f : 0f, gripSpeed * Time.fixedDeltaTime);
-            handAnimator.SetFloat("Grip", currentGrip);
-
-            if (!isGripped && rightHandItem != null && currentGrip <= 0.5f)
-            {
-                rightHandItem.transform.SetParent(null);
-                Rigidbody rb = rightHandItem.GetComponent<Rigidbody>();
-                rb.isKinematic = false;
-                rb.useGravity = true;
-                rb.interpolation = RigidbodyInterpolation.Extrapolate;
-                BoxCollider boxCollider = rightHandItem.GetComponentInChildren<BoxCollider>();
-                if (boxCollider != null) boxCollider.enabled = true;
-                rightHandItem = null;
-                rightHandUsed = false;
-            }
-        }
+            ToggleGrip();
     }
 
     public void TransformAgent(Vector3 worldPosition, Vector3 eulerRotation)
@@ -281,11 +239,11 @@ public class AgentController : MonoBehaviour
         transform.rotation = Quaternion.Euler(eulerRotation);
     }
 
-    public void TransformHand(Vector3 worldPosition, Vector3 eulerRotation)
+    public void TransformHand(Vector3 localPosition, Vector3 eulerRotation)
     {
         if (agentHand == null) return;
-        agentHand.transform.position = worldPosition;
-        agentHand.transform.rotation = Quaternion.Euler(eulerRotation);
+        agentHand.transform.position = transform.TransformPoint(localPosition);
+        agentHand.transform.rotation = transform.rotation * Quaternion.Euler(eulerRotation);
     }
 
     public void ToggleGrip()
@@ -324,6 +282,19 @@ public class AgentController : MonoBehaviour
         else
         {
             isGripped = false;
+        }
+        
+        if (!isGripped && rightHandItem != null)
+        {
+            rightHandItem.transform.SetParent(null);
+            Rigidbody rb = rightHandItem.GetComponent<Rigidbody>();
+            rb.isKinematic = false;
+            rb.useGravity = true;
+            rb.interpolation = RigidbodyInterpolation.Extrapolate;
+            BoxCollider boxCollider = rightHandItem.GetComponentInChildren<BoxCollider>();
+            if (boxCollider != null) boxCollider.enabled = true;
+            rightHandItem = null;
+            rightHandUsed = false;
         }
     }
 
