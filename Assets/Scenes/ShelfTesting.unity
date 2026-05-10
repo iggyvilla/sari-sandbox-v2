@@ -389,6 +389,7 @@ MonoBehaviour:
   handMoveRange: 1
   handMoveSpeed: 1
   gripSpeed: 2
+  doorHandleForce: 15
   target: {fileID: 0}
 --- !u!65 &90279454
 BoxCollider:
@@ -1989,7 +1990,7 @@ BoxCollider:
   m_Enabled: 1
   serializedVersion: 3
   m_Size: {x: 0.2, y: 1.68, z: 0.2}
-  m_Center: {x: 0, y: 1, z: 0}
+  m_Center: {x: 0, y: 0.85, z: 0}
 --- !u!54 &1145514793
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2141,7 +2142,7 @@ Transform:
   m_GameObject: {fileID: 1476097102}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.47, z: 0}
+  m_LocalPosition: {x: 0, y: 1.4, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3202,6 +3203,7 @@ MonoBehaviour:
   handMoveRange: 0.8
   handMoveSpeed: 0.3
   gripSpeed: 3
+  doorHandleForce: 15
   target: {fileID: 0}
 --- !u!1001 &1106187033066088107
 PrefabInstance:

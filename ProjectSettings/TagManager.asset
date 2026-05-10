@@ -12,6 +12,7 @@ TagManager:
   - Floor
   - RetailItemBBox
   - RetailItem
+  - ShelfDoor
   layers:
   - Default
   - TransparentFX

@@ -48,6 +48,12 @@ public class HingedDoorBuilder : MonoBehaviour
         doorHandle.transform.position += transform.right * handleOffset;
     }
 
+    public void ApplyHandForce(Vector3 worldForce)
+    {
+        Rigidbody rb = GetComponent<Rigidbody>();
+        rb.AddForce(worldForce);
+    }
+
     public void ToggleDoor()
     {
         Rigidbody rb = GetComponent<Rigidbody>();

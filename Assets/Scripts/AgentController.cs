@@ -15,6 +15,7 @@ public class AgentController : MonoBehaviour
     public float handMoveRange = 0.5f;
     public float handMoveSpeed = 1f;
     public float gripSpeed = 2f;
+    public float doorHandleForce = 5f;
 
     private Rigidbody rigidbody;
     private LayerMask interactableLayerMask;
@@ -26,6 +27,7 @@ public class AgentController : MonoBehaviour
     private HandItemDetector handItemDetector;
     private Vector3 _initialHandLocalPosition;
     private Quaternion _initialHandLocalRotation;
+    private DoorHandle _grabbedDoor;
     
     [Header("VoxeLLMap")]
     /* VoxeLLMap-related variables */
@@ -135,7 +137,11 @@ public class AgentController : MonoBehaviour
 
     void Update()
     {
-        // _agent.SetDestination(target.transform.position);
+        // GetKeyDown must live in Update — FixedUpdate can miss single-frame events
+        if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
+        {
+            if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
+        }
     }
 
     private void HandleMovement()
@@ -210,28 +216,64 @@ public class AgentController : MonoBehaviour
     private void HandleManualHandControls()
     {
         /* CTRL + keys listed below */
-        
-        if (agentHand != null)
+
+        if (agentHand == null) return;
+
+        if (_grabbedDoor != null)
         {
-            float speed = handMoveSpeed * Time.fixedDeltaTime;
-            Vector3 localPos = agentHand.transform.localPosition;
-
-            if (Input.GetKey(KeyCode.E)) localPos += Vector3.up * speed;
-            if (Input.GetKey(KeyCode.Q)) localPos -= Vector3.up * speed;
-            if (Input.GetKey(KeyCode.W)) localPos += Vector3.forward * speed;
-            if (Input.GetKey(KeyCode.S)) localPos -= Vector3.forward * speed;
-            if (Input.GetKey(KeyCode.A)) localPos -= Vector3.right * speed;
-            if (Input.GetKey(KeyCode.D)) localPos += Vector3.right * speed;
-
-            if (localPos.magnitude > handMoveRange)
-                localPos = localPos.normalized * handMoveRange;
-
-            agentHand.transform.localPosition = localPos;
-            
-            /* Manual item/door grabbing CTRL+ENTER */
-            if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
+            // Lock hand to handle position, all movement input drives the door instead
+            agentHand.transform.position = _grabbedDoor.transform.position;
+            DriveDoorFromInput();
+            return;
         }
-        
+
+        float speed = handMoveSpeed * Time.fixedDeltaTime;
+        Vector3 localPos = agentHand.transform.localPosition;
+
+        if (Input.GetKey(KeyCode.E)) localPos += Vector3.up * speed;
+        if (Input.GetKey(KeyCode.Q)) localPos -= Vector3.up * speed;
+        if (Input.GetKey(KeyCode.W)) localPos += Vector3.forward * speed;
+        if (Input.GetKey(KeyCode.S)) localPos -= Vector3.forward * speed;
+        if (Input.GetKey(KeyCode.A)) localPos -= Vector3.right * speed;
+        if (Input.GetKey(KeyCode.D)) localPos += Vector3.right * speed;
+
+        if (localPos.magnitude > handMoveRange)
+            localPos = localPos.normalized * handMoveRange;
+
+        agentHand.transform.localPosition = localPos;
+
+        /* Manual item/door grabbing CTRL+ENTER — handled in Update() */
+    }
+
+    private void DriveDoorFromInput()
+    {
+        // Build a normalised input vector in agent-local space (same axes as hand movement)
+        Vector3 inputLocal = Vector3.zero;
+        if (Input.GetKey(KeyCode.W)) inputLocal += Vector3.forward;
+        if (Input.GetKey(KeyCode.S)) inputLocal -= Vector3.forward;
+        if (Input.GetKey(KeyCode.A)) inputLocal -= Vector3.right;
+        if (Input.GetKey(KeyCode.D)) inputLocal += Vector3.right;
+        if (Input.GetKey(KeyCode.E)) inputLocal += Vector3.up;
+        if (Input.GetKey(KeyCode.Q)) inputLocal -= Vector3.up;
+
+        if (inputLocal.sqrMagnitude < 0.001f) return;
+
+        Vector3 inputWorld = transform.TransformDirection(inputLocal.normalized);
+
+        HingeJoint hinge   = _grabbedDoor.Hinge;
+        Rigidbody  doorRb  = _grabbedDoor.DoorRigidbody;
+
+        Vector3 axisWorld   = doorRb.transform.TransformDirection(hinge.axis);
+        Vector3 anchorWorld = doorRb.transform.TransformPoint(hinge.anchor);
+        Vector3 toHandle    = _grabbedDoor.transform.position - anchorWorld;
+        float   radius      = toHandle.magnitude;
+        if (radius < 0.001f) return;
+
+        // Only the tangential component of input rotates the door; radial is ignored
+        Vector3 tangent           = Vector3.Cross(axisWorld, toHandle.normalized);
+        float   tangentialAmount  = Vector3.Dot(inputWorld, tangent);
+
+        _grabbedDoor.DoorBuilder.ApplyHandForce(tangent * (tangentialAmount * doorHandleForce));
     }
 
     public void TransformAgent(Vector3 worldPosition, Vector3 eulerRotation)
@@ -283,7 +325,11 @@ public class AgentController : MonoBehaviour
     {
         if (!isGripped)
         {
-            if (agentHand != null &&
+            if (handItemDetector != null && handItemDetector.DetectedDoorHandle != null)
+            {
+                _grabbedDoor = handItemDetector.DetectedDoorHandle;
+            }
+            else if (agentHand != null &&
                 handItemDetector != null &&
                 handItemDetector.DetectedItem != null &&
                 handItemDetector.DetectedItemBBoxInfo != null)
@@ -314,9 +360,17 @@ public class AgentController : MonoBehaviour
         }
         else
         {
+            if (_grabbedDoor != null)
+            {
+                agentHand.transform.localPosition = _initialHandLocalPosition;
+                agentHand.transform.localRotation = _initialHandLocalRotation;
+                _grabbedDoor.DoorRigidbody.linearVelocity = Vector3.zero;
+                _grabbedDoor.DoorRigidbody.angularVelocity = Vector3.zero;
+                _grabbedDoor = null;
+            }
             isGripped = false;
         }
-        
+
         if (!isGripped && rightHandItem != null)
         {
             rightHandItem.transform.SetParent(null);
