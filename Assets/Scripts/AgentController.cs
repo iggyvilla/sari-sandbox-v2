@@ -26,7 +26,7 @@ public class AgentController : MonoBehaviour
     private float currentTrigger;
     private bool isGripped;
     private bool isPointing;
-    private HandItemDetector handItemDetector;
+    private HandCollisionDetector _handCollisionDetector;
     private Vector3 _initialHandLocalPosition;
     private Quaternion _initialHandLocalRotation;
     private DoorHandle _grabbedDoor;
@@ -48,7 +48,7 @@ public class AgentController : MonoBehaviour
         if (agentHand != null)
         {
             handAnimator = agentHand.GetComponentInChildren<Animator>();
-            handItemDetector = agentHand.GetComponent<HandItemDetector>();
+            _handCollisionDetector = agentHand.GetComponent<HandCollisionDetector>();
             _initialHandLocalPosition = agentHand.transform.localPosition;
             _initialHandLocalRotation = agentHand.transform.localRotation;
             _handCollider = agentHand.GetComponent<BoxCollider>();
@@ -342,7 +342,7 @@ public class AgentController : MonoBehaviour
     {
         isPointing = !isPointing;
         isGripped = false;
-        if (handItemDetector != null) handItemDetector.IsPointing = isPointing;
+        if (_handCollisionDetector != null) _handCollisionDetector.IsPointing = isPointing;
         if (_handCollider != null)
         {
             if (isPointing)
@@ -367,7 +367,7 @@ public class AgentController : MonoBehaviour
         if (!isGripped)
         {
             isPointing = false;
-            if (handItemDetector != null) handItemDetector.IsPointing = false;
+            if (_handCollisionDetector != null) _handCollisionDetector.IsPointing = false;
             
             if (_handCollider != null)
             {
@@ -375,14 +375,14 @@ public class AgentController : MonoBehaviour
                 _handCollider.size = _defaultColliderSize;
             }
             
-            if (handItemDetector != null && handItemDetector.DetectedDoorHandle != null)
+            if (_handCollisionDetector != null && _handCollisionDetector.DetectedDoorHandle != null)
             {
-                _grabbedDoor = handItemDetector.DetectedDoorHandle;
+                _grabbedDoor = _handCollisionDetector.DetectedDoorHandle;
             }
             else if (agentHand != null &&
-                handItemDetector != null &&
-                handItemDetector.DetectedItem != null &&
-                handItemDetector.DetectedItemBBoxInfo != null)
+                _handCollisionDetector != null &&
+                _handCollisionDetector.DetectedItem != null &&
+                _handCollisionDetector.DetectedItemBBoxInfo != null)
             {
                 InstantiateItemFromBBox();
             }
@@ -422,8 +422,8 @@ public class AgentController : MonoBehaviour
 
     void InstantiateItemFromBBox()
     {
-        string itemName = handItemDetector.DetectedItem.name;
-        ItemBBoxInfo itemBBoxInfo = handItemDetector.DetectedItemBBoxInfo;
+        string itemName = _handCollisionDetector.DetectedItem.name;
+        ItemBBoxInfo itemBBoxInfo = _handCollisionDetector.DetectedItemBBoxInfo;
 
         var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
         selectedItem.transform.position = Vector3.zero;

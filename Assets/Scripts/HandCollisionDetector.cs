@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class HandItemDetector : MonoBehaviour
+public class HandCollisionDetector : MonoBehaviour
 {
     public ItemBBoxInfo DetectedItemBBoxInfo { get; private set; }
     public GameObject DetectedItem { get; private set; }
@@ -17,6 +17,14 @@ public class HandItemDetector : MonoBehaviour
         if (other.CompareTag("ShelfDoor"))
         {
             _shelfDoorOverlapCount++;
+            return;
+        }
+
+        SimpleVRButton button = other.GetComponent<SimpleVRButton>();
+        
+        if (button != null)
+        {
+            button.Tapped();
             return;
         }
 
