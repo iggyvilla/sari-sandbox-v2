@@ -12,14 +12,18 @@ public class SelfCheckoutUIHandler : MonoBehaviour
     public GameObject      mainScreen;
 
     [Header("Settings")]
-    public int   itemIDStringLength = 18;
+    public int   itemIDStringLength = 21;
     [Range(0f, 1f)]
     public float taxRate            = 0.12f;
 
-    private List<string> scannedItemIds = new();
-    private float        subtotal;
-    private float        tax;
-    private float        totalSavings;
+    // Ordered unique item IDs, so display order is preserved
+    private List<string>            itemOrder    = new();
+    private Dictionary<string, int> itemQuantities = new();
+
+    // Running totals — recalculated fully on each change to avoid float drift
+    private float subtotal;
+    private float tax;
+    private float totalSavings;
 
     public void StartScreenButtonPressed()
     {
@@ -30,38 +34,43 @@ public class SelfCheckoutUIHandler : MonoBehaviour
 
     public void AddScannedItem(string itemId)
     {
-        scannedItemIds.Add(itemId);
-
-        if (DataHandler.Instance.itemPriceData.TryGetValue(itemId, out ItemPriceData priceData))
+        if (itemQuantities.ContainsKey(itemId))
         {
-            subtotal     += priceData.pricePHP;
-            tax          += priceData.pricePHP * taxRate;
+            itemQuantities[itemId]++;
+        }
+        else
+        {
+            itemOrder.Add(itemId);
+            itemQuantities[itemId] = 1;
         }
 
+        RecalculateTotals();
         RegenerateItemList();
         UpdateTotalsUI();
     }
 
     public void RemoveLastScannedItem()
     {
-        if (scannedItemIds.Count == 0) return;
+        if (itemOrder.Count == 0) return;
 
-        string lastId = scannedItemIds[scannedItemIds.Count - 1];
-        scannedItemIds.RemoveAt(scannedItemIds.Count - 1);
+        string lastId = itemOrder[itemOrder.Count - 1];
+        itemQuantities[lastId]--;
 
-        if (DataHandler.Instance.itemPriceData.TryGetValue(lastId, out ItemPriceData priceData))
+        if (itemQuantities[lastId] <= 0)
         {
-            subtotal     -= priceData.pricePHP;
-            tax          -= priceData.pricePHP * taxRate;
+            itemQuantities.Remove(lastId);
+            itemOrder.RemoveAt(itemOrder.Count - 1);
         }
 
+        RecalculateTotals();
         RegenerateItemList();
         UpdateTotalsUI();
     }
 
     public void ResetAllItems()
     {
-        scannedItemIds.Clear();
+        itemOrder.Clear();
+        itemQuantities.Clear();
         subtotal     = 0f;
         tax          = 0f;
         totalSavings = 0f;
@@ -70,11 +79,27 @@ public class SelfCheckoutUIHandler : MonoBehaviour
         UpdateTotalsUI();
     }
 
+    private void RecalculateTotals()
+    {
+        subtotal = 0f;
+        tax      = 0f;
+
+        foreach (string id in itemOrder)
+        {
+            if (DataHandler.Instance.itemPriceData.TryGetValue(id, out ItemPriceData priceData))
+            {
+                float lineTotal = priceData.pricePHP * itemQuantities[id];
+                subtotal += lineTotal;
+                tax      += lineTotal * taxRate;
+            }
+        }
+    }
+
     private void RegenerateItemList()
     {
         System.Text.StringBuilder sb = new();
 
-        foreach (string id in scannedItemIds)
+        foreach (string id in itemOrder)
         {
             string displayId = id.Length > itemIDStringLength
                 ? id.Substring(0, itemIDStringLength) + "..."
@@ -84,7 +109,10 @@ public class SelfCheckoutUIHandler : MonoBehaviour
                 ? priceData.pricePHP
                 : 0f;
 
-            sb.AppendLine($"{displayId} {price:F2}PHP");
+            int qty = itemQuantities[id];
+
+            sb.AppendLine($"{qty}x {displayId}");
+            sb.AppendLine($" - {price:F2}php/pc");
         }
 
         if (itemListText != null)

@@ -38,6 +38,13 @@ public enum AgentBasketStyle
     LeftHand
 }
 
+public enum ScanningDifficulty
+{
+    Easy,
+    Medium,
+    Hard
+}
+
 [Serializable]
 public class ItemCategoryData
 {
@@ -142,6 +149,9 @@ public class DataHandler : MonoBehaviour
     public Vector3 agentSpawnPosition;
     public AgentInteractionStyle agentInteractionStyle;
     public AgentBasketStyle agentBasketStyle;
+
+    [Header("Self Checkout")]
+    public ScanningDifficulty scanningDifficulty;
 
     [Header("Store")]
     public string storeName = "DefaultStore";

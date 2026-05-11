@@ -7,6 +7,8 @@ public class HandCollisionDetector : MonoBehaviour
     public DoorHandle DetectedDoorHandle { get; private set; }
     public bool IsPointing { get; set; }
 
+    public float itemPassThroughDistance = 0.1f;
+
     private OutlineController _itemOutlineController;
     private Collider _itemQueue;
     private bool _clearQueueFlag;
@@ -19,9 +21,10 @@ public class HandCollisionDetector : MonoBehaviour
             _shelfDoorOverlapCount++;
             return;
         }
-
-        SimpleVRButton button = other.GetComponent<SimpleVRButton>();
         
+        
+        /* If the hand tapped a button */
+        SimpleVRButton button = other.GetComponent<SimpleVRButton>();
         if (button != null)
         {
             button.Tapped();
@@ -42,6 +45,17 @@ public class HandCollisionDetector : MonoBehaviour
          * another trigger box, queue the next item */
         if (DetectedItem != null)
         {
+            /*
+             * If an item is queued (we exit item 1's bbox and collide with  
+             * item 2), and we enter the currently selected bbox again,
+             * clear the queue
+             *
+             * This fixes the weird edge case where we exit item 1's bbox
+             * without touching any other items and suddenly an item beside it
+             * is queued
+             */
+            if (DetectedItem == other.gameObject && _itemQueue) _itemQueue = null;
+            
             _itemQueue = other;
             return;
         } 
@@ -61,6 +75,22 @@ public class HandCollisionDetector : MonoBehaviour
     {
         if (_itemOutlineController != null) _itemOutlineController.OnGaze();
         if (DetectedDoorHandle != null) DetectedDoorHandle.OutlineController.OnGaze();
+
+        if (DetectedItem != null)
+        {
+            if (BBoxDistanceToHand() > itemPassThroughDistance)
+            {
+                _itemQueue = null;
+                _itemOutlineController = null;
+                DetectedItem = null;
+                DetectedItemBBoxInfo = null;
+            }
+        }
+    }
+
+    float BBoxDistanceToHand()
+    {
+        return Vector3.Distance(transform.position, DetectedItem.transform.position);
     }
 
     private void OnTriggerExit(Collider other)
@@ -80,7 +110,10 @@ public class HandCollisionDetector : MonoBehaviour
         }
 
         if (other.gameObject != DetectedItem) return;
-
+        
+        // Need to get distance before clearing detected item
+        float dist = BBoxDistanceToHand();
+        
         _itemOutlineController = null;
         DetectedItem = null;
         DetectedItemBBoxInfo = null;
@@ -88,7 +121,9 @@ public class HandCollisionDetector : MonoBehaviour
         if (_itemQueue != null)
         {
             _clearQueueFlag = true;
-            OnTriggerEnter(_itemQueue);
+            
+            if (dist < itemPassThroughDistance)
+                OnTriggerEnter(_itemQueue);
         }
     }
 }
