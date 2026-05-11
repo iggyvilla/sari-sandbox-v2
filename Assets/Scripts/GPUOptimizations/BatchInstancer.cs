@@ -15,24 +15,26 @@ public struct DrawData {
 // Per-instance data uploaded to the GPU; carries rotation/scale for both LOD levels
 // so the compute shader can assemble the correct DrawData for whichever LOD it routes to.
 public struct InstanceLODData : IEquatable<InstanceLODData> {
-    public Vector3 position;
+    public Vector3 position0;
     public Vector4 rotation0;
     public Vector3 scale0;
+    public Vector3 position1;
     public Vector4 rotation1;
     public Vector3 scale1;
 
     public bool Equals(InstanceLODData other)
     {
-        return position == other.position &&
+        return position0 == other.position0 &&
                rotation0 == other.rotation0 &&
                scale0 == other.scale0 &&
+               position1 == other.position1 &&
                rotation1 == other.rotation1 &&
                scale1 == other.scale1;
     }
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(position, rotation0, scale0, rotation1, scale1);
+        return HashCode.Combine(position0, rotation0, scale0, position1, rotation1, scale1);
     }
 };
 

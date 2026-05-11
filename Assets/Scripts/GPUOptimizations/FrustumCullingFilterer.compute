@@ -14,9 +14,10 @@ struct DrawData {
 };
 
 struct InstanceLODData {
-    float3 position;
+    float3 position0;
     float4 rotation0;
     float3 scale0;
+    float3 position1;
     float4 rotation1;
     float3 scale1;
 };
@@ -46,31 +47,34 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 {
     if (id.x > (uint) num_to_draw-1) return;
 
-    float3 pos = draw_buffer[id.x].position;
+    InstanceLODData src = draw_buffer[id.x];
+
+    // Cull using position0 (both LODs share approximately the same world location)
+    float3 pos0 = src.position0;
 
     // ensures loop is unrolled at compile time
     [unroll]
     for (int i = 0; i < 6; i++)
     {
-        if (dot(planes[i].normal, pos) + planes[i].distance < -0.2f)
+        if (dot(planes[i].normal, pos0) + planes[i].distance < -0.2f)
             return; // culled
     }
 
-    InstanceLODData src = draw_buffer[id.x];
     DrawData d;
-    d.position = pos;
 
     // If both LODs are present, split by distance; otherwise route to whichever is assigned
     if (has_lod1 && has_lod0)
     {
-        if (distance(pos, agent_position) < lod_distance)
+        if (distance(pos0, agent_position) < lod_distance)
         {
+            d.position = pos0;
             d.rotation = src.rotation0;
             d.scale    = src.scale0;
             unculled_lod0_buf.Append(d);
         }
         else
         {
+            d.position = src.position1;
             d.rotation = src.rotation1;
             d.scale    = src.scale1;
             unculled_lod1_buf.Append(d);
@@ -78,12 +82,14 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     }
     else if (has_lod1)
     {
+        d.position = src.position1;
         d.rotation = src.rotation1;
         d.scale    = src.scale1;
         unculled_lod1_buf.Append(d);
     }
     else
     {
+        d.position = pos0;
         d.rotation = src.rotation0;
         d.scale    = src.scale0;
         unculled_lod0_buf.Append(d);

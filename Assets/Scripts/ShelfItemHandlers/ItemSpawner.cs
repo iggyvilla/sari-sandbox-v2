@@ -259,17 +259,19 @@ public class ItemSpawner : MonoBehaviour
         }
     }
 
-    InstanceLODData AdjustDrawDataIfPivotOnCenter(GameObject itemGameObject, InstanceLODData data, float itemHeight)
+    InstanceLODData AdjustDrawDataIfPivotOnCenter(Transform lod0Transform, Transform lod1Transform, InstanceLODData data, float itemHeight)
     {
-        Mesh instanceMesh = itemGameObject.GetComponentInChildren<MeshFilter>().sharedMesh;
-
-        if (instanceMesh is null)
+        Mesh mesh0 = lod0Transform != null ? lod0Transform.GetComponent<MeshFilter>()?.sharedMesh : null;
+        Mesh mesh1 = lod1Transform != null ? lod1Transform.GetComponent<MeshFilter>()?.sharedMesh : null;
+        
+        if (lod0Transform.name == "DELMONTE_FOUR_SEASONS_220ML_LOD0")
         {
-            Debug.LogError("Mesh not found on " + itemGameObject.name);
-            return data;
+            Debug.Log($"{lod0Transform.name} {lod0Transform.position} {lod0Transform.position == Vector3.zero}");
+            Debug.Log($"{lod1Transform.name} {lod1Transform.position} {lod1Transform.position == Vector3.zero}");
         }
-
-        if (instanceMesh.bounds.center == Vector3.zero)
+        
+        // mesh0.bounds.center
+        if (mesh0 != null && lod0Transform.position != Vector3.zero)
         {
             /*
              * Our shelf position calcs assume the pivot
@@ -277,7 +279,12 @@ public class ItemSpawner : MonoBehaviour
              * for it. Without this, items spawn IN the shelves,
              * not ON.
              */
-            data.position.y += itemHeight / 2;
+            data.position0.y += itemHeight / 2;
+        }
+
+        if (mesh1 != null && lod1Transform.position != Vector3.zero)
+        {
+            data.position1.y += itemHeight / 2;
         }
 
         return data;
@@ -364,14 +371,15 @@ public class ItemSpawner : MonoBehaviour
 
         InstanceLODData data = new InstanceLODData
         {
-            position  = spawnPosition,
+            position0 = spawnPosition,
             rotation0 = new Vector4(q0.x, q0.y, q0.z, q0.w),
             scale0    = lod0Transform.lossyScale,
+            position1 = spawnPosition,
             rotation1 = new Vector4(q1.x, q1.y, q1.z, q1.w),
             scale1    = s1
         };
 
-        return AdjustDrawDataIfPivotOnCenter(product, data, itemHeight);
+        return AdjustDrawDataIfPivotOnCenter(lod0Transform, lod1Transform, data, itemHeight);
     }
     
     Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum, bool bBoxDepth = false)
