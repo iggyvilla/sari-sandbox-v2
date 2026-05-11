@@ -13,6 +13,7 @@ TagManager:
   - RetailItemBBox
   - RetailItem
   - ShelfDoor
+  - VRButton
   layers:
   - Default
   - TransparentFX

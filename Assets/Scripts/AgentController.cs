@@ -23,11 +23,16 @@ public class AgentController : MonoBehaviour
     private bool rightHandUsed;
     private Animator handAnimator;
     private float currentGrip;
+    private float currentTrigger;
     private bool isGripped;
+    private bool isPointing;
     private HandItemDetector handItemDetector;
     private Vector3 _initialHandLocalPosition;
     private Quaternion _initialHandLocalRotation;
     private DoorHandle _grabbedDoor;
+    private BoxCollider _handCollider;
+    private Vector3 _defaultColliderSize;
+    private Vector3 _defaultColliderCenter;
     
     [Header("VoxeLLMap")]
     /* VoxeLLMap-related variables */
@@ -46,6 +51,12 @@ public class AgentController : MonoBehaviour
             handItemDetector = agentHand.GetComponent<HandItemDetector>();
             _initialHandLocalPosition = agentHand.transform.localPosition;
             _initialHandLocalRotation = agentHand.transform.localRotation;
+            _handCollider = agentHand.GetComponent<BoxCollider>();
+            if (_handCollider != null)
+            {
+                _defaultColliderSize = _handCollider.size;
+                _defaultColliderCenter = _handCollider.center;
+            }
         }
     }
     
@@ -141,6 +152,7 @@ public class AgentController : MonoBehaviour
         if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
         {
             if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
+            if (Input.GetKeyDown(KeyCode.P)) TogglePoint();
         }
     }
 
@@ -204,12 +216,17 @@ public class AgentController : MonoBehaviour
     {
         if (handAnimator != null)
         {
-            currentGrip = Mathf.MoveTowards(
-                currentGrip, 
-                isGripped ? 1f : 0f, 
-                gripSpeed * Time.fixedDeltaTime
-            );
+            float gripTarget = isGripped || isPointing ? 1f : 0f;
+            float triggerTarget = isPointing ? 1f : 0f;
+
+            // When gripping, drive Trigger to 0 for a smooth pointing → grip transition
+            if (isGripped) triggerTarget = 0f;
+
+            currentGrip = Mathf.MoveTowards(currentGrip, gripTarget, gripSpeed * Time.fixedDeltaTime);
+            currentTrigger = Mathf.MoveTowards(currentTrigger, triggerTarget, gripSpeed * Time.fixedDeltaTime);
+
             handAnimator.SetFloat("Grip", currentGrip);
+            handAnimator.SetFloat("Trigger", currentTrigger);
         }
     }
 
@@ -321,10 +338,43 @@ public class AgentController : MonoBehaviour
 
     public bool IsHoldingItem() => rightHandUsed;
 
+    public void TogglePoint()
+    {
+        isPointing = !isPointing;
+        isGripped = false;
+        if (handItemDetector != null) handItemDetector.IsPointing = isPointing;
+        if (_handCollider != null)
+        {
+            if (isPointing)
+            {
+                Vector3 c = new Vector3(0.06f, -0.01f, 0.04f);
+                _handCollider.center = c;
+                Vector3 s = _handCollider.size;
+                s.y = 0.02f;
+                s.z = 0.13f;
+                _handCollider.size = s;
+            }
+            else
+            {
+                _handCollider.center = _defaultColliderCenter;
+                _handCollider.size = _defaultColliderSize;
+            }
+        }
+    }
+
     public void ToggleGrip()
     {
         if (!isGripped)
         {
+            isPointing = false;
+            if (handItemDetector != null) handItemDetector.IsPointing = false;
+            
+            if (_handCollider != null)
+            {
+                _handCollider.center = _defaultColliderCenter;
+                _handCollider.size = _defaultColliderSize;
+            }
+            
             if (handItemDetector != null && handItemDetector.DetectedDoorHandle != null)
             {
                 _grabbedDoor = handItemDetector.DetectedDoorHandle;
@@ -334,27 +384,7 @@ public class AgentController : MonoBehaviour
                 handItemDetector.DetectedItem != null &&
                 handItemDetector.DetectedItemBBoxInfo != null)
             {
-                string itemName = handItemDetector.DetectedItem.name;
-                ItemBBoxInfo itemBBoxInfo = handItemDetector.DetectedItemBBoxInfo;
-
-                var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
-                selectedItem.transform.position = Vector3.zero;
-
-                itemBBoxInfo.DeleteFrontmostItem();
-                DisablePhysics(selectedItem);
-
-                selectedItem = Instantiate(
-                    selectedItem,
-                    agentHand.transform.position - new Vector3(0, 0.1f, 0),
-                    transform.rotation,
-                    agentHand.transform
-                );
-
-                selectedItem.transform.Rotate(Vector3.up, -60);
-                selectedItem.tag = "RetailItem";
-
-                rightHandItem = selectedItem;
-                rightHandUsed = true;
+                InstantiateItemFromBBox();
             }
             isGripped = true;
         }
@@ -373,16 +403,46 @@ public class AgentController : MonoBehaviour
 
         if (!isGripped && rightHandItem != null)
         {
-            rightHandItem.transform.SetParent(null);
-            Rigidbody rb = rightHandItem.GetComponent<Rigidbody>();
-            rb.isKinematic = false;
-            rb.useGravity = true;
-            rb.interpolation = RigidbodyInterpolation.Extrapolate;
-            BoxCollider boxCollider = rightHandItem.GetComponentInChildren<BoxCollider>();
-            if (boxCollider != null) boxCollider.enabled = true;
-            rightHandItem = null;
-            rightHandUsed = false;
+            DropCurrentlyHeldItem();
         }
+    }
+
+    void DropCurrentlyHeldItem()
+    {
+        rightHandItem.transform.SetParent(null);
+        Rigidbody rb = rightHandItem.GetComponent<Rigidbody>();
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        rb.interpolation = RigidbodyInterpolation.Extrapolate;
+        BoxCollider boxCollider = rightHandItem.GetComponentInChildren<BoxCollider>();
+        if (boxCollider != null) boxCollider.enabled = true;
+        rightHandItem = null;
+        rightHandUsed = false;
+    }
+
+    void InstantiateItemFromBBox()
+    {
+        string itemName = handItemDetector.DetectedItem.name;
+        ItemBBoxInfo itemBBoxInfo = handItemDetector.DetectedItemBBoxInfo;
+
+        var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
+        selectedItem.transform.position = Vector3.zero;
+
+        itemBBoxInfo.DeleteFrontmostItem();
+        DisablePhysics(selectedItem);
+
+        selectedItem = Instantiate(
+            selectedItem,
+            agentHand.transform.position - new Vector3(0, 0.1f, 0),
+            transform.rotation,
+            agentHand.transform
+        );
+
+        selectedItem.transform.Rotate(Vector3.up, -60);
+        selectedItem.tag = "RetailItem";
+
+        rightHandItem = selectedItem;
+        rightHandUsed = true;
     }
 
     void ThrowItem(GameObject item)

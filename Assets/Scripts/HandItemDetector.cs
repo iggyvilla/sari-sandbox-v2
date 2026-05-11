@@ -5,6 +5,7 @@ public class HandItemDetector : MonoBehaviour
     public ItemBBoxInfo DetectedItemBBoxInfo { get; private set; }
     public GameObject DetectedItem { get; private set; }
     public DoorHandle DetectedDoorHandle { get; private set; }
+    public bool IsPointing { get; set; }
 
     private OutlineController _itemOutlineController;
     private Collider _itemQueue;
@@ -16,7 +17,6 @@ public class HandItemDetector : MonoBehaviour
         if (other.CompareTag("ShelfDoor"))
         {
             _shelfDoorOverlapCount++;
-            Debug.Log("INSIDE SHELF DOOR");
             return;
         }
 
@@ -60,7 +60,6 @@ public class HandItemDetector : MonoBehaviour
         if (other.CompareTag("ShelfDoor"))
         {
             _shelfDoorOverlapCount = Mathf.Max(0, _shelfDoorOverlapCount - 1);
-            Debug.Log("EXIT SHELF DOOR");
             return;
         }
 

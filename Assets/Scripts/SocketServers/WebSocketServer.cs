@@ -117,6 +117,12 @@ public class CommandBehavior : WebSocketBehavior
                 session.Send("Grip toggled");
                 break;
 
+            case "TogglePoint":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.TogglePoint();
+                session.Send("Point toggled");
+                break;
+
             case "RequestScreenshot":
                 WebSocketHandler.Instance.StartCoroutine(
                     ScreenshotUtility.GetScreenshotBase64(base64 => session.Send(base64))
