@@ -133,11 +133,19 @@ public class ShelfSaveData
 }
 
 [Serializable]
+public class SelfCheckoutSaveData
+{
+    public float posX, posY, posZ;
+    public float rotationY;
+}
+
+[Serializable]
 public class StoreData
 {
     public int version = 1;
     public List<ShelfSaveData> shelves = new();
     public Dictionary<string, SaveDataWrapper> shelfItems = new();
+    public List<SelfCheckoutSaveData> selfCheckoutLocations = new();
 }
 
 public class DataHandler : MonoBehaviour
@@ -160,6 +168,7 @@ public class DataHandler : MonoBehaviour
 
     [Header("Self Checkout")]
     public ScanningDifficulty scanningDifficulty;
+    public GameObject selfCheckoutCounter;
 
     [Header("Store")]
     public string storeName = "DefaultStore";
@@ -250,8 +259,13 @@ public class DataHandler : MonoBehaviour
     public void LoadStore()
     {
         // Clear all shelves in the scene
-        foreach (ShelfBuilder existing in 
+        foreach (ShelfBuilder existing in
                  FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
+            Destroy(existing.gameObject);
+
+        // Clear all self-checkout counters
+        foreach (SelfCheckoutMarker existing in
+                 FindObjectsByType<SelfCheckoutMarker>(FindObjectsSortMode.None))
             Destroy(existing.gameObject);
 
         string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
@@ -285,9 +299,23 @@ public class DataHandler : MonoBehaviour
             if (sceneName == "StoreBuilder")
             {
                 builder.SummonOutlineBox(
-                    uiHandler, 
+                    uiHandler,
                     interactionController
                 );
+            }
+        }
+
+        if (selfCheckoutCounter != null)
+        {
+            foreach (SelfCheckoutSaveData scData in storeData.selfCheckoutLocations)
+            {
+                Vector3 pos = new Vector3(scData.posX, scData.posY, scData.posZ);
+                Quaternion rot = Quaternion.Euler(0f, scData.rotationY, 0f);
+                GameObject go = Instantiate(selfCheckoutCounter, pos, rot);
+                go.AddComponent<SelfCheckoutMarker>();
+
+                if (sceneName == "StoreBuilder")
+                    interactionController.SummonPropSelectorBox(go);
             }
         }
     }
@@ -338,6 +366,18 @@ public class DataHandler : MonoBehaviour
                 spawnHingeDoors       = b.spawnHingeDoors,
                 fridgeDoorStyle       = b.fridgeDoorStyle,
                 shelfId               = b.shelfId
+            });
+        }
+
+        foreach (SelfCheckoutMarker sc in FindObjectsByType<SelfCheckoutMarker>(FindObjectsSortMode.None))
+        {
+            Vector3 pos = sc.transform.position;
+            storeData.selfCheckoutLocations.Add(new SelfCheckoutSaveData
+            {
+                posX      = pos.x,
+                posY      = pos.y,
+                posZ      = pos.z,
+                rotationY = sc.transform.eulerAngles.y
             });
         }
 

@@ -7626,6 +7626,7 @@ MonoBehaviour:
   agentInteractionStyle: 0
   agentBasketStyle: 0
   scanningDifficulty: 0
+  selfCheckoutCounter: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
   storeName: StoreBuilder1
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
@@ -22678,6 +22679,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rotationSpeed: 90
+  zoomSpeed: 5
+  minOrthoSize: 2
+  maxOrthoSize: 30
   woodShelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   fridgePrefab: {fileID: 2128580248598948549, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
   selfCheckoutPrefab: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}

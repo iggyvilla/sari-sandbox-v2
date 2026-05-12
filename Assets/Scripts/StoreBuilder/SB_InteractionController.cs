@@ -5,6 +5,9 @@ public class SB_InteractionController : MonoBehaviour
 {
     [Header("Camera Rotation")]
     public float rotationSpeed = 90f; // degrees per second
+    public float zoomSpeed = 5f;
+    public float minOrthoSize = 2f;
+    public float maxOrthoSize = 30f;
 
     [Header("Shelf Placement")]
     public GameObject woodShelfPrefab;
@@ -54,13 +57,17 @@ public class SB_InteractionController : MonoBehaviour
 
     void HandleCameraRotation()
     {
-        float input = 0f;
-        if (Input.GetKey(KeyCode.RightArrow)) input =  1f;
-        if (Input.GetKey(KeyCode.LeftArrow))  input = -1f;
-        if (input == 0f) return;
+        float rotInput = 0f;
+        if (Input.GetKey(KeyCode.RightArrow)) rotInput =  1f;
+        if (Input.GetKey(KeyCode.LeftArrow))  rotInput = -1f;
+        if (rotInput != 0f)
+            transform.RotateAround(transform.parent.position, Vector3.up, rotInput * rotationSpeed * Time.deltaTime);
 
-        // Rotate around parent's position (acts as pivot at world origin)
-        transform.RotateAround(transform.parent.position, Vector3.up, input * rotationSpeed * Time.deltaTime);
+        float zoomInput = 0f;
+        if (Input.GetKey(KeyCode.UpArrow))   zoomInput = -1f;
+        if (Input.GetKey(KeyCode.DownArrow)) zoomInput =  1f;
+        if (zoomInput != 0f)
+            _cam.orthographicSize = Mathf.Clamp(_cam.orthographicSize + zoomInput * zoomSpeed * Time.deltaTime, minOrthoSize, maxOrthoSize);
     }
 
     // ── Sub-shelf selection ───────────────────────────────────────────────────
@@ -324,6 +331,8 @@ public class SB_InteractionController : MonoBehaviour
             }
             else if (_previewShelf != null)
             {
+                if (_previewShelf.GetComponent<SelfCheckoutMarker>() == null)
+                    _previewShelf.AddComponent<SelfCheckoutMarker>();
                 SummonPropSelectorBox(_previewShelf);
             }
         }
@@ -347,7 +356,7 @@ public class SB_InteractionController : MonoBehaviour
         ExitPlacementMode();
     }
 
-    void SummonPropSelectorBox(GameObject prop)
+    public void SummonPropSelectorBox(GameObject prop)
     {
         GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cube.layer = LayerMask.NameToLayer("SariInteractable");
