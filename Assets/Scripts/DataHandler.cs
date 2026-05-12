@@ -143,6 +143,8 @@ public class SelfCheckoutSaveData
 public class StoreData
 {
     public int version = 1;
+    public float floorWidth  = 10f;
+    public float floorHeight = 10f;
     public List<ShelfSaveData> shelves = new();
     public Dictionary<string, SaveDataWrapper> shelfItems = new();
     public List<SelfCheckoutSaveData> selfCheckoutLocations = new();
@@ -279,6 +281,14 @@ public class DataHandler : MonoBehaviour
         currentStoreData = storeData;
         Debug.Log($"Loading store '{storeName}' — {storeData.shelves.Count} shelf(ves).");
 
+        if (floor != null)
+        {
+            Vector3 floorScale = floor.transform.localScale;
+            floorScale.x = storeData.floorWidth;
+            floorScale.z = storeData.floorHeight;
+            floor.transform.localScale = floorScale;
+        }
+
         shouldShelfSpawnItems.Clear();
         string sceneName = SceneManager.GetActiveScene().name;
         
@@ -338,7 +348,9 @@ public class DataHandler : MonoBehaviour
         ShelfBuilder[] builders = FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None);
         StoreData storeData = new StoreData
         {
-            shelfItems = currentStoreData.shelfItems
+            shelfItems   = currentStoreData.shelfItems,
+            floorWidth   = floor != null ? floor.transform.localScale.x : currentStoreData.floorWidth,
+            floorHeight  = floor != null ? floor.transform.localScale.z : currentStoreData.floorHeight
         };
 
         foreach (ShelfBuilder b in builders)
