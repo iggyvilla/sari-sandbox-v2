@@ -1214,9 +1214,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 987040918}
-        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
-        m_MethodName: OnSpawnItemsOnAllShelvesButtonPressed
+      - m_Target: {fileID: 2075032117}
+        m_TargetAssemblyTypeName: SB_InteractionController, Assembly-CSharp
+        m_MethodName: OnSpawnSelfCheckout
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -7040,12 +7040,11 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Press M to reposition shelf
+  m_text: 'Press M to reposition
 
-    Press R to rotate shelf
+    Press R to rotate
 
-    Press D
-    to duplicate shelf'
+    Press D to duplicate'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ad60cbd6c118c488fa5bf2adebf8e87d, type: 2}
   m_sharedMaterial: {fileID: -5661837413949371451, guid: ad60cbd6c118c488fa5bf2adebf8e87d, type: 2}
@@ -20239,6 +20238,7 @@ MonoBehaviour:
   rotationSpeed: 90
   woodShelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   fridgePrefab: {fileID: 2128580248598948549, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+  selfCheckoutPrefab: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
   builderGridSize: 0.5
   uiHandler: {fileID: 987040918}
   dataHandler: {fileID: 713415074}

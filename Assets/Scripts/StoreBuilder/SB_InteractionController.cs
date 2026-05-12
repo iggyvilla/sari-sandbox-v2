@@ -9,6 +9,7 @@ public class SB_InteractionController : MonoBehaviour
     [Header("Shelf Placement")]
     public GameObject woodShelfPrefab;
     public GameObject fridgePrefab;
+    public GameObject selfCheckoutPrefab;
     public float builderGridSize = 1f;
 
     [Header("References")]
@@ -19,8 +20,10 @@ public class SB_InteractionController : MonoBehaviour
     private GameObject shelfPrefab;
     private bool _placementMode = false;
     public bool IsInPlacementMode => _placementMode;
+    private bool _isPropPlacement = false;
     [CanBeNull] private GameObject _previewShelf = null;
     [CanBeNull] private ShelfSelector _movingSelector = null;
+    [CanBeNull] private PropSelector _movingPropSelector = null;
     private Camera _cam;
     private LayerMask _sariFloorLayerMask;
     private LayerMask _sariInteractableLayerMask;
@@ -61,18 +64,27 @@ public class SB_InteractionController : MonoBehaviour
     // Called by the "Spawn Shelf" UI button
     public void OnSpawnShelfPressed()
     {
+        _isPropPlacement = false;
         shelfPrefab = woodShelfPrefab;
         ShelfBuilder builder = shelfPrefab.GetComponent<ShelfBuilder>();
         builder.floor = dataHandler.floor;
         _placementMode = true;
     }
-    
+
     // Called by the "Spawn Fridge" UI button
     public void OnSpawnFridgePressed()
     {
+        _isPropPlacement = false;
         shelfPrefab = fridgePrefab;
         ShelfBuilder builder = shelfPrefab.GetComponent<ShelfBuilder>();
         builder.floor = dataHandler.floor;
+        _placementMode = true;
+    }
+
+    // Called by the "Spawn Self Checkout" UI button
+    public void OnSpawnSelfCheckout()
+    {
+        _isPropPlacement = true;
         _placementMode = true;
     }
 
@@ -80,7 +92,8 @@ public class SB_InteractionController : MonoBehaviour
     public void EnterMoveMode(ShelfSelector selector)
     {
         UndoSpawnedItems();
-        
+
+        _isPropPlacement = false;
         _movingSelector = selector;
         _previewShelf = selector.assignedShelf.gameObject;
         _placementMode = true;
@@ -92,18 +105,36 @@ public class SB_InteractionController : MonoBehaviour
     {
         UndoSpawnedItems();
 
+        _isPropPlacement = false;
         _previewShelf = Instantiate(
-            source.gameObject, 
-            source.transform.position, 
+            source.gameObject,
+            source.transform.position,
             Quaternion.identity
         );
-        
+
         _movingSelector = null;
-        
-        // Enter placement mode
         _placementMode = true;
-        // Deselect current shelf
         uiHandler.DeselectShelf();
+    }
+
+    // Called by PropSelector when the user presses M on a selected prop
+    public void EnterMoveModeForProp(PropSelector selector)
+    {
+        _isPropPlacement = true;
+        _movingPropSelector = selector;
+        _previewShelf = selector.assignedProp;
+        _placementMode = true;
+        uiHandler.DeselectProp();
+    }
+
+    // Called by PropSelector when the user presses D on a selected prop
+    public void DuplicateProp(GameObject source)
+    {
+        _isPropPlacement = true;
+        _previewShelf = Instantiate(source, source.transform.position, source.transform.rotation);
+        _movingPropSelector = null;
+        _placementMode = true;
+        uiHandler.DeselectProp();
     }
 
     void UndoSpawnedItems()
@@ -121,13 +152,22 @@ public class SB_InteractionController : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.R) && _previewShelf != null)
         {
-            ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
-            if (builder != null)
+            if (_isPropPlacement)
             {
-                builder.rotationY = (builder.rotationY + 90f) % 360f;
-                builder.Rebuild();
-                if (_movingSelector != null)
-                    _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
+                _previewShelf.transform.Rotate(Vector3.up, 90f);
+                if (_movingPropSelector != null)
+                    _movingPropSelector.EncapsulateProp(_previewShelf);
+            }
+            else
+            {
+                ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
+                if (builder != null)
+                {
+                    builder.rotationY = (builder.rotationY + 90f) % 360f;
+                    builder.Rebuild();
+                    if (_movingSelector != null)
+                        _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
+                }
             }
         }
 
@@ -144,8 +184,16 @@ public class SB_InteractionController : MonoBehaviour
             else
             {
                 _previewShelf.transform.position = snapped;
-                if (_movingSelector != null)
-                    _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
+                if (_isPropPlacement)
+                {
+                    if (_movingPropSelector != null)
+                        _movingPropSelector.EncapsulateProp(_previewShelf);
+                }
+                else
+                {
+                    if (_movingSelector != null)
+                        _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
+                }
             }
 
             if (Input.GetMouseButtonDown(0))
@@ -155,19 +203,27 @@ public class SB_InteractionController : MonoBehaviour
         }
         else
         {
-            if (_movingSelector == null)
+            bool isMoving = _isPropPlacement ? _movingPropSelector != null : _movingSelector != null;
+
+            if (!isMoving)
             {
-                // Normal new-shelf placement: destroy the preview
+                // Normal new placement: destroy the preview
                 DestroyPreview();
             }
-            // Move mode: keep the shelf at its last valid position until the user clicks
+            // Move mode: keep the object at its last valid position until the user clicks
 
             // Left-click off the floor: treat as a cancellation
             if (Input.GetMouseButtonDown(0))
             {
-                if (_movingSelector != null)
+                if (_isPropPlacement && _movingPropSelector != null)
                 {
-                    // Delete the existing shelf and its selector outline box
+                    Destroy(_movingPropSelector.assignedProp);
+                    Destroy(_movingPropSelector.gameObject);
+                    _movingPropSelector = null;
+                    _previewShelf = null;
+                }
+                else if (_movingSelector != null)
+                {
                     Destroy(_movingSelector.assignedShelf.gameObject);
                     Destroy(_movingSelector.gameObject);
                     _movingSelector = null;
@@ -206,27 +262,59 @@ public class SB_InteractionController : MonoBehaviour
 
     void SpawnPreview(Vector3 position)
     {
-        _previewShelf = Instantiate(shelfPrefab, position, Quaternion.identity);
+        _previewShelf = _isPropPlacement
+            ? Instantiate(selfCheckoutPrefab, position, Quaternion.identity)
+            : Instantiate(shelfPrefab, position, Quaternion.identity);
     }
 
     void ConfirmPlacement()
     {
-        if (_movingSelector != null)
+        if (_isPropPlacement)
         {
-            // Finalise the repositioned shelf — re-encapsulate the selector outline box
-            _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
-            _movingSelector.assignedShelf.Rebuild();
-            _movingSelector = null;
+            if (_movingPropSelector != null)
+            {
+                _movingPropSelector.EncapsulateProp(_previewShelf);
+                _movingPropSelector = null;
+            }
+            else if (_previewShelf != null)
+            {
+                SummonPropSelectorBox(_previewShelf);
+            }
         }
-        else if (_previewShelf != null)
+        else
         {
-            ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
-            builder.shelfId = dataHandler.GetUniqueShelfId();
-            builder.SummonOutlineBox(uiHandler, this);
+            if (_movingSelector != null)
+            {
+                _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
+                _movingSelector.assignedShelf.Rebuild();
+                _movingSelector = null;
+            }
+            else if (_previewShelf != null)
+            {
+                ShelfBuilder builder = _previewShelf.GetComponent<ShelfBuilder>();
+                builder.shelfId = dataHandler.GetUniqueShelfId();
+                builder.SummonOutlineBox(uiHandler, this);
+            }
         }
 
-        _previewShelf = null; // relinquish ownership — the shelf stays in the scene
+        _previewShelf = null; // relinquish ownership — the object stays in the scene
         ExitPlacementMode();
+    }
+
+    void SummonPropSelectorBox(GameObject prop)
+    {
+        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cube.layer = LayerMask.NameToLayer("SariInteractable");
+        cube.GetComponent<Renderer>().material = airMaterial;
+        cube.GetComponent<BoxCollider>().isTrigger = true;
+        cube.AddComponent<OutlineFx.OutlineFx>();
+
+        PropSelector selector = cube.AddComponent<PropSelector>();
+        selector.assignedProp = prop;
+        selector.uiHandler = uiHandler;
+        selector.interactionController = this;
+
+        selector.EncapsulateProp(prop);
     }
 
     void DestroyPreview()

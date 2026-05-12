@@ -24,6 +24,7 @@ public class SB_UIHandler : MonoBehaviour
     public TextMeshProUGUI selectedShelfText;
 
     private ShelfSelector _activeSelector;
+    private PropSelector _activePropSelector;
     
     public Toggle priceTagToggle;
 
@@ -52,8 +53,29 @@ public class SB_UIHandler : MonoBehaviour
 
     // ── Shelf selection ───────────────────────────────────────────────────────
 
+    public void SelectProp(PropSelector selector)
+    {
+        DeselectShelf();
+        if (_activePropSelector != null && _activePropSelector != selector)
+            _activePropSelector.Deselect();
+        _activePropSelector = selector;
+        selector.Select();
+        tooltipText.SetActive(true);
+    }
+
+    public void DeselectProp()
+    {
+        if (_activePropSelector != null)
+            _activePropSelector.Deselect();
+        _activePropSelector = null;
+        tooltipText.SetActive(false);
+    }
+
+    public bool IsActivePropSelector(PropSelector selector) => _activePropSelector == selector;
+
     public void SelectShelf(ShelfSelector selector)
     {
+        DeselectProp();
         if (_activeSelector != null && _activeSelector != selector)
             _activeSelector.Deselect();
 
