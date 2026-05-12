@@ -45,6 +45,12 @@ public enum ScanningDifficulty
     Hard
 }
 
+public enum AgentAvatarSetting
+{
+    VR,
+    IKHumanoid
+}
+
 [Serializable]
 public class ItemCategoryData
 {
@@ -145,8 +151,10 @@ public class DataHandler : MonoBehaviour
 
     [Header("Agent")]
     public GameObject agentObject;
+    public GameObject ikHumanoidObject;
     public Vector3 AgentPosition => agentObject != null ? agentObject.transform.position : Vector3.zero;
     public Vector3 agentSpawnPosition;
+    public AgentAvatarSetting agentAvatarSetting;
     public AgentInteractionStyle agentInteractionStyle;
     public AgentBasketStyle agentBasketStyle;
 
@@ -197,6 +205,39 @@ public class DataHandler : MonoBehaviour
         else
         {
             SaveStore();
+        }
+    }
+
+    void Start()
+    {
+        ApplyAvatarSetting();
+    }
+
+    void ApplyAvatarSetting()
+    {
+        if (agentAvatarSetting == AgentAvatarSetting.VR)
+        {
+            if (agentObject != null)
+            {
+                agentObject.SetActive(true);
+                agentObject.transform.position = agentSpawnPosition;
+            }
+            if (ikHumanoidObject != null) ikHumanoidObject.SetActive(false);
+
+            Camera cam = agentObject != null ? agentObject.GetComponentInChildren<Camera>() : null;
+            if (cam != null) GPUInstanceTracker.Instance.SetCamera(cam);
+        }
+        else
+        {
+            if (agentObject != null) agentObject.SetActive(false);
+            if (ikHumanoidObject != null)
+            {
+                ikHumanoidObject.SetActive(true);
+                ikHumanoidObject.transform.position = agentSpawnPosition;
+            }
+
+            Camera cam = ikHumanoidObject != null ? ikHumanoidObject.GetComponentInChildren<Camera>() : null;
+            if (cam != null) GPUInstanceTracker.Instance.SetCamera(cam);
         }
     }
 

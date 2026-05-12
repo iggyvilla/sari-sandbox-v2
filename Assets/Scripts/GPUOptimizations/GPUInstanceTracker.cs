@@ -49,6 +49,13 @@ public class GPUInstanceTracker : MonoBehaviour
         return null;
     }
 
+    public void SetCamera(Camera cam)
+    {
+        mainCamera = cam;
+        foreach (BatchInstancer bi in GetComponents<BatchInstancer>())
+            bi.agentCamera = cam;
+    }
+
     public void DespawnAllItems()
     {
         Debug.Log("Despawning all items...");

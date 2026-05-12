@@ -1,0 +1,458 @@
+using System.Collections.Generic;
+using Unity.VisualScripting;
+using UnityEngine;
+
+public abstract class AgentControllerBase : MonoBehaviour
+{
+    [Header("Agent Properties")]
+    [SerializeField] protected float movementSpeed;
+    [SerializeField] protected float rotateSpeed;
+    [SerializeField] protected float throwStrength;
+
+    [Header("Agent Hand Object")]
+    [SerializeField] protected GameObject agentHand;
+
+    [Header("Manual Hand Control")]
+    public float handMoveRange = 0.5f;
+    public float handMoveSpeed = 1f;
+    public float gripSpeed = 2f;
+    public float doorHandleForce = 5f;
+
+    protected Rigidbody rigidbody;
+    protected Animator handAnimator;
+    protected HandCollisionDetector _handCollisionDetector;
+    protected BoxCollider _handCollider;
+    protected Vector3 _defaultColliderSize;
+    protected Vector3 _defaultColliderCenter;
+    protected Vector3 _initialHandLocalPosition;
+    protected Quaternion _initialHandLocalRotation;
+    protected bool isGripped;
+    protected bool isPointing;
+    protected float currentGrip;
+    protected float currentTrigger;
+
+    private LayerMask interactableLayerMask;
+    private GameObject rightHandItem;
+    private bool rightHandUsed;
+    private DoorHandle _grabbedDoor;
+
+    protected virtual void Start()
+    {
+        rigidbody = GetComponentInParent<Rigidbody>();
+        rightHandUsed = false;
+        interactableLayerMask = LayerMask.GetMask("SariInteractable");
+        InitializeHandComponents();
+    }
+
+    protected virtual void InitializeHandComponents()
+    {
+        if (agentHand == null) return;
+        handAnimator = agentHand.GetComponentInChildren<Animator>();
+        _handCollisionDetector = agentHand.GetComponent<HandCollisionDetector>();
+        _initialHandLocalPosition = agentHand.transform.localPosition;
+        _initialHandLocalRotation = agentHand.transform.localRotation;
+        _handCollider = agentHand.GetComponent<BoxCollider>();
+        if (_handCollider != null)
+        {
+            _defaultColliderSize = _handCollider.size;
+            _defaultColliderCenter = _handCollider.center;
+        }
+    }
+
+    void FixedUpdate()
+    {
+        HandleMovement();
+
+        RaycastHit hit;
+        Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.forward) * 10f, Color.yellow);
+
+        if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual) return;
+
+        if (Input.GetKey(KeyCode.Q) && rightHandUsed)
+        {
+            ThrowItem(rightHandItem);
+            rightHandUsed = false;
+        }
+
+        if (Physics.Raycast(
+                transform.position,
+                transform.TransformDirection(Vector3.forward),
+                out hit,
+                Mathf.Infinity,
+                interactableLayerMask))
+        {
+            if (hit.collider.CompareTag("Wall")) return;
+
+            string hitName = hit.transform.name;
+            SariUIHandler.Instance.UpdateInfoText(hitName);
+
+            OutlineController outlineControllerScript = hit.collider.GetComponent<OutlineController>();
+            if (outlineControllerScript) outlineControllerScript.OnGaze();
+
+            if (Input.GetKey(KeyCode.Return))
+            {
+                HingedDoorBuilder hingedDoorHandler = hit.collider.GetComponentInParent<HingedDoorBuilder>();
+                if (hingedDoorHandler != null)
+                {
+                    hingedDoorHandler.ToggleDoor();
+                    return;
+                }
+
+                if (!rightHandUsed)
+                {
+                    var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + hitName);
+                    selectedItem.transform.position = Vector3.zero;
+
+                    Vector3 handLocation = transform.position
+                                           + transform.forward * 0.2f
+                                           + transform.right * 0.1f
+                                           + transform.up * -0.1f;
+
+                    ItemBBoxInfo itemBBoxInfo = hit.collider.GetComponent<ItemBBoxInfo>();
+                    itemBBoxInfo.DeleteFrontmostItem();
+
+                    DisablePhysics(selectedItem);
+
+                    selectedItem = Instantiate(selectedItem, handLocation, transform.rotation, transform);
+                    selectedItem.transform.Rotate(Vector3.up, -60);
+                    selectedItem.tag = "RetailItem";
+
+                    rightHandItem = selectedItem;
+                    rightHandUsed = true;
+                }
+            }
+        }
+    }
+
+    void Update()
+    {
+        if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
+        {
+            if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
+            if (Input.GetKeyDown(KeyCode.P)) TogglePoint();
+        }
+    }
+
+    private void HandleMovement()
+    {
+        Vector3 fwd = transform.forward;
+        Vector3 right = transform.right;
+        float m = movementSpeed * Time.deltaTime;
+        float r = rotateSpeed * Time.deltaTime;
+        bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+
+        if (!ctrl)
+        {
+            if (Input.GetKey(KeyCode.W)) rigidbody.AddForce(fwd * m, ForceMode.Impulse);
+            else if (Input.GetKey(KeyCode.A)) rigidbody.AddForce(-right * m, ForceMode.Impulse);
+            else if (Input.GetKey(KeyCode.S)) rigidbody.AddForce(-fwd * m, ForceMode.Impulse);
+            else if (Input.GetKey(KeyCode.D)) rigidbody.AddForce(right * m, ForceMode.Impulse);
+
+            if (Input.GetKey(KeyCode.RightArrow)) transform.Rotate(Vector3.up, r);
+            else if (Input.GetKey(KeyCode.LeftArrow)) transform.Rotate(Vector3.up, -r);
+            else ApplyVerticalRotation(r);
+        }
+        else
+        {
+            if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
+                HandleManualHandControls();
+        }
+
+        AnimateHand();
+        AnimateBody();
+
+        Vector3 e = transform.eulerAngles;
+        e.z = 0;
+        transform.rotation = Quaternion.Euler(e);
+    }
+
+    // Override in IKAgentController to route up/down into the head joint only.
+    protected virtual void ApplyVerticalRotation(float r)
+    {
+        if (Input.GetKey(KeyCode.UpArrow)) transform.Rotate(Vector3.right, -r);
+        else if (Input.GetKey(KeyCode.DownArrow)) transform.Rotate(Vector3.right, r);
+    }
+
+    // Override in IKAgentController to drive body animator parameters (speed, crouch, etc.).
+    protected virtual void AnimateBody() { }
+
+    private void AnimateHand()
+    {
+        if (handAnimator == null) return;
+
+        float gripTarget = isGripped || isPointing ? 1f : 0f;
+        float triggerTarget = isPointing ? 1f : 0f;
+        if (isGripped) triggerTarget = 0f;
+
+        currentGrip = Mathf.MoveTowards(currentGrip, gripTarget, gripSpeed * Time.fixedDeltaTime);
+        currentTrigger = Mathf.MoveTowards(currentTrigger, triggerTarget, gripSpeed * Time.fixedDeltaTime);
+
+        handAnimator.SetFloat("Grip", currentGrip);
+        handAnimator.SetFloat("Trigger", currentTrigger);
+    }
+
+    private void HandleManualHandControls()
+    {
+        if (agentHand == null) return;
+
+        if (_grabbedDoor != null)
+        {
+            agentHand.transform.position = _grabbedDoor.transform.position;
+            DriveDoorFromInput();
+            return;
+        }
+
+        float speed = handMoveSpeed * Time.fixedDeltaTime;
+        Vector3 localPos = agentHand.transform.localPosition;
+
+        if (Input.GetKey(KeyCode.E)) localPos += Vector3.up * speed;
+        if (Input.GetKey(KeyCode.Q)) localPos -= Vector3.up * speed;
+        if (Input.GetKey(KeyCode.W)) localPos += Vector3.forward * speed;
+        if (Input.GetKey(KeyCode.S)) localPos -= Vector3.forward * speed;
+        if (Input.GetKey(KeyCode.A)) localPos -= Vector3.right * speed;
+        if (Input.GetKey(KeyCode.D)) localPos += Vector3.right * speed;
+
+        // if (localPos.magnitude > handMoveRange)
+        //     localPos = localPos.normalized * handMoveRange;
+
+        agentHand.transform.localPosition = localPos;
+    }
+
+    private void DriveDoorFromInput()
+    {
+        Vector3 inputLocal = Vector3.zero;
+        if (Input.GetKey(KeyCode.W)) inputLocal += Vector3.forward;
+        if (Input.GetKey(KeyCode.S)) inputLocal -= Vector3.forward;
+        if (Input.GetKey(KeyCode.A)) inputLocal -= Vector3.right;
+        if (Input.GetKey(KeyCode.D)) inputLocal += Vector3.right;
+        if (Input.GetKey(KeyCode.E)) inputLocal += Vector3.up;
+        if (Input.GetKey(KeyCode.Q)) inputLocal -= Vector3.up;
+
+        if (inputLocal.sqrMagnitude < 0.001f) return;
+
+        Vector3 inputWorld = transform.TransformDirection(inputLocal.normalized);
+
+        HingeJoint hinge = _grabbedDoor.Hinge;
+        Rigidbody doorRb = _grabbedDoor.DoorRigidbody;
+
+        Vector3 axisWorld = doorRb.transform.TransformDirection(hinge.axis);
+        Vector3 anchorWorld = doorRb.transform.TransformPoint(hinge.anchor);
+        Vector3 toHandle = _grabbedDoor.transform.position - anchorWorld;
+        float radius = toHandle.magnitude;
+        if (radius < 0.001f) return;
+
+        Vector3 tangent = Vector3.Cross(axisWorld, toHandle.normalized);
+        float tangentialAmount = Vector3.Dot(inputWorld, tangent);
+
+        _grabbedDoor.DoorBuilder.ApplyHandForce(tangent * (tangentialAmount * doorHandleForce));
+    }
+
+    public void TransformAgent(Vector3 worldPosition, Vector3 eulerRotation)
+    {
+        rigidbody.linearVelocity = Vector3.zero;
+        rigidbody.angularVelocity = Vector3.zero;
+        rigidbody.transform.position = worldPosition;
+        transform.rotation = Quaternion.Euler(eulerRotation);
+    }
+
+    public void TranslateAgent(Vector3 deltaTranslation, Vector3 deltaRotation)
+    {
+        rigidbody.linearVelocity = Vector3.zero;
+        rigidbody.angularVelocity = Vector3.zero;
+        rigidbody.transform.position += deltaTranslation;
+        Vector3 euler = transform.eulerAngles + deltaRotation;
+        euler.z = 0;
+        transform.rotation = Quaternion.Euler(euler);
+    }
+
+    public void TransformHand(Vector3 localPosition, Vector3 eulerRotation)
+    {
+        if (agentHand == null) return;
+        if (localPosition.magnitude > handMoveRange) return;
+        agentHand.transform.position = transform.TransformPoint(localPosition);
+        agentHand.transform.rotation = transform.rotation * Quaternion.Euler(eulerRotation);
+    }
+
+    public void TranslateHand(Vector3 deltaLocalPosition, Vector3 deltaRotation)
+    {
+        if (agentHand == null) return;
+        Vector3 localPos = agentHand.transform.localPosition + deltaLocalPosition;
+        if (localPos.magnitude > handMoveRange)
+            localPos = localPos.normalized * handMoveRange;
+        agentHand.transform.localPosition = localPos;
+        agentHand.transform.localRotation *= Quaternion.Euler(deltaRotation);
+    }
+
+    public void ResetHandPosition()
+    {
+        if (agentHand == null) return;
+        agentHand.transform.localPosition = _initialHandLocalPosition;
+        agentHand.transform.localRotation = _initialHandLocalRotation;
+    }
+
+    public bool IsHoldingItem() => rightHandUsed;
+
+    public void TogglePoint()
+    {
+        isPointing = !isPointing;
+        isGripped = false;
+        if (_handCollisionDetector != null) _handCollisionDetector.IsPointing = isPointing;
+        if (_handCollider != null)
+        {
+            if (isPointing)
+            {
+                _handCollider.center = new Vector3(0.06f, -0.01f, 0.04f);
+                Vector3 s = _handCollider.size;
+                s.y = 0.02f;
+                s.z = 0.13f;
+                _handCollider.size = s;
+            }
+            else
+            {
+                _handCollider.center = _defaultColliderCenter;
+                _handCollider.size = _defaultColliderSize;
+            }
+        }
+    }
+
+    public void ToggleGrip()
+    {
+        if (!isGripped)
+        {
+            isPointing = false;
+            if (_handCollisionDetector != null) _handCollisionDetector.IsPointing = false;
+            if (_handCollider != null)
+            {
+                _handCollider.center = _defaultColliderCenter;
+                _handCollider.size = _defaultColliderSize;
+            }
+
+            if (_handCollisionDetector != null && _handCollisionDetector.DetectedDoorHandle != null)
+            {
+                _grabbedDoor = _handCollisionDetector.DetectedDoorHandle;
+            }
+            else if (agentHand != null &&
+                     _handCollisionDetector != null &&
+                     _handCollisionDetector.DetectedItem != null &&
+                     _handCollisionDetector.DetectedItemBBoxInfo != null)
+            {
+                InstantiateItemFromBBox();
+            }
+            isGripped = true;
+        }
+        else
+        {
+            if (_grabbedDoor != null)
+            {
+                agentHand.transform.localPosition = _initialHandLocalPosition;
+                agentHand.transform.localRotation = _initialHandLocalRotation;
+                _grabbedDoor.DoorRigidbody.linearVelocity = Vector3.zero;
+                _grabbedDoor.DoorRigidbody.angularVelocity = Vector3.zero;
+                _grabbedDoor = null;
+            }
+            isGripped = false;
+        }
+
+        if (!isGripped && rightHandItem != null)
+            DropCurrentlyHeldItem();
+    }
+
+    private void DropCurrentlyHeldItem()
+    {
+        rightHandItem.transform.SetParent(null);
+        Rigidbody rb = rightHandItem.GetComponent<Rigidbody>();
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        rb.interpolation = RigidbodyInterpolation.Extrapolate;
+        BoxCollider boxCollider = rightHandItem.GetComponentInChildren<BoxCollider>();
+        if (boxCollider != null) boxCollider.enabled = true;
+
+        foreach (Transform lod in FindLOD0And1(rightHandItem))
+        {
+            MeshFilter mf = lod.GetComponent<MeshFilter>();
+            if (mf != null)
+            {
+                MeshCollider mc = lod.gameObject.AddComponent<MeshCollider>();
+                mc.sharedMesh = mf.sharedMesh;
+                mc.convex = true;
+                mc.isTrigger = true;
+            }
+            lod.tag = "RetailItemBBox";
+            lod.AddComponent<OutlineFx.OutlineFx>().enabled = false;
+            lod.AddComponent<OutlineController>();
+        }
+
+        ItemBBoxInfo itemBBoxInfo = rightHandItem.AddComponent<ItemBBoxInfo>();
+        itemBBoxInfo.isSingularPhysicsObject = true;
+
+        rightHandItem = null;
+        rightHandUsed = false;
+    }
+
+    private List<Transform> FindLOD0And1(GameObject item)
+    {
+        var result = new List<Transform>();
+        if (item.transform.childCount == 0) return result;
+        Transform prodChild = item.transform.GetChild(0);
+        foreach (Transform t in prodChild)
+        {
+            if (t.name.EndsWith("_LOD0") || t.name.EndsWith("_LOD1"))
+                result.Add(t);
+        }
+        return result;
+    }
+
+    private void InstantiateItemFromBBox()
+    {
+        ItemBBoxInfo itemBBoxInfo = _handCollisionDetector.DetectedItemBBoxInfo;
+        string itemName = itemBBoxInfo.itemId;
+
+        var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
+        selectedItem.transform.position = Vector3.zero;
+        selectedItem.name = itemName;
+
+        itemBBoxInfo.DeleteFrontmostItem();
+        DisablePhysics(selectedItem);
+
+        selectedItem = Instantiate(
+            selectedItem,
+            agentHand.transform.position - new Vector3(0, 0.1f, 0),
+            transform.rotation,
+            agentHand.transform
+        );
+
+        selectedItem.transform.Rotate(Vector3.up, -60);
+        selectedItem.tag = "RetailItem";
+
+        rightHandItem = selectedItem;
+        rightHandUsed = true;
+    }
+
+    private void ThrowItem(GameObject item)
+    {
+        item.transform.SetParent(null);
+        Rigidbody rb = item.GetComponent<Rigidbody>();
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        rb.interpolation = RigidbodyInterpolation.Extrapolate;
+        rb.AddForce(transform.forward * throwStrength, ForceMode.Impulse);
+        BoxCollider boxCollider = item.GetComponentInChildren<BoxCollider>();
+        boxCollider.enabled = true;
+        rightHandItem = null;
+    }
+
+    private void DisablePhysics(GameObject item)
+    {
+        Rigidbody rb = item.GetComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.linearVelocity = Vector3.zero;
+        rb.useGravity = false;
+        rb.interpolation = RigidbodyInterpolation.None;
+        BoxCollider boxCollider = item.GetComponentInChildren<BoxCollider>();
+        boxCollider.enabled = false;
+
+        MeshCollider[] cols = item.GetComponentsInChildren<MeshCollider>(true);
+        foreach (var c in cols)
+            c.isTrigger = true;
+    }
+}
