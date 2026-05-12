@@ -46,6 +46,11 @@ public class SB_UIHandler : MonoBehaviour
     public TMP_InputField saveStoreTextField;
     public TextMeshProUGUI savePersistentDataPathText;
 
+    [Header("Floor Dimensions UI")]
+    public GameObject floorDimensionsMenu;
+    public TMP_InputField floorWidthInput;
+    public TMP_InputField floorHeightInput;
+
     private List<string> _validStoreFiles = new();
 
     void Start()
@@ -522,6 +527,27 @@ public class SB_UIHandler : MonoBehaviour
         SetStoreName(saveStoreTextField.text);
         DataHandler.Instance.SaveStore();
     }
+    // ── Floor dimensions UI ───────────────────────────────────────────────────
+
+    public void OnEditFloorDimensionsPressed()
+    {
+        floorDimensionsMenu.SetActive(!floorDimensionsMenu.activeSelf);
+    }
+
+    public void OnFloorDimensionsApplyPressed()
+    {
+        GameObject floor = DataHandler.Instance.floor;
+        if (floor == null) return;
+
+        float width  = float.TryParse(floorWidthInput.text,  out float w) && w > 0f ? w : floor.transform.localScale.x;
+        float height = float.TryParse(floorHeightInput.text, out float h) && h > 0f ? h : floor.transform.localScale.z;
+
+        Vector3 scale = floor.transform.localScale;
+        scale.x = width;
+        scale.z = height;
+        floor.transform.localScale = scale;
+    }
+
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private void SafeRebuildShelf()
