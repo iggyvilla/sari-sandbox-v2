@@ -140,6 +140,13 @@ public class SelfCheckoutSaveData
 }
 
 [Serializable]
+public class AgentSpawnSaveData
+{
+    public float posX, posY, posZ;
+    public float rotationY;
+}
+
+[Serializable]
 public class StoreData
 {
     public int version = 1;
@@ -148,6 +155,7 @@ public class StoreData
     public List<ShelfSaveData> shelves = new();
     public Dictionary<string, SaveDataWrapper> shelfItems = new();
     public List<SelfCheckoutSaveData> selfCheckoutLocations = new();
+    public AgentSpawnSaveData agentSpawnLocation = null;
 }
 
 public class DataHandler : MonoBehaviour
@@ -171,6 +179,9 @@ public class DataHandler : MonoBehaviour
     [Header("Self Checkout")]
     public ScanningDifficulty scanningDifficulty;
     public GameObject selfCheckoutCounter;
+
+    [Header("Agent Spawn Marker")]
+    public GameObject agentSpawnMarkerPrefab;
 
     [Header("Store")]
     public string storeName = "DefaultStore";
@@ -270,6 +281,11 @@ public class DataHandler : MonoBehaviour
                  FindObjectsByType<SelfCheckoutMarker>(FindObjectsSortMode.None))
             Destroy(existing.gameObject);
 
+        // Clear any existing agent spawn marker
+        foreach (AgentSpawnMarker existing in
+                 FindObjectsByType<AgentSpawnMarker>(FindObjectsSortMode.None))
+            Destroy(existing.gameObject);
+
         string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
         if (!File.Exists(path))
         {
@@ -326,6 +342,21 @@ public class DataHandler : MonoBehaviour
 
                 if (sceneName == "StoreBuilder")
                     interactionController.SummonPropSelectorBox(go);
+            }
+        }
+
+        if (storeData.agentSpawnLocation != null)
+        {
+            AgentSpawnSaveData spawnData = storeData.agentSpawnLocation;
+            Vector3 pos = new Vector3(spawnData.posX, spawnData.posY, spawnData.posZ);
+            agentSpawnPosition = pos;
+
+            if (sceneName == "StoreBuilder" && agentSpawnMarkerPrefab != null)
+            {
+                Quaternion rot = Quaternion.Euler(0f, spawnData.rotationY, 0f);
+                GameObject go = Instantiate(agentSpawnMarkerPrefab, pos, rot);
+                go.AddComponent<AgentSpawnMarker>();
+                interactionController.SummonPropSelectorBox(go);
             }
         }
     }
@@ -391,6 +422,20 @@ public class DataHandler : MonoBehaviour
                 posZ      = pos.z,
                 rotationY = sc.transform.eulerAngles.y
             });
+        }
+
+        AgentSpawnMarker spawnMarker = FindAnyObjectByType<AgentSpawnMarker>();
+        if (spawnMarker != null)
+        {
+            Vector3 pos = spawnMarker.transform.position;
+            storeData.agentSpawnLocation = new AgentSpawnSaveData
+            {
+                posX      = pos.x,
+                posY      = pos.y,
+                posZ      = pos.z,
+                rotationY = spawnMarker.transform.eulerAngles.y
+            };
+            agentSpawnPosition = pos;
         }
 
         currentStoreData = storeData;

@@ -13,6 +13,7 @@ public class SB_InteractionController : MonoBehaviour
     public GameObject woodShelfPrefab;
     public GameObject fridgePrefab;
     public GameObject selfCheckoutPrefab;
+    public GameObject agentSpawnPrefab;
     public float builderGridSize = 1f;
 
     [Header("References")]
@@ -24,6 +25,7 @@ public class SB_InteractionController : MonoBehaviour
     private bool _placementMode = false;
     public bool IsInPlacementMode => _placementMode;
     private bool _isPropPlacement = false;
+    private bool _isAgentSpawnPlacement = false;
     [CanBeNull] private GameObject _previewShelf = null;
     [CanBeNull] private ShelfSelector _movingSelector = null;
     [CanBeNull] private PropSelector _movingPropSelector = null;
@@ -137,6 +139,30 @@ public class SB_InteractionController : MonoBehaviour
     // Called by the "Spawn Self Checkout" UI button
     public void OnSpawnSelfCheckout()
     {
+        _isAgentSpawnPlacement = false;
+        _isPropPlacement = true;
+        _placementMode = true;
+    }
+
+    // Called by the "Place Agent Spawn" UI button
+    public void OnPlaceAgentSpawn()
+    {
+        // Destroy any existing agent spawn marker and its selector box
+        AgentSpawnMarker existing = FindAnyObjectByType<AgentSpawnMarker>();
+        if (existing != null)
+        {
+            foreach (PropSelector ps in FindObjectsByType<PropSelector>(FindObjectsSortMode.None))
+            {
+                if (ps.assignedProp == existing.gameObject)
+                {
+                    Destroy(ps.gameObject);
+                    break;
+                }
+            }
+            Destroy(existing.gameObject);
+        }
+
+        _isAgentSpawnPlacement = true;
         _isPropPlacement = true;
         _placementMode = true;
     }
@@ -315,9 +341,10 @@ public class SB_InteractionController : MonoBehaviour
 
     void SpawnPreview(Vector3 position)
     {
-        _previewShelf = _isPropPlacement
-            ? Instantiate(selfCheckoutPrefab, position, Quaternion.identity)
-            : Instantiate(shelfPrefab, position, Quaternion.identity);
+        GameObject prefab = _isAgentSpawnPlacement ? agentSpawnPrefab
+            : _isPropPlacement ? selfCheckoutPrefab
+            : shelfPrefab;
+        _previewShelf = Instantiate(prefab, position, Quaternion.identity);
     }
 
     void ConfirmPlacement()
@@ -331,8 +358,16 @@ public class SB_InteractionController : MonoBehaviour
             }
             else if (_previewShelf != null)
             {
-                if (_previewShelf.GetComponent<SelfCheckoutMarker>() == null)
-                    _previewShelf.AddComponent<SelfCheckoutMarker>();
+                if (_isAgentSpawnPlacement)
+                {
+                    if (_previewShelf.GetComponent<AgentSpawnMarker>() == null)
+                        _previewShelf.AddComponent<AgentSpawnMarker>();
+                }
+                else
+                {
+                    if (_previewShelf.GetComponent<SelfCheckoutMarker>() == null)
+                        _previewShelf.AddComponent<SelfCheckoutMarker>();
+                }
                 SummonPropSelectorBox(_previewShelf);
             }
         }
@@ -384,5 +419,6 @@ public class SB_InteractionController : MonoBehaviour
     void ExitPlacementMode()
     {
         _placementMode = false;
+        _isAgentSpawnPlacement = false;
     }
 }

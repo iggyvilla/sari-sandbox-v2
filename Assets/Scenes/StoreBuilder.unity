@@ -4513,9 +4513,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 987040918}
-        m_TargetAssemblyTypeName: StoreBuilderUIHandler, Assembly-CSharp
-        m_MethodName: OnSpawnItemsOnAllShelvesButtonPressed
+      - m_Target: {fileID: 2075032117}
+        m_TargetAssemblyTypeName: SB_InteractionController, Assembly-CSharp
+        m_MethodName: OnPlaceAgentSpawn
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -8596,6 +8596,7 @@ MonoBehaviour:
   agentBasketStyle: 0
   scanningDifficulty: 0
   selfCheckoutCounter: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
+  agentSpawnMarkerPrefab: {fileID: 1761823292887612564, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
   storeName: StoreBuilder1
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
@@ -25725,7 +25726,8 @@ MonoBehaviour:
   woodShelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   fridgePrefab: {fileID: 2128580248598948549, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
   selfCheckoutPrefab: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-  builderGridSize: 0.5
+  agentSpawnPrefab: {fileID: 1761823292887612564, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+  builderGridSize: 0.25
   uiHandler: {fileID: 987040918}
   dataHandler: {fileID: 713415074}
   airMaterial: {fileID: 2100000, guid: a1e0527347dd447dca8ce9830f3e8e10, type: 2}
@@ -26162,6 +26164,67 @@ MonoBehaviour:
           m_BoolArgument: 0
         m_CallState: 2
   m_IsOn: 1
+--- !u!1001 &423304554126209326
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1761823292887612564, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_Name
+      value: Agent Spawn Marker
+      objectReference: {fileID: 0}
+    - target: {fileID: 1761823292887612564, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -1.978
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 2.027
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3692945647213611976, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -26176,3 +26239,4 @@ SceneRoots:
   - {fileID: 1568667528}
   - {fileID: 215538136}
   - {fileID: 1082254381}
+  - {fileID: 423304554126209326}
