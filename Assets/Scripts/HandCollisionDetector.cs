@@ -52,7 +52,7 @@ public class HandCollisionDetector : MonoBehaviour
              *
              * This fixes the weird edge case where we exit item 1's bbox
              * without touching any other items and suddenly an item beside it
-             * is queued
+             * is selected
              */
             if (DetectedItem == other.gameObject && _itemQueue) _itemQueue = null;
             
@@ -67,8 +67,8 @@ public class HandCollisionDetector : MonoBehaviour
         }
         
         DetectedItem = other.gameObject;
-        DetectedItemBBoxInfo = other.GetComponent<ItemBBoxInfo>();
-        _itemOutlineController = DetectedItem.GetComponent<OutlineController>();
+        DetectedItemBBoxInfo = other.GetComponentInParent<ItemBBoxInfo>();
+        _itemOutlineController = DetectedItem.GetComponentInChildren<OutlineController>();
     }
 
     void Update()

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -34,17 +36,19 @@ public class AgentController : MonoBehaviour
     private Vector3 _defaultColliderSize;
     private Vector3 _defaultColliderCenter;
     
-    [Header("VoxeLLMap")]
     /* VoxeLLMap-related variables */
-    private NavMeshAgent _agent;
-    public GameObject target;
+    // [Header("VoxeLLMap")]
+    // private NavMeshAgent _agent;
+    // public GameObject target;
     
     void Start()
     {
+        // For VoxeLLMap
+        // _agent = GetComponent<NavMeshAgent>();
+        
         rigidbody = GetComponentInParent<Rigidbody>();
         rightHandUsed = false;
         interactableLayerMask = LayerMask.GetMask("SariInteractable");
-        _agent = GetComponent<NavMeshAgent>();
         if (agentHand != null)
         {
             handAnimator = agentHand.GetComponentInChildren<Animator>();
@@ -416,17 +420,53 @@ public class AgentController : MonoBehaviour
         rb.interpolation = RigidbodyInterpolation.Extrapolate;
         BoxCollider boxCollider = rightHandItem.GetComponentInChildren<BoxCollider>();
         if (boxCollider != null) boxCollider.enabled = true;
+
+        // Add convex trigger MeshColliders to LOD0/LOD1 and tag them so the agent can interact
+        foreach (Transform lod in FindLOD0And1(rightHandItem))
+        {
+            MeshFilter mf = lod.GetComponent<MeshFilter>();
+            if (mf != null)
+            {
+                MeshCollider mc = lod.gameObject.AddComponent<MeshCollider>();
+                mc.sharedMesh = mf.sharedMesh;
+                mc.convex = true;
+                mc.isTrigger = true;
+            }
+            lod.tag = "RetailItemBBox";
+            lod.AddComponent<OutlineFx.OutlineFx>().enabled = false;
+            lod.AddComponent<OutlineController>();
+        }
+
+        // Attach ItemBBoxInfo to the root so the agent can interact with it like any shelf item
+        ItemBBoxInfo itemBBoxInfo = rightHandItem.AddComponent<ItemBBoxInfo>();
+        itemBBoxInfo.isSingularPhysicsObject = true;
+
         rightHandItem = null;
         rightHandUsed = false;
     }
 
+    // Product prefab hierarchy: root → child[0] → *_LOD0, *_LOD1, …
+    private List<Transform> FindLOD0And1(GameObject item)
+    {
+        var result = new List<Transform>();
+        if (item.transform.childCount == 0) return result;
+        Transform prodChild = item.transform.GetChild(0);
+        foreach (Transform t in prodChild)
+        {
+            if (t.name.EndsWith("_LOD0") || t.name.EndsWith("_LOD1"))
+                result.Add(t);
+        }
+        return result;
+    }
+
     void InstantiateItemFromBBox()
     {
-        string itemName = _handCollisionDetector.DetectedItem.name;
         ItemBBoxInfo itemBBoxInfo = _handCollisionDetector.DetectedItemBBoxInfo;
+        string itemName = itemBBoxInfo.itemId;
 
         var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
         selectedItem.transform.position = Vector3.zero;
+        selectedItem.name = itemName;
 
         itemBBoxInfo.DeleteFrontmostItem();
         DisablePhysics(selectedItem);

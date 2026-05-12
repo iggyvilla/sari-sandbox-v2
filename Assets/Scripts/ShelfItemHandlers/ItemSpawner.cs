@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
+using Unity.VisualScripting;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -264,13 +265,7 @@ public class ItemSpawner : MonoBehaviour
         Mesh mesh0 = lod0Transform != null ? lod0Transform.GetComponent<MeshFilter>()?.sharedMesh : null;
         Mesh mesh1 = lod1Transform != null ? lod1Transform.GetComponent<MeshFilter>()?.sharedMesh : null;
         
-        if (lod0Transform.name == "DELMONTE_FOUR_SEASONS_220ML_LOD0")
-        {
-            Debug.Log($"{lod0Transform.name} {lod0Transform.position} {lod0Transform.position == Vector3.zero}");
-            Debug.Log($"{lod1Transform.name} {lod1Transform.position} {lod1Transform.position == Vector3.zero}");
-        }
-        
-        // mesh0.bounds.center
+        // note: used mesh0.bounds.center
         if (mesh0 != null && lod0Transform.position != Vector3.zero)
         {
             /*
@@ -324,8 +319,9 @@ public class ItemSpawner : MonoBehaviour
         Renderer iRenderer = itemTrigger.GetComponent<Renderer>();
         iRenderer.material = _airMaterial;
         
+        itemBBoxInfo.itemId = productName;
         itemBBoxInfo.UpdateDrawDataList(drawDataList);
-            
+
         b.name = productName;
         b.isTrigger = true;
         b.size = Vector3.one; 
@@ -344,7 +340,7 @@ public class ItemSpawner : MonoBehaviour
     InstanceLODData GenerateProductDrawData(GameObject product, Vector3 spawnPosition, float itemHeight)
     {
         /*
-         * get the transforms of LOD0 (and LOD1 if present)
+         * get the transforms of LOD0 (and LOD1, 2, and 3 if present)
          * if you get the transforms of the product itself,
          * some items won't spawn properly (local vs world coords)
          */

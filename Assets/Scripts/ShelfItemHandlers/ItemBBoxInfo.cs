@@ -3,6 +3,12 @@ using UnityEngine;
 
 public class ItemBBoxInfo : MonoBehaviour
 {
+    // True when this component is on a standalone dropped/physical item rather than
+    // a GPU-instanced shelf item; deletion simply destroys the GameObject itself.
+    public bool isSingularPhysicsObject;
+
+    public string itemId;
+
     public List<InstanceLODData> itemDrawDatas = new();
 
     public void UpdateDrawDataList(List<InstanceLODData> drawDataList)
@@ -12,14 +18,14 @@ public class ItemBBoxInfo : MonoBehaviour
 
     public void DeleteFrontmostItem()
     {
+        if (isSingularPhysicsObject) { Destroy(gameObject); return; }
+
         if (itemDrawDatas.Count == 0) return;
 
         InstanceLODData frontItemDrawData = itemDrawDatas[0];
 
-        string myId = gameObject.name;
-
         BatchInstancer itemBatchInstancer =
-            GPUInstanceTracker.Instance.GetBatchInstancerFromId(myId);
+            GPUInstanceTracker.Instance.GetBatchInstancerFromId(itemId);
 
         if (itemBatchInstancer != null)
         {
@@ -35,10 +41,12 @@ public class ItemBBoxInfo : MonoBehaviour
 
     public void DeleteAllItems()
     {
+        if (isSingularPhysicsObject) { Destroy(gameObject); return; }
+
         if (itemDrawDatas.Count == 0) return;
 
         BatchInstancer itemBatchInstancer =
-            GPUInstanceTracker.Instance.GetBatchInstancerFromId(gameObject.name);
+            GPUInstanceTracker.Instance.GetBatchInstancerFromId(itemId);
 
         if (itemBatchInstancer != null)
         {
