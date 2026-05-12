@@ -13,6 +13,7 @@ public class ShelfSelector : MonoBehaviour
     private OutlineFx.OutlineFx _outlineFx;
     private Camera _cam;
     private LayerMask _sariInteractableMask;
+    private LayerMask _sariShelfMask;
 
     void Awake()
     {
@@ -20,6 +21,7 @@ public class ShelfSelector : MonoBehaviour
         _outlineFx.enabled = false;
         _cam = Camera.main;
         _sariInteractableMask = LayerMask.GetMask("SariInteractable");
+        _sariShelfMask = LayerMask.GetMask("SariShelf");
     }
 
     void Update()
@@ -49,6 +51,9 @@ public class ShelfSelector : MonoBehaviour
         Ray ray = _cam.ScreenPointToRay(Input.mousePosition);
         if (!Physics.Raycast(ray, out RaycastHit hit, 100f, _sariInteractableMask)) return;
         if (hit.collider.gameObject != gameObject) return;
+
+        // If a sub-shelf is under the cursor, let SB_InteractionController handle it
+        if (Physics.Raycast(ray, 100f, _sariShelfMask, QueryTriggerInteraction.Ignore)) return;
 
         if (uiHandler.selectedShelf == assignedShelf)
             uiHandler.DeselectShelf();

@@ -37,8 +37,8 @@ public class ShelfBuilder : MonoBehaviour
     public bool spawnPriceTags;
     [Tooltip("Determines if to spawn randomly picked items from a single category")]
     public ItemSpawnOption itemSpawnOption;
-    [Tooltip("If items spawn randomly, determines what category of items to spawn")]
-    public ItemCategory itemCategory;
+    [Tooltip("Per-sub-shelf item category, keyed by 'subShelfId_subSubShelfId'")]
+    public Dictionary<string, ItemCategory> subShelfCategories = new();
     
     [Header("Prefabs/Objects")]
     [Tooltip("The program extrudes this prefab for the shelves")]
@@ -94,7 +94,7 @@ public class ShelfBuilder : MonoBehaviour
         spawnItems            = data.spawnItems;
         spawnPriceTags        = data.spawnPriceTags;
         itemSpawnOption       = data.itemSpawnOption;
-        itemCategory          = data.itemCategory;
+        subShelfCategories    = data.subShelfCategories ?? new Dictionary<string, ItemCategory>();
         spawnHingeDoors       = data.spawnHingeDoors;
         fridgeDoorStyle       = data.fridgeDoorStyle;
         shelfId               = data.shelfId;
@@ -348,23 +348,31 @@ public class ShelfBuilder : MonoBehaviour
                 parent
             );
             
-            // Mark as an occludee for ray-casting later on
-            shelfExtruded.layer = LayerMask.NameToLayer("SariInteractable");
+            shelfExtruded.layer = LayerMask.NameToLayer(roof ? "SariInteractable" : "SariShelf");
             shelfExtruded.tag = "Wall";
-            
+
             shelfExtruded.GetComponent<Renderer>().material = shelfMaterial;
-            
+
             shelfExtruded.name = "Shelf" + i;
-            
+
             // Extrude the shelf to the desired width via scaling
             Vector3 extrudedScale = shelfSideProfile.transform.localScale;
             extrudedScale.x = width;
 
             if (isBottomShelf || roof)
                 extrudedScale.y = roof ? shelfRoofHeight : shelfBootHeight;
-            
+
             shelfExtruded.transform.localScale = extrudedScale;
-            
+
+            if (!roof)
+            {
+                var outline = shelfExtruded.AddComponent<OutlineFx.OutlineFx>();
+                outline.enabled = false;
+                SubShelfMarker marker = shelfExtruded.AddComponent<SubShelfMarker>();
+                marker.shelfInfo = new ShelfInfo { shelfId = shelfId, subShelfId = subShelfId, subSubShelfId = i };
+                marker.parentShelf = this;
+            }
+
             if (spawnItems && !roof)
             {
                 ItemSpawner spawner = shelfExtruded.GetComponent<ItemSpawner>();
@@ -374,18 +382,20 @@ public class ShelfBuilder : MonoBehaviour
                     subShelfId = subShelfId,
                     subSubShelfId = i,
                 };
-                
-                
+
+                string catKey = $"{subShelfId}_{i}";
+                ItemCategory cat = subShelfCategories.TryGetValue(catKey, out var c) ? c : default;
+
                 spawner.Init(
                     distanceBetweenLevels,
                     itemSpawnOption,
                     spawnPriceTags,
-                    itemCategory,
+                    cat,
                     airMaterial,
                     priceTagPrefab,
                     sInfo
                 );
-                
+
                 shelfObjects.Add(shelfExtruded);
             }
             
@@ -447,7 +457,7 @@ public class ShelfBuilder : MonoBehaviour
         float wallHeight = CalculateShelfHeight();
         
         GameObject backWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        backWall.layer = LayerMask.NameToLayer("SariInteractable");
+        backWall.layer = LayerMask.NameToLayer("SariShelf");
         backWall.tag = "Wall";
         backWall.name = "BackWall";
         backWall.transform.localScale = new Vector3(
@@ -519,5 +529,24 @@ public class ShelfBuilder : MonoBehaviour
         //     spawnItems = prevSpawnItems;
         // }
         // #endif
+    }
+}
+
+public class SubShelfMarker : MonoBehaviour
+{
+    public ShelfInfo shelfInfo;
+    public ShelfBuilder parentShelf;
+
+    private OutlineFx.OutlineFx _outlineFx;
+
+    void Awake()
+    {
+        _outlineFx = GetComponent<OutlineFx.OutlineFx>();
+    }
+
+    public void EnableOutline(bool on)
+    {
+        if (_outlineFx != null)
+            _outlineFx.enabled = on;
     }
 }

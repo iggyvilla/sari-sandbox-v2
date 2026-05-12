@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 6657075498013187903}
   - component: {fileID: 4100495019488995179}
   - component: {fileID: -6857232297359580626}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Shelf Side Profile (v2)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -122,12 +122,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 04046368d96654e099d010d680878c39, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  heightBudget: 0
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
   interItemPadding: 0.005
   fillFraction: 0.5
-  itemCategory: 0
+  shelfItemData: {fileID: 0}
 --- !u!114 &-6857232297359580626
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -140,4 +139,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ac96978cf9284e9fa581493d0c5da54c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  itemTotalWidth: 0
+  shelfItems: []
+  itemsTotalWidth: 0

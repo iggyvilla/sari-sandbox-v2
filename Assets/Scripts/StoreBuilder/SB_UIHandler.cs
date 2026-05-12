@@ -7,9 +7,11 @@ using UnityEngine.UI;
 
 public class SB_UIHandler : MonoBehaviour
 {
-    [Header("Selection UI")] 
+    [Header("Selection UI")]
     public GameObject shelfEditCanvas;
     public GameObject tooltipText;
+    public GameObject itemCategorySelection;
+    public TMP_Dropdown itemCategoryDropdown;
     
     // Default fallback values used when the user enters an invalid input
     private const int   DefaultShelfWidth            = 2;
@@ -25,6 +27,7 @@ public class SB_UIHandler : MonoBehaviour
 
     private ShelfSelector _activeSelector;
     private PropSelector _activePropSelector;
+    private SubShelfMarker _activeSubShelf;
     
     public Toggle priceTagToggle;
 
@@ -75,6 +78,7 @@ public class SB_UIHandler : MonoBehaviour
 
     public void SelectShelf(ShelfSelector selector)
     {
+        DeselectSubShelf();
         DeselectProp();
         if (_activeSelector != null && _activeSelector != selector)
             _activeSelector.Deselect();
@@ -92,12 +96,67 @@ public class SB_UIHandler : MonoBehaviour
 
     public void DeselectShelf()
     {
+        DeselectSubShelf();
         if (_activeSelector != null)
             _activeSelector.Deselect();
         _activeSelector = null;
         selectedShelf = null;
         SetSelectionUIView(false);
         UpdateSelectedShelfText();
+    }
+
+    // ── Sub-shelf selection ───────────────────────────────────────────────────
+
+    public void ToggleSubShelf(SubShelfMarker marker)
+    {
+        if (_activeSubShelf == marker)
+        {
+            DeselectSubShelf();
+            return;
+        }
+
+        if (_activeSubShelf != null)
+            _activeSubShelf.EnableOutline(false);
+
+        // Deselect the main shelf without recursing into DeselectSubShelf
+        // (_activeSubShelf is null at this point so the call is a no-op there)
+        DeselectShelf();
+
+        _activeSubShelf = marker;
+        marker.EnableOutline(true);
+        PopulateSubShelfCategoryDropdown(marker);
+        itemCategorySelection.SetActive(true);
+    }
+
+    public void DeselectSubShelf()
+    {
+        if (_activeSubShelf == null) return;
+        _activeSubShelf.EnableOutline(false);
+        _activeSubShelf = null;
+        if (itemCategorySelection != null)
+            itemCategorySelection.SetActive(false);
+    }
+
+    public bool IsSubShelfSelected() => _activeSubShelf != null;
+
+    void PopulateSubShelfCategoryDropdown(SubShelfMarker marker)
+    {
+        itemCategoryDropdown.ClearOptions();
+        itemCategoryDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(ItemCategory))));
+
+        string key = $"{marker.shelfInfo.subShelfId}_{marker.shelfInfo.subSubShelfId}";
+        int value = marker.parentShelf.subShelfCategories.TryGetValue(key, out ItemCategory cat)
+            ? (int)cat
+            : 0;
+        itemCategoryDropdown.SetValueWithoutNotify(value);
+    }
+
+    // Wired to itemCategoryDropdown.OnValueChanged in the Inspector
+    public void OnSubShelfCategoryChanged(int index)
+    {
+        if (_activeSubShelf == null) return;
+        string key = $"{_activeSubShelf.shelfInfo.subShelfId}_{_activeSubShelf.shelfInfo.subSubShelfId}";
+        _activeSubShelf.parentShelf.subShelfCategories[key] = (ItemCategory)index;
     }
 
     void SetSelectionUIView(bool show)

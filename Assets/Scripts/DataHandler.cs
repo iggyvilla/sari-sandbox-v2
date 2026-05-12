@@ -129,7 +129,7 @@ public class ShelfSaveData
     public bool            spawnPriceTags;
     public bool            spawnHingeDoors;
     public ItemSpawnOption itemSpawnOption;
-    public ItemCategory    itemCategory;
+    public Dictionary<string, ItemCategory> subShelfCategories = new();
 }
 
 [Serializable]
@@ -334,7 +334,7 @@ public class DataHandler : MonoBehaviour
                 spawnItems            = b.spawnItems,
                 spawnPriceTags        = b.spawnPriceTags,
                 itemSpawnOption       = b.itemSpawnOption,
-                itemCategory          = b.itemCategory,
+                subShelfCategories    = b.subShelfCategories,
                 spawnHingeDoors       = b.spawnHingeDoors,
                 fridgeDoorStyle       = b.fridgeDoorStyle,
                 shelfId               = b.shelfId

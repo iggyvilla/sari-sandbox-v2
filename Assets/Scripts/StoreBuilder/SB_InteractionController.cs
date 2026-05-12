@@ -27,15 +27,17 @@ public class SB_InteractionController : MonoBehaviour
     private Camera _cam;
     private LayerMask _sariFloorLayerMask;
     private LayerMask _sariInteractableLayerMask;
+    private LayerMask _sariShelfLayerMask;
 
     void Awake()
     {
         _cam = GetComponentInChildren<Camera>();
         if (_cam == null)
             _cam = Camera.main;
-        
+
         _sariFloorLayerMask = LayerMask.GetMask("SariFloor");
         _sariInteractableLayerMask = LayerMask.GetMask("SariInteractable");
+        _sariShelfLayerMask = LayerMask.GetMask("SariShelf");
     }
 
     void Update()
@@ -44,6 +46,8 @@ public class SB_InteractionController : MonoBehaviour
 
         if (_placementMode)
             HandleShelfPlacement();
+        else
+            HandleSubShelfSelection();
     }
 
     // ── Camera rotation ───────────────────────────────────────────────────────
@@ -57,6 +61,48 @@ public class SB_InteractionController : MonoBehaviour
 
         // Rotate around parent's position (acts as pivot at world origin)
         transform.RotateAround(transform.parent.position, Vector3.up, input * rotationSpeed * Time.deltaTime);
+    }
+
+    // ── Sub-shelf selection ───────────────────────────────────────────────────
+
+    void HandleSubShelfSelection()
+    {
+        if (!Input.GetMouseButtonDown(0)) return;
+
+        Ray ray = _cam.ScreenPointToRay(Input.mousePosition);
+        if (!Physics.Raycast(ray, out RaycastHit hit, 100f, _sariShelfLayerMask, QueryTriggerInteraction.Ignore)) return;
+        
+        SubShelfMarker marker = hit.collider.GetComponent<SubShelfMarker>();
+        if (marker != null)
+        {
+            uiHandler.ToggleSubShelf(marker);
+            return;
+        }
+
+        if (hit.collider.CompareTag("Wall"))
+        {
+            ShelfBuilder builder = hit.collider.GetComponentInParent<ShelfBuilder>();
+            if (builder != null)
+            {
+                if (uiHandler.selectedShelf == builder)
+                {
+                    uiHandler.DeselectShelf();
+                }
+                else
+                {
+                    ShelfSelector selector = FindShelfSelector(builder);
+                    if (selector != null)
+                        uiHandler.SelectShelf(selector);
+                }
+            }
+        }
+    }
+
+    ShelfSelector FindShelfSelector(ShelfBuilder builder)
+    {
+        foreach (ShelfSelector s in FindObjectsByType<ShelfSelector>(FindObjectsSortMode.None))
+            if (s.assignedShelf == builder) return s;
+        return null;
     }
 
     // ── Shelf placement ───────────────────────────────────────────────────────
