@@ -38,6 +38,15 @@ public class IKAgentController : AgentControllerBase
         else if (Input.GetKey(KeyCode.DownArrow)) ikHeadJoint.Rotate(Vector3.right, r);
     }
 
+    private void LateUpdate()
+    {
+        if (ikHeadJoint == null) return;
+        Vector3 e = ikHeadJoint.eulerAngles;
+        e.y = transform.eulerAngles.y;
+        e.z = 0f;
+        ikHeadJoint.rotation = Quaternion.Euler(e);
+    }
+
     // Add extra animator parameters here as the humanoid rig grows.
     protected override void AnimateBody()
     {

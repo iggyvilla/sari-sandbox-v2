@@ -125,7 +125,7 @@ public class ShelfItemData : MonoBehaviour
         Debug.Log($"Saved shelf {idString}'s items to store file.");
     }
 
-    public void LoadItemsFromJson(ShelfInfo si)
+    public bool LoadItemsFromJson(ShelfInfo si)
     {
         string idString = $"ID{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
 
@@ -140,11 +140,11 @@ public class ShelfItemData : MonoBehaviour
             }
 
             shelfItems = wrapper.items;
+            return true;
         }
-        else
-        {
-            Debug.LogError($"Shelf {idString}'s items not found in store file.");
-        }
+
+        Debug.LogWarning($"Shelf {idString}'s items not found in store file — will generate and save.");
+        return false;
     }
 
     

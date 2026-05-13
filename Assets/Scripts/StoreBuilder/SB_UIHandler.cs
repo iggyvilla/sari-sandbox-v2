@@ -12,6 +12,9 @@ public class SB_UIHandler : MonoBehaviour
     public GameObject tooltipText;
     public GameObject itemCategorySelection;
     public TMP_Dropdown itemCategoryDropdown;
+
+    [Header("Shelf Category UI")]
+    public TMP_Dropdown shelfCategoryDropdown;
     
     // Default fallback values used when the user enters an invalid input
     private const int   DefaultShelfWidth            = 2;
@@ -51,12 +54,21 @@ public class SB_UIHandler : MonoBehaviour
     public TMP_InputField floorWidthInput;
     public TMP_InputField floorHeightInput;
 
+    [Header("Agent Settings UI")]
+    public GameObject agentSettingsMenu;
+    public TMP_Dropdown agentAvatarSettingDropdown;
+    public TMP_Dropdown agentInteractionStyleDropdown;
+    public TMP_Dropdown agentBasketStyleDropdown;
+    public TMP_Dropdown scanningDifficultyDropdown;
+
     private List<string> _validStoreFiles = new();
 
     void Start()
     {
         // spawnItemsToggle.isOn = false;
         UpdateSelectedShelfText();
+        PopulateShelfCategoryDropdown();
+        PopulateAgentSettingsDropdowns();
     }
 
     // ── Shelf selection ───────────────────────────────────────────────────────
@@ -162,6 +174,25 @@ public class SB_UIHandler : MonoBehaviour
         if (_activeSubShelf == null) return;
         string key = $"{_activeSubShelf.shelfInfo.subShelfId}_{_activeSubShelf.shelfInfo.subSubShelfId}";
         _activeSubShelf.parentShelf.subShelfCategories[key] = (ItemCategory)index;
+    }
+
+    void PopulateShelfCategoryDropdown()
+    {
+        if (shelfCategoryDropdown == null) return;
+        shelfCategoryDropdown.ClearOptions();
+        shelfCategoryDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(ItemCategory))));
+    }
+
+    // Wired to ApplyShelfCategory button's OnClick in the Inspector
+    public void OnApplyShelfCategoryPressed()
+    {
+        if (selectedShelf == null) return;
+        ItemCategory category = (ItemCategory)shelfCategoryDropdown.value;
+        foreach (SubShelfMarker marker in selectedShelf.GetComponentsInChildren<SubShelfMarker>())
+        {
+            string key = $"{marker.shelfInfo.subShelfId}_{marker.shelfInfo.subSubShelfId}";
+            selectedShelf.subShelfCategories[key] = category;
+        }
     }
 
     void SetSelectionUIView(bool show)
@@ -392,7 +423,7 @@ public class SB_UIHandler : MonoBehaviour
     {
         ShelfBuilder.DeleteAllPriceTags();
         
-        // Makes shelves spawn items only if inidicated in DataHandler.Instance.shelfSpawnItems
+        // Makes shelves spawn items only if indicated in DataHandler.Instance.shelfSpawnItems
         foreach (ShelfBuilder shelf in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
         {
             shelf.spawnItems = DataHandler.Instance.shouldShelfSpawnItems.TryGetValue(shelf.shelfId, out bool wantsSpawn) && wantsSpawn;
@@ -531,7 +562,18 @@ public class SB_UIHandler : MonoBehaviour
 
     public void OnEditFloorDimensionsPressed()
     {
-        floorDimensionsMenu.SetActive(!floorDimensionsMenu.activeSelf);
+        bool open = !floorDimensionsMenu.activeSelf;
+        floorDimensionsMenu.SetActive(open);
+
+        if (open)
+        {
+            GameObject floor = DataHandler.Instance.floor;
+            if (floor != null)
+            {
+                floorWidthInput.SetTextWithoutNotify(floor.transform.localScale.x.ToString());
+                floorHeightInput.SetTextWithoutNotify(floor.transform.localScale.z.ToString());
+            }
+        }
     }
 
     public void OnFloorDimensionsApplyPressed()
@@ -542,10 +584,84 @@ public class SB_UIHandler : MonoBehaviour
         float width  = float.TryParse(floorWidthInput.text,  out float w) && w > 0f ? w : floor.transform.localScale.x;
         float height = float.TryParse(floorHeightInput.text, out float h) && h > 0f ? h : floor.transform.localScale.z;
 
-        Vector3 scale = floor.transform.localScale;
-        scale.x = width;
-        scale.z = height;
-        floor.transform.localScale = scale;
+        var roomStructure = floor.GetComponent<RoomStructure>();
+        if (roomStructure != null)
+        {
+            roomStructure.SetFloorDimensions(width, height);
+        }
+        else
+        {
+            Vector3 scale = floor.transform.localScale;
+            scale.x = width;
+            scale.z = height;
+            floor.transform.localScale = scale;
+        }
+    }
+
+    // ── Agent settings UI ─────────────────────────────────────────────────────
+
+    public void OnAgentSettingsMenuPressed()
+    {
+        bool open = !agentSettingsMenu.activeSelf;
+        agentSettingsMenu.SetActive(open);
+
+        if (open)
+            SyncAgentSettingsDropdowns();
+    }
+
+    void PopulateAgentSettingsDropdowns()
+    {
+        if (agentAvatarSettingDropdown != null)
+        {
+            agentAvatarSettingDropdown.ClearOptions();
+            agentAvatarSettingDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(AgentAvatarSetting))));
+        }
+
+        if (agentInteractionStyleDropdown != null)
+        {
+            agentInteractionStyleDropdown.ClearOptions();
+            agentInteractionStyleDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(AgentInteractionStyle))));
+        }
+
+        if (agentBasketStyleDropdown != null)
+        {
+            agentBasketStyleDropdown.ClearOptions();
+            agentBasketStyleDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(AgentBasketStyle))));
+        }
+
+        if (scanningDifficultyDropdown != null)
+        {
+            scanningDifficultyDropdown.ClearOptions();
+            scanningDifficultyDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(ScanningDifficulty))));
+        }
+    }
+
+    void SyncAgentSettingsDropdowns()
+    {
+        agentAvatarSettingDropdown?.SetValueWithoutNotify((int)DataHandler.Instance.agentAvatarSetting);
+        agentInteractionStyleDropdown?.SetValueWithoutNotify((int)DataHandler.Instance.agentInteractionStyle);
+        agentBasketStyleDropdown?.SetValueWithoutNotify((int)DataHandler.Instance.agentBasketStyle);
+        scanningDifficultyDropdown?.SetValueWithoutNotify((int)DataHandler.Instance.scanningDifficulty);
+    }
+
+    public void OnAgentAvatarSettingChanged(int index)
+    {
+        DataHandler.Instance.agentAvatarSetting = (AgentAvatarSetting)index;
+    }
+
+    public void OnAgentInteractionStyleChanged(int index)
+    {
+        DataHandler.Instance.agentInteractionStyle = (AgentInteractionStyle)index;
+    }
+
+    public void OnAgentBasketStyleChanged(int index)
+    {
+        DataHandler.Instance.agentBasketStyle = (AgentBasketStyle)index;
+    }
+
+    public void OnScanningDifficultyChanged(int index)
+    {
+        DataHandler.Instance.scanningDifficulty = (ScanningDifficulty)index;
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────

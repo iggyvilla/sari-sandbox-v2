@@ -29,6 +29,7 @@ public class SB_InteractionController : MonoBehaviour
     [CanBeNull] private GameObject _previewShelf = null;
     [CanBeNull] private ShelfSelector _movingSelector = null;
     [CanBeNull] private PropSelector _movingPropSelector = null;
+    private bool _isDuplicatePlacement = false;
     private Camera _cam;
     private LayerMask _sariFloorLayerMask;
     private LayerMask _sariInteractableLayerMask;
@@ -60,8 +61,8 @@ public class SB_InteractionController : MonoBehaviour
     void HandleCameraRotation()
     {
         float rotInput = 0f;
-        if (Input.GetKey(KeyCode.RightArrow)) rotInput =  1f;
-        if (Input.GetKey(KeyCode.LeftArrow))  rotInput = -1f;
+        if (Input.GetKey(KeyCode.RightArrow)) rotInput =  -1f;
+        if (Input.GetKey(KeyCode.LeftArrow))  rotInput = 1f;
         if (rotInput != 0f)
             transform.RotateAround(transform.parent.position, Vector3.up, rotInput * rotationSpeed * Time.deltaTime);
 
@@ -185,6 +186,7 @@ public class SB_InteractionController : MonoBehaviour
         UndoSpawnedItems();
 
         _isPropPlacement = false;
+        _isDuplicatePlacement = true;
         _previewShelf = Instantiate(
             source.gameObject,
             source.transform.position,
@@ -210,6 +212,7 @@ public class SB_InteractionController : MonoBehaviour
     public void DuplicateProp(GameObject source)
     {
         _isPropPlacement = true;
+        _isDuplicatePlacement = true;
         _previewShelf = Instantiate(source, source.transform.position, source.transform.rotation);
         _movingPropSelector = null;
         _placementMode = true;
@@ -284,12 +287,12 @@ public class SB_InteractionController : MonoBehaviour
         {
             bool isMoving = _isPropPlacement ? _movingPropSelector != null : _movingSelector != null;
 
-            if (!isMoving)
+            if (!isMoving && !_isDuplicatePlacement)
             {
                 // Normal new placement: destroy the preview
                 DestroyPreview();
             }
-            // Move mode: keep the object at its last valid position until the user clicks
+            // Move/duplicate mode: keep the object at its last valid position until the user clicks
 
             // Left-click off the floor: treat as a cancellation
             if (Input.GetMouseButtonDown(0))
@@ -307,6 +310,10 @@ public class SB_InteractionController : MonoBehaviour
                     Destroy(_movingSelector.gameObject);
                     _movingSelector = null;
                     _previewShelf = null;
+                }
+                else if (_isDuplicatePlacement)
+                {
+                    DestroyPreview();
                 }
                 ExitPlacementMode();
             }
@@ -420,5 +427,6 @@ public class SB_InteractionController : MonoBehaviour
     {
         _placementMode = false;
         _isAgentSpawnPlacement = false;
+        _isDuplicatePlacement = false;
     }
 }

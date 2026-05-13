@@ -138,8 +138,11 @@ public class ItemSpawner : MonoBehaviour
         }
         else if (_itemSpawnOption == ItemSpawnOption.ReadFromSave)
         {
-            // Load the items from the save JSON
-            shelfItemData.LoadItemsFromJson(_shelfInfo);
+            if (!shelfItemData.LoadItemsFromJson(_shelfInfo))
+            {
+                shelfItemData.RandomFillFromCategory(itemCategory, interItemPadding, widthBudget);
+                shelfItemData.SaveItemsToJson(_shelfInfo);
+            }
         }
         
         /*
