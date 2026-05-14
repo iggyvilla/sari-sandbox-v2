@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -23,6 +22,9 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     [Header("Agent Hand Object")]
     [SerializeField] protected GameObject agentHand;
+
+    [Header("Item Drop Settings")]
+    [SerializeField] private Material _itemBBoxMaterial;
 
     [Header("Manual Hand Control")]
     public float handMoveRange = 0.5f;
@@ -376,39 +378,46 @@ public abstract class AgentControllerBase : MonoBehaviour
         BoxCollider boxCollider = obj.GetComponentInChildren<BoxCollider>();
         if (boxCollider != null) boxCollider.enabled = true;
 
-        foreach (Transform lod in FindLOD0And1(obj))
-        {
-            MeshFilter mf = lod.GetComponent<MeshFilter>();
-            if (mf != null)
-            {
-                MeshCollider mc = lod.gameObject.AddComponent<MeshCollider>();
-                mc.sharedMesh = mf.sharedMesh;
-                mc.convex = true;
-                mc.isTrigger = true;
-            }
-            lod.tag = "RetailItemBBox";
-            lod.AddComponent<OutlineFx.OutlineFx>().enabled = false;
-            lod.AddComponent<OutlineController>();
-        }
+        GameObject bboxObj = CreateItemBBox(obj);
 
-        ItemBBoxInfo itemBBoxInfo = obj.AddComponent<ItemBBoxInfo>();
+        ItemBBoxInfo itemBBoxInfo = bboxObj.AddComponent<ItemBBoxInfo>();
         itemBBoxInfo.isPhysicsObject = true;
         itemBBoxInfo.itemId = _rightHandItem.itemId;
 
         _rightHandItem = default;
     }
 
-    private List<Transform> FindLOD0And1(GameObject item)
+    private GameObject CreateItemBBox(GameObject itemRoot)
     {
-        var result = new List<Transform>();
-        if (item.transform.childCount == 0) return result;
+        Transform lod0 = FindLOD0(itemRoot);
+        MeshFilter mf = lod0.GetComponent<MeshFilter>();
+        Bounds meshBounds = mf != null ? mf.sharedMesh.bounds : new Bounds(Vector3.zero, Vector3.one);
+
+        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cube.transform.SetParent(itemRoot.transform, worldPositionStays: true);
+        cube.transform.position = lod0.TransformPoint(meshBounds.center);
+        cube.transform.rotation = lod0.rotation;
+        cube.transform.localScale = Vector3.Scale(lod0.lossyScale, meshBounds.size);
+
+        cube.GetComponent<BoxCollider>().isTrigger = true;
+        cube.GetComponent<MeshRenderer>().sharedMaterial = _itemBBoxMaterial;
+        cube.tag = "RetailItemBBox";
+        cube.AddComponent<OutlineFx.OutlineFx>().enabled = false;
+        cube.AddComponent<OutlineController>();
+
+        return cube;
+    }
+
+    private Transform FindLOD0(GameObject item)
+    {
+        if (item.transform.childCount == 0) return item.transform;
         Transform prodChild = item.transform.GetChild(0);
         foreach (Transform t in prodChild)
         {
-            if (t.name.EndsWith("_LOD0") || t.name.EndsWith("_LOD1"))
-                result.Add(t);
+            if (t.name.EndsWith("_LOD0"))
+                return t;
         }
-        return result;
+        return prodChild;
     }
 
     private void InstantiateItemFromBBox()

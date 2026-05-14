@@ -10,7 +10,7 @@ public class ItemBBoxInfo : MonoBehaviour
 
     public void DeleteItem()
     {
-        Destroy(gameObject);
+        Destroy(isPhysicsObject ? transform.root.gameObject : gameObject);
     }
 
     private void OnDestroy()

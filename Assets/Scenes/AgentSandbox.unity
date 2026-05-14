@@ -2319,6 +2319,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: VR Agent
       objectReference: {fileID: 0}
+    - target: {fileID: 5662738085861563573, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
+      propertyPath: _itemBBoxMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: a1e0527347dd447dca8ce9830f3e8e10, type: 2}
     - target: {fileID: 7336986568657124163, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
       propertyPath: m_LocalPosition.x
       value: -1.775
