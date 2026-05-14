@@ -194,6 +194,7 @@ public class DataHandler : MonoBehaviour
     [Header("Store Builder")]
     public SB_UIHandler uiHandler;
     public SB_InteractionController interactionController;
+    public string agentSandboxScene = "AgentSandboxScene";
 
     // Persists each shelf's intended spawnItems state by shelfId
     public Dictionary<int, bool> shouldShelfSpawnItems = new();
@@ -210,6 +211,7 @@ public class DataHandler : MonoBehaviour
         }
 
         Instance = this;
+        DontDestroyOnLoad(gameObject);
 
         Debug.Log("Loading item categories...");
         TextAsset categoriesJson = Resources.Load<TextAsset>("Data/Categories");
@@ -268,6 +270,12 @@ public class DataHandler : MonoBehaviour
     {
         currentShelfId++;
         return currentShelfId;
+    }
+
+    public void SpawnIntoStore()
+    {
+        SaveStore();
+        SceneManager.LoadScene(agentSandboxScene);
     }
 
     public void LoadStore()

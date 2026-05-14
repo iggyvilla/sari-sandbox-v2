@@ -3,6 +3,7 @@ using System.IO;
 using Newtonsoft.Json;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class SB_UIHandler : MonoBehaviour
@@ -700,6 +701,11 @@ public class SB_UIHandler : MonoBehaviour
         if (_activeSelector != null) _activeSelector.EncapsulateShelf(selectedShelf);
     }
     
+
+    public void OnSpawnIntoStorePressed()
+    {
+        DataHandler.Instance.SpawnIntoStore();
+    }
 
     // Returns true when itemSpawnOption is ReadFromSave and at least one saved
     // sub-shelf for the selected shelf has itemsTotalWidth > current shelfWidth.

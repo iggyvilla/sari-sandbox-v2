@@ -2,6 +2,18 @@ using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 
+public struct RightHandItem
+{
+    public GameObject obj;
+    public string itemId;
+
+    public RightHandItem(GameObject obj, string itemId)
+    {
+        this.obj = obj;
+        this.itemId = itemId;
+    }
+}
+
 public abstract class AgentControllerBase : MonoBehaviour
 {
     [Header("Agent Properties")]
@@ -32,14 +44,12 @@ public abstract class AgentControllerBase : MonoBehaviour
     protected float currentTrigger;
 
     private LayerMask interactableLayerMask;
-    private GameObject rightHandItem;
-    private bool rightHandUsed;
+    private RightHandItem _rightHandItem;
     private DoorHandle _grabbedDoor;
 
     protected virtual void Start()
     {
         rigidbody = GetComponentInParent<Rigidbody>();
-        rightHandUsed = false;
         interactableLayerMask = LayerMask.GetMask("SariInteractable");
         InitializeHandComponents();
     }
@@ -68,10 +78,9 @@ public abstract class AgentControllerBase : MonoBehaviour
 
         if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual) return;
 
-        if (Input.GetKey(KeyCode.Q) && rightHandUsed)
+        if (Input.GetKey(KeyCode.Q) && _rightHandItem.obj != null)
         {
-            ThrowItem(rightHandItem);
-            rightHandUsed = false;
+            ThrowItem(_rightHandItem.obj);
         }
 
         if (Physics.Raycast(
@@ -98,7 +107,7 @@ public abstract class AgentControllerBase : MonoBehaviour
                     return;
                 }
 
-                if (!rightHandUsed)
+                if (_rightHandItem.obj == null)
                 {
                     var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + hitName);
                     selectedItem.transform.position = Vector3.zero;
@@ -117,8 +126,7 @@ public abstract class AgentControllerBase : MonoBehaviour
                     selectedItem.transform.Rotate(Vector3.up, -60);
                     selectedItem.tag = "RetailItem";
 
-                    rightHandItem = selectedItem;
-                    rightHandUsed = true;
+                    _rightHandItem = new RightHandItem(selectedItem, hitName);
                 }
             }
         }
@@ -290,7 +298,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         agentHand.transform.localRotation = _initialHandLocalRotation;
     }
 
-    public bool IsHoldingItem() => rightHandUsed;
+    public bool IsHoldingItem() => _rightHandItem.obj != null;
 
     public void TogglePoint()
     {
@@ -353,21 +361,22 @@ public abstract class AgentControllerBase : MonoBehaviour
             isGripped = false;
         }
 
-        if (!isGripped && rightHandItem != null)
+        if (!isGripped && _rightHandItem.obj != null)
             DropCurrentlyHeldItem();
     }
 
     private void DropCurrentlyHeldItem()
     {
-        rightHandItem.transform.SetParent(null);
-        Rigidbody rb = rightHandItem.GetComponent<Rigidbody>();
+        GameObject obj = _rightHandItem.obj;
+        obj.transform.SetParent(null);
+        Rigidbody rb = obj.GetComponent<Rigidbody>();
         rb.isKinematic = false;
         rb.useGravity = true;
         rb.interpolation = RigidbodyInterpolation.Extrapolate;
-        BoxCollider boxCollider = rightHandItem.GetComponentInChildren<BoxCollider>();
+        BoxCollider boxCollider = obj.GetComponentInChildren<BoxCollider>();
         if (boxCollider != null) boxCollider.enabled = true;
 
-        foreach (Transform lod in FindLOD0And1(rightHandItem))
+        foreach (Transform lod in FindLOD0And1(obj))
         {
             MeshFilter mf = lod.GetComponent<MeshFilter>();
             if (mf != null)
@@ -382,11 +391,11 @@ public abstract class AgentControllerBase : MonoBehaviour
             lod.AddComponent<OutlineController>();
         }
 
-        ItemBBoxInfo itemBBoxInfo = rightHandItem.AddComponent<ItemBBoxInfo>();
+        ItemBBoxInfo itemBBoxInfo = obj.AddComponent<ItemBBoxInfo>();
         itemBBoxInfo.isSingularPhysicsObject = true;
+        itemBBoxInfo.itemId = _rightHandItem.itemId;
 
-        rightHandItem = null;
-        rightHandUsed = false;
+        _rightHandItem = default;
     }
 
     private List<Transform> FindLOD0And1(GameObject item)
@@ -424,8 +433,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         selectedItem.transform.Rotate(Vector3.up, -60);
         selectedItem.tag = "RetailItem";
 
-        rightHandItem = selectedItem;
-        rightHandUsed = true;
+        _rightHandItem = new RightHandItem(selectedItem, itemName);
     }
 
     private void ThrowItem(GameObject item)
@@ -438,7 +446,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         rb.AddForce(transform.forward * throwStrength, ForceMode.Impulse);
         BoxCollider boxCollider = item.GetComponentInChildren<BoxCollider>();
         boxCollider.enabled = true;
-        rightHandItem = null;
+        _rightHandItem = default;
     }
 
     private void DisablePhysics(GameObject item)
