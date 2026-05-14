@@ -9,7 +9,8 @@ public class RoomStructure : MonoBehaviour
     public Material ceilingMaterial;
     public Material floorMaterialPlay;
     public Material floorMaterialBuilder;
-    public Material wallMaterial;
+    public Material wallMaterialTransparent;
+    public Material wallMaterialOpaque;
 
     [Header("Room")]
     public float wallHeight = 3f;
@@ -63,25 +64,25 @@ public class RoomStructure : MonoBehaviour
         Vector3 center = transform.position;
         float midY = center.y + wallHeight * 0.5f;
 
-        // (world position, euler rotation that makes plane vertical, plane scale, outward normal)
-        // Rotation logic: Unity plane normal is local +Y. Rotating it to match the outward normal:
-        //   Euler(0,0,-90)  → normal = +X   Euler(0,0, 90) → normal = -X
-        //   Euler(90,0,0)   → normal = +Z   Euler(-90,0,0) → normal = -Z
+        // Rotation logic: Unity plane normal is local +Y. Negated to face inward (into the room):
+        //   Euler(0,0, 90)  → normal = +X   Euler(0,0,-90) → normal = -X
+        //   Euler(-90,0,0)  → normal = +Z   Euler(90,0,0)  → normal = -Z
         var defs = new (Vector3 pos, Vector3 euler, Vector3 scale, Vector3 normal)[]
         {
-            (center + new Vector3( halfW, midY, 0), new Vector3(  0,  0, -90), new Vector3(wallHeight / 10f, 1f, halfD * 2f / 10f), Vector3.right),
-            (center + new Vector3(-halfW, midY, 0), new Vector3(  0,  0,  90), new Vector3(wallHeight / 10f, 1f, halfD * 2f / 10f), Vector3.left),
-            (center + new Vector3(0, midY,  halfD), new Vector3( 90,  0,   0), new Vector3(halfW * 2f / 10f, 1f, wallHeight / 10f),  Vector3.forward),
-            (center + new Vector3(0, midY, -halfD), new Vector3(-90,  0,   0), new Vector3(halfW * 2f / 10f, 1f, wallHeight / 10f),  Vector3.back),
+            (center + new Vector3( halfW, midY, 0), new Vector3(  0,  0,  90), new Vector3(wallHeight / 10f, 1f, halfD * 2f / 10f), Vector3.right),
+            (center + new Vector3(-halfW, midY, 0), new Vector3(  0,  0, -90), new Vector3(wallHeight / 10f, 1f, halfD * 2f / 10f), Vector3.left),
+            (center + new Vector3(0, midY,  halfD), new Vector3(-90,  0,   0), new Vector3(halfW * 2f / 10f, 1f, wallHeight / 10f),  Vector3.forward),
+            (center + new Vector3(0, midY, -halfD), new Vector3( 90,  0,   0), new Vector3(halfW * 2f / 10f, 1f, wallHeight / 10f),  Vector3.back),
         };
 
+        Material wallMaterialSource = _isStoreBuilder ? wallMaterialTransparent : wallMaterialOpaque;
         _walls = new WallEntry[4];
         for (int i = 0; i < defs.Length; i++)
         {
             var d = defs[i];
             var go = SpawnPlane($"Wall_{d.normal}", d.pos, Quaternion.Euler(d.euler), d.scale, transform);
-            var mat = new Material(wallMaterial);
-            EnsureTransparent(mat);
+            var mat = new Material(wallMaterialSource);
+            if (_isStoreBuilder) EnsureTransparent(mat);
             go.GetComponent<MeshRenderer>().material = mat;
             _walls[i] = new WallEntry { go = go, outwardNormal = d.normal, mat = mat };
         }

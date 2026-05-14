@@ -265,6 +265,8 @@ public class SB_InteractionController : MonoBehaviour
             }
             else
             {
+                if (!_previewShelf.activeSelf)
+                    _previewShelf.SetActive(true);
                 _previewShelf.transform.position = snapped;
                 if (_isPropPlacement)
                 {
@@ -291,6 +293,10 @@ public class SB_InteractionController : MonoBehaviour
             {
                 // Normal new placement: destroy the preview
                 DestroyPreview();
+            }
+            else if (_previewShelf != null && _previewShelf.activeSelf)
+            {
+                _previewShelf.SetActive(false);
             }
             // Move/duplicate mode: keep the object at its last valid position until the user clicks
 

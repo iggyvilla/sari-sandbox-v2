@@ -152,6 +152,7 @@ public class StoreData
     public int version = 1;
     public float floorWidth  = 10f;
     public float floorHeight = 10f;
+    public float wallHeight  = 3f;
     public List<ShelfSaveData> shelves = new();
     public Dictionary<string, SaveDataWrapper> shelfItems = new();
     public List<SelfCheckoutSaveData> selfCheckoutLocations = new();
@@ -299,10 +300,19 @@ public class DataHandler : MonoBehaviour
 
         if (floor != null)
         {
-            Vector3 floorScale = floor.transform.localScale;
-            floorScale.x = storeData.floorWidth;
-            floorScale.z = storeData.floorHeight;
-            floor.transform.localScale = floorScale;
+            var roomStructure = floor.GetComponent<RoomStructure>();
+            if (roomStructure != null)
+            {
+                roomStructure.wallHeight = storeData.wallHeight;
+                roomStructure.SetFloorDimensions(storeData.floorWidth, storeData.floorHeight);
+            }
+            else
+            {
+                Vector3 floorScale = floor.transform.localScale;
+                floorScale.x = storeData.floorWidth;
+                floorScale.z = storeData.floorHeight;
+                floor.transform.localScale = floorScale;
+            }
         }
 
         shouldShelfSpawnItems.Clear();
@@ -377,11 +387,13 @@ public class DataHandler : MonoBehaviour
     public void SaveStore()
     {
         ShelfBuilder[] builders = FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None);
+        RoomStructure roomStructure = floor != null ? floor.GetComponent<RoomStructure>() : null;
         StoreData storeData = new StoreData
         {
-            shelfItems   = currentStoreData.shelfItems,
-            floorWidth   = floor != null ? floor.transform.localScale.x : currentStoreData.floorWidth,
-            floorHeight  = floor != null ? floor.transform.localScale.z : currentStoreData.floorHeight
+            shelfItems  = currentStoreData.shelfItems,
+            floorWidth  = floor != null ? floor.transform.localScale.x : currentStoreData.floorWidth,
+            floorHeight = floor != null ? floor.transform.localScale.z : currentStoreData.floorHeight,
+            wallHeight  = roomStructure != null ? roomStructure.wallHeight : currentStoreData.wallHeight
         };
 
         foreach (ShelfBuilder b in builders)

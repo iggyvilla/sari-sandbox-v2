@@ -49,10 +49,11 @@ public class SB_UIHandler : MonoBehaviour
     public TMP_InputField saveStoreTextField;
     public TextMeshProUGUI savePersistentDataPathText;
 
-    [Header("Floor Dimensions UI")]
-    public GameObject floorDimensionsMenu;
-    public TMP_InputField floorWidthInput;
-    public TMP_InputField floorHeightInput;
+    [Header("Store Dimensions UI")]
+    public GameObject storeDimensionsMenu;
+    public TMP_InputField storeWidthInput;
+    public TMP_InputField storeDepthInput;
+    public TMP_InputField wallHeightInput;
 
     [Header("Agent Settings UI")]
     public GameObject agentSettingsMenu;
@@ -215,7 +216,7 @@ public class SB_UIHandler : MonoBehaviour
     public void OnShelfWidthChanged(string value)
     {
         if (selectedShelf == null) return;
-        if (!int.TryParse(value, out int result) || result <= 0)
+        if (!float.TryParse(value, out float result) || result <= 0)
             result = DefaultShelfWidth;
         selectedShelf.shelfWidth = result;
         SafeRebuildShelf();
@@ -558,42 +559,48 @@ public class SB_UIHandler : MonoBehaviour
         SetStoreName(saveStoreTextField.text);
         DataHandler.Instance.SaveStore();
     }
-    // ── Floor dimensions UI ───────────────────────────────────────────────────
+    // ── Store dimensions UI ───────────────────────────────────────────────────
 
-    public void OnEditFloorDimensionsPressed()
+    public void OnEditStoreDimensionsPressed()
     {
-        bool open = !floorDimensionsMenu.activeSelf;
-        floorDimensionsMenu.SetActive(open);
+        bool open = !storeDimensionsMenu.activeSelf;
+        storeDimensionsMenu.SetActive(open);
 
         if (open)
         {
             GameObject floor = DataHandler.Instance.floor;
             if (floor != null)
             {
-                floorWidthInput.SetTextWithoutNotify(floor.transform.localScale.x.ToString());
-                floorHeightInput.SetTextWithoutNotify(floor.transform.localScale.z.ToString());
+                storeWidthInput.SetTextWithoutNotify(floor.transform.localScale.x.ToString());
+                storeDepthInput.SetTextWithoutNotify(floor.transform.localScale.z.ToString());
+
+                var roomStructure = floor.GetComponent<RoomStructure>();
+                if (roomStructure != null)
+                    wallHeightInput.SetTextWithoutNotify(roomStructure.wallHeight.ToString());
             }
         }
     }
 
-    public void OnFloorDimensionsApplyPressed()
+    public void OnStoreDimensionsApplyPressed()
     {
         GameObject floor = DataHandler.Instance.floor;
         if (floor == null) return;
 
-        float width  = float.TryParse(floorWidthInput.text,  out float w) && w > 0f ? w : floor.transform.localScale.x;
-        float height = float.TryParse(floorHeightInput.text, out float h) && h > 0f ? h : floor.transform.localScale.z;
+        float width  = float.TryParse(storeWidthInput.text, out float w) && w > 0f ? w : floor.transform.localScale.x;
+        float depth  = float.TryParse(storeDepthInput.text, out float d) && d > 0f ? d : floor.transform.localScale.z;
 
         var roomStructure = floor.GetComponent<RoomStructure>();
         if (roomStructure != null)
         {
-            roomStructure.SetFloorDimensions(width, height);
+            float wallH = float.TryParse(wallHeightInput.text, out float wh) && wh > 0f ? wh : roomStructure.wallHeight;
+            roomStructure.wallHeight = wallH;
+            roomStructure.SetFloorDimensions(width, depth);
         }
         else
         {
             Vector3 scale = floor.transform.localScale;
             scale.x = width;
-            scale.z = height;
+            scale.z = depth;
             floor.transform.localScale = scale;
         }
     }

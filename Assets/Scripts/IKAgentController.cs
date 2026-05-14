@@ -6,6 +6,22 @@ public class IKAgentController : AgentControllerBase
     [SerializeField] Animator bodyAnimator;
     [SerializeField] Transform ikHeadJoint;
     [SerializeField] Transform ikHandColliderSource;
+    [SerializeField] Transform lookAtTarget;
+
+    private float _fixedY;
+
+    protected override void Start()
+    {
+        base.Start();
+        _fixedY = transform.position.y;
+    }
+
+    private void Update()
+    {
+        Vector3 pos = transform.position;
+        pos.y = _fixedY;
+        transform.position = pos;
+    }
 
     protected override void InitializeHandComponents()
     {
@@ -47,12 +63,30 @@ public class IKAgentController : AgentControllerBase
         ikHeadJoint.rotation = Quaternion.Euler(e);
     }
 
+    private void OnAnimatorIK(int layerIndex)
+    {
+        if (bodyAnimator == null || lookAtTarget == null) return;
+        bodyAnimator.SetLookAtPosition(lookAtTarget.position);
+        // bodyAnimator.SetLookAtWeight(1f, 0.5f, 1f, 0f, 0.5f);
+        bodyAnimator.SetLookAtWeight(1f);
+    }
+
     // Add extra animator parameters here as the humanoid rig grows.
     protected override void AnimateBody()
     {
-        if (bodyAnimator == null) return;
+        if (bodyAnimator == null || rigidbody == null) return;
+
         Vector3 hVel = rigidbody.linearVelocity;
         hVel.y = 0;
         bodyAnimator.SetFloat("Speed", hVel.magnitude);
+        
+        // Manual hand movement, CTRL+WASD should only move the hand
+        if (Input.GetKey(KeyCode.LeftControl) ||
+            Input.GetKey(KeyCode.RightControl)) return;
+        
+        bodyAnimator.SetBool("isWalking", Input.GetKey(KeyCode.W));
+        bodyAnimator.SetBool("isWalkingLeft", Input.GetKey(KeyCode.A));
+        bodyAnimator.SetBool("isWalkingRight", Input.GetKey(KeyCode.D));
+        bodyAnimator.SetBool("isWalkingBackward", Input.GetKey(KeyCode.S));
     }
 }
