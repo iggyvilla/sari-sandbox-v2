@@ -131,8 +131,7 @@ public class ShelfBuilder : MonoBehaviour
     {
         foreach (ItemBBoxInfo bboxInfo in GetComponentsInChildren<ItemBBoxInfo>())
         {
-            bboxInfo.DeleteAllItems();
-            Destroy(bboxInfo.gameObject);
+            bboxInfo.DeleteItem();
         }
     }
     

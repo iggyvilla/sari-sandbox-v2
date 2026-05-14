@@ -118,7 +118,7 @@ public abstract class AgentControllerBase : MonoBehaviour
                                            + transform.up * -0.1f;
 
                     ItemBBoxInfo itemBBoxInfo = hit.collider.GetComponent<ItemBBoxInfo>();
-                    itemBBoxInfo.DeleteFrontmostItem();
+                    itemBBoxInfo.DeleteItem();
 
                     DisablePhysics(selectedItem);
 
@@ -392,7 +392,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         }
 
         ItemBBoxInfo itemBBoxInfo = obj.AddComponent<ItemBBoxInfo>();
-        itemBBoxInfo.isSingularPhysicsObject = true;
+        itemBBoxInfo.isPhysicsObject = true;
         itemBBoxInfo.itemId = _rightHandItem.itemId;
 
         _rightHandItem = default;
@@ -420,7 +420,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         selectedItem.transform.position = Vector3.zero;
         selectedItem.name = itemName;
 
-        itemBBoxInfo.DeleteFrontmostItem();
+        itemBBoxInfo.DeleteItem();
         DisablePhysics(selectedItem);
 
         selectedItem = Instantiate(

@@ -1,58 +1,28 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 public class ItemBBoxInfo : MonoBehaviour
 {
-    // True when this component is on a standalone dropped/physical item rather than
-    // a GPU-instanced shelf item; deletion simply destroys the GameObject itself.
-    public bool isSingularPhysicsObject;
+    // True when this component is on a dropped/physical item rather than a GPU-instanced shelf item.
+    public bool isPhysicsObject;
 
     public string itemId;
+    public InstanceLODData instanceLODData;
 
-    public List<InstanceLODData> itemDrawDatas = new();
-
-    public void UpdateDrawDataList(List<InstanceLODData> drawDataList)
+    public void DeleteItem()
     {
-        itemDrawDatas = drawDataList;
+        Destroy(gameObject);
     }
 
-    public void DeleteFrontmostItem()
+    private void OnDestroy()
     {
-        if (isSingularPhysicsObject) { Destroy(gameObject); return; }
-
-        if (itemDrawDatas.Count == 0) return;
-
-        InstanceLODData frontItemDrawData = itemDrawDatas[0];
+        if (isPhysicsObject) return;
 
         BatchInstancer itemBatchInstancer =
-            GPUInstanceTracker.Instance.GetBatchInstancerFromId(itemId);
+            GPUInstanceTracker.Instance?.GetBatchInstancerFromId(itemId);
 
         if (itemBatchInstancer != null)
         {
-            itemBatchInstancer.RemoveSingleDrawData(frontItemDrawData);
+            itemBatchInstancer.RemoveSingleDrawData(instanceLODData);
         }
-
-        itemDrawDatas.RemoveAt(0);
-        
-        /* If all items assigned to this BBox 
-         * have been taken, destroy it */
-        if (itemDrawDatas.Count == 0) Destroy(gameObject);
-    }
-
-    public void DeleteAllItems()
-    {
-        if (isSingularPhysicsObject) { Destroy(gameObject); return; }
-
-        if (itemDrawDatas.Count == 0) return;
-
-        BatchInstancer itemBatchInstancer =
-            GPUInstanceTracker.Instance.GetBatchInstancerFromId(itemId);
-
-        if (itemBatchInstancer != null)
-        {
-            itemBatchInstancer.RemoveDrawDataRange(itemDrawDatas);
-        }
-
-        itemDrawDatas.Clear();
     }
 }

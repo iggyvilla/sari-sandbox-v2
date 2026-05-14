@@ -24,7 +24,7 @@ public class ItemSpawner : MonoBehaviour
     private Material _airMaterial;
     private ItemCategory itemCategory;
     
-    private float _bBoxPadding = 0.01f;
+    private float _bBoxPadding = 0.005f;
 
     private float direction;
     private List<GameObject> triggers = new();
@@ -159,28 +159,26 @@ public class ItemSpawner : MonoBehaviour
         
         foreach (var shelfItem in shelfItemData.shelfItems)
         {
-            List<InstanceLODData> drawDataList = new List<InstanceLODData>();
-            
             GameObject product = shelfItem.prefab;
-            
+
             float itemDepth = shelfItem.dimensions.depth;
             float itemWidth = shelfItem.dimensions.width;
             float itemHeight = shelfItem.dimensions.height;
-            
+
             /*
-             * Only worry about interItemPadding if it 
+             * Only worry about interItemPadding if it
              * isn't the leftmost/first item on the shelf
              */
             lengthwiseOffset += itemWidth/2 + (!firstItem ? interItemPadding : 0);
-            
+
             /* Stop spawning if the item we're about to spawn is outside the shelf */
             if (lengthwiseOffset + itemWidth/2 + itemOuterPadding > widthBudget) break;
 
             int numRows = CalculateRows(itemDepth);
             int numStack = CalculateStackHeight(itemHeight, itemCategory);
-            
+
             if (spawnPriceTags) SpawnPriceTag(shelfItem, lengthwiseOffset);
-            
+
             for (int j = 0; j < numRows; j++)
             {
                 for (int k = 0; k < numStack; k++)
@@ -188,12 +186,12 @@ public class ItemSpawner : MonoBehaviour
                     Vector3 spawnPosition =
                         GenerateSpawnPositionsOnShelf(
                             lengthwiseOffset,
-                            itemDepth, 
-                            itemHeight, 
-                            j, 
+                            itemDepth,
+                            itemHeight,
+                            j,
                             k
                         );
-                    
+
                     InstanceLODData instanceLODData =
                         GenerateProductDrawData(product, spawnPosition, itemHeight);
 
@@ -203,18 +201,16 @@ public class ItemSpawner : MonoBehaviour
                         instanceLODData
                     );
 
-                    drawDataList.Add(instanceLODData);
+                    GenerateBoundingBoxTriggerForItem(
+                        spawnPosition,
+                        itemHeight,
+                        itemWidth,
+                        itemDepth,
+                        product.name,
+                        instanceLODData
+                    );
                 }
             }
-            
-            GenerateBoundingBoxTriggerForItem(
-                lengthwiseOffset, 
-                itemHeight, 
-                itemWidth, 
-                numStack, 
-                product.name,
-                drawDataList
-            );
 
             firstItem = false;
             lengthwiseOffset += itemWidth/2;
@@ -294,49 +290,34 @@ public class ItemSpawner : MonoBehaviour
                       (itemWidth + interItemPadding));
     }
 
-    void GenerateBoundingBoxTriggerForItem(float lengthwiseOffset, float itemHeight, float itemWidth, float numStack, string productName, List<InstanceLODData> drawDataList)
+    void GenerateBoundingBoxTriggerForItem(Vector3 spawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceLODData instanceLODData)
     {
-        /* Setup box collider trigger for item retrieval */
         GameObject itemTrigger = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        // BoxCollider b = itemTrigger.AddComponent<BoxCollider>();
         BoxCollider b = itemTrigger.GetComponent<BoxCollider>();
         ItemBBoxInfo itemBBoxInfo = itemTrigger.AddComponent<ItemBBoxInfo>();
 
         itemTrigger.tag = "RetailItemBBox";
-        
-        /* Make it so the items are outlined when hovered over */
         itemTrigger.AddComponent<OutlineFx.OutlineFx>();
         itemTrigger.AddComponent<OutlineController>();
-        
-        /* Not sure why this works, but it does */
-        itemTrigger.transform.position = GenerateSpawnPositionsOnShelf(
-            lengthwiseOffset,
-            0,
-            (itemHeight * numStack)/2,
-            1,
-            1,
-            true
-        );
+
+        itemTrigger.transform.position = spawnPosition + new Vector3(0, itemHeight/2, 0);
         itemTrigger.layer = itemTriggerMask;
-        
-        Renderer iRenderer = itemTrigger.GetComponent<Renderer>();
-        iRenderer.material = _airMaterial;
-        
+
+        itemTrigger.GetComponent<Renderer>().material = _airMaterial;
+
         itemBBoxInfo.itemId = productName;
-        itemBBoxInfo.UpdateDrawDataList(drawDataList);
+        itemBBoxInfo.instanceLODData = instanceLODData;
 
         b.name = productName;
         b.isTrigger = true;
-        b.size = Vector3.one; 
-        
+        b.size = Vector3.one;
+
         itemTrigger.transform.localScale = new Vector3(
-            (ShelfIsFacingZ() ? itemWidth : depthBudget) + _bBoxPadding,
-            itemHeight * numStack + _bBoxPadding,
-            (ShelfIsFacingZ() ? depthBudget : itemWidth) + _bBoxPadding
+            (ShelfIsFacingZ() ? itemWidth : itemDepth) + _bBoxPadding,
+            itemHeight + _bBoxPadding,
+            (ShelfIsFacingZ() ? itemDepth : itemWidth) + _bBoxPadding
         );
-        
-        // Only enable when debugging, Unity scene performance dislikes
-        // nested things
+
         // itemTrigger.transform.SetParent(transform);
     }
 
