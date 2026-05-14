@@ -83,6 +83,7 @@ public class BatchInstancer : MonoBehaviour
     private int _fKernelId;
 
     private bool ready = false;
+    private bool _buffersDirty = false;
 
     public void Init()
     {
@@ -143,8 +144,12 @@ public class BatchInstancer : MonoBehaviour
     // calculate cameraFrustumPlanes first at Update()
     void Update()
     {
-        // Continuously render batches only when Init() has been called at least once
-        if (!ready || instances.Count == 0) return;
+        if (!ready) return;
+
+        if (_buffersDirty && instances.Count > 0)
+            RebuildBuffers();
+
+        if (instances.Count == 0) return;
 
         Profiler.BeginSample("Get Planes");
         SimplePlane[] planes = GPUInstanceTracker.Instance.cameraFrustumPlanes;
@@ -230,27 +235,30 @@ public class BatchInstancer : MonoBehaviour
     public void RemoveSingleDrawData(InstanceLODData d)
     {
         instances.Remove(d);
-        _drawDataBuffer.SetData(instances);
+        _buffersDirty = true;
     }
 
     public void ClearAllDrawData()
     {
         instances = new();
-        _drawDataBuffer.SetData(instances);
+        _buffersDirty = true;
     }
 
     public void RemoveDrawDataRange(List<InstanceLODData> toRemove)
     {
         foreach (InstanceLODData d in toRemove)
             instances.Remove(d);
-        _drawDataBuffer.SetData(instances);
+        _buffersDirty = true;
     }
 
     public void AddObjectToBatch(InstanceLODData d)
     {
         instances.Add(d);
+        _buffersDirty = true;
+    }
 
-        // TODO: Might have a better solution but it works for now
+    private void RebuildBuffers()
+    {
         _drawDataBuffer?.Release();
         _drawDataBuffer = new ComputeBuffer(instances.Count, instanceLODDataSize);
         _drawDataBuffer.SetData(instances);
@@ -261,15 +269,11 @@ public class BatchInstancer : MonoBehaviour
         _unculledLOD0Buffer?.Release();
         _unculledLOD0Buffer = new ComputeBuffer(instances.Count, drawDataSize, ComputeBufferType.Append);
 
-        if (frustumCullingShader is null)
-        {
-            Debug.LogWarning("frustumCullingShader is null");
-            return;
-        }
-
         frustumCullingShader.SetInt(_fNumToDrawId, instances.Count);
         frustumCullingShader.SetBuffer(_fKernelId, _fDrawBufferId, _drawDataBuffer);
         frustumCullingShader.SetBuffer(_fKernelId, _fUnculledLOD1BufferId, _unculledLOD1Buffer);
         frustumCullingShader.SetBuffer(_fKernelId, _fUnculledLOD0BufferId, _unculledLOD0Buffer);
+
+        _buffersDirty = false;
     }
 }

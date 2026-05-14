@@ -1289,6 +1289,7 @@ MonoBehaviour:
   scanningDifficulty: 0
   selfCheckoutCounter: {fileID: 0}
   agentSpawnMarkerPrefab: {fileID: 0}
+  enableShelfItemPhysics: 1
   storeName: DefaultStore
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
@@ -1612,6 +1613,50 @@ CapsuleCollider:
   m_Height: 1.6933028
   m_Direction: 1
   m_Center: {x: 0, y: 0.9383487, z: 0}
+--- !u!1 &1214782123
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1214782124}
+  - component: {fileID: 1214782125}
+  m_Layer: 0
+  m_Name: PoolingManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1214782124
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1214782123}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -5.4094005, y: 1.3604748, z: 4.9320583}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1214782125
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1214782123}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 655bd89ae4da94bbeb79213f80bf3004, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1456967136
 GameObject:
   m_ObjectHideFlags: 0
@@ -2730,6 +2775,7 @@ SceneRoots:
   - {fileID: 713415073}
   - {fileID: 1456967137}
   - {fileID: 1890946036}
+  - {fileID: 1214782124}
   - {fileID: 669521194}
   - {fileID: 611303190}
   - {fileID: 1917649694}

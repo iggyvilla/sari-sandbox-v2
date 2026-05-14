@@ -26,6 +26,9 @@ public abstract class AgentControllerBase : MonoBehaviour
     [Header("Item Drop Settings")]
     [SerializeField] private Material _itemBBoxMaterial;
 
+    [Header("Item Physics")]
+    [SerializeField] private float physicsActivationRadius = 0.4f;
+
     [Header("Manual Hand Control")]
     public float handMoveRange = 0.5f;
     public float handMoveSpeed = 1f;
@@ -69,6 +72,23 @@ public abstract class AgentControllerBase : MonoBehaviour
             _defaultColliderSize = _handCollider.size;
             _defaultColliderCenter = _handCollider.center;
         }
+
+        SetupPhysicsActivationSphere();
+    }
+
+    private void SetupPhysicsActivationSphere()
+    {
+        GameObject sphereObj = new GameObject("PhysicsActivationSphere");
+        sphereObj.transform.SetParent(agentHand.transform, worldPositionStays: false);
+        sphereObj.layer = LayerMask.NameToLayer("PhysicsActivator");
+        
+        Rigidbody rb =  sphereObj.AddComponent<Rigidbody>();
+        rb.isKinematic = true;
+        
+        SphereCollider sc = sphereObj.AddComponent<SphereCollider>();
+        sc.isTrigger = true;
+        sc.radius = physicsActivationRadius;
+        sphereObj.AddComponent<HandPhysicsSphere>();
     }
 
     void FixedUpdate()

@@ -184,6 +184,9 @@ public class DataHandler : MonoBehaviour
     [Header("Agent Spawn Marker")]
     public GameObject agentSpawnMarkerPrefab;
 
+    [Header("Item Physics")]
+    public bool enableShelfItemPhysics;
+
     [Header("Store")]
     public string storeName = "DefaultStore";
     [Tooltip("If true, destroy scene shelves on Awake and load from saved JSON")]
@@ -466,6 +469,8 @@ public class DataHandler : MonoBehaviour
 
     public void ResetEnvironment()
     {
+        ItemPoolingManager.Instance?.ClearPool();
+
         foreach (GameObject obj in GameObject.FindGameObjectsWithTag("RetailItem"))
             Destroy(obj);
 

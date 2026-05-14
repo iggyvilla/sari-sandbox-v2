@@ -50,7 +50,7 @@ public class ItemSpawner : MonoBehaviour
             itemPriceData = DataHandler.Instance.itemPriceData;
         }
         
-        itemTriggerMask = LayerMask.NameToLayer("SariInteractable");
+        itemTriggerMask = LayerMask.NameToLayer("ItemBBox");
         
         shelfItemData = GetComponent<ShelfItemData>();
         
@@ -192,6 +192,8 @@ public class ItemSpawner : MonoBehaviour
                             k
                         );
 
+                    Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
+
                     InstanceLODData instanceLODData =
                         GenerateProductDrawData(product, spawnPosition, itemHeight);
 
@@ -207,7 +209,8 @@ public class ItemSpawner : MonoBehaviour
                         itemWidth,
                         itemDepth,
                         product.name,
-                        instanceLODData
+                        instanceLODData,
+                        aisleRot
                     );
                 }
             }
@@ -290,7 +293,7 @@ public class ItemSpawner : MonoBehaviour
                       (itemWidth + interItemPadding));
     }
 
-    void GenerateBoundingBoxTriggerForItem(Vector3 spawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceLODData instanceLODData)
+    void GenerateBoundingBoxTriggerForItem(Vector3 spawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceLODData instanceLODData, Quaternion aisleRot)
     {
         GameObject itemTrigger = GameObject.CreatePrimitive(PrimitiveType.Cube);
         BoxCollider b = itemTrigger.GetComponent<BoxCollider>();
@@ -307,6 +310,10 @@ public class ItemSpawner : MonoBehaviour
 
         itemBBoxInfo.itemId = productName;
         itemBBoxInfo.instanceLODData = instanceLODData;
+        itemBBoxInfo.spawnRotation = aisleRot;
+
+        if (DataHandler.Instance.enableShelfItemPhysics)
+            itemTrigger.AddComponent<ItemPhysicsProxy>();
 
         b.name = productName;
         b.isTrigger = true;
