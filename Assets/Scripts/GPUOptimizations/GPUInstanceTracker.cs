@@ -49,6 +49,8 @@ public class GPUInstanceTracker : MonoBehaviour
         return null;
     }
 
+    public Camera MainCamera => mainCamera;
+
     public void SetCamera(Camera cam)
     {
         mainCamera = cam;

@@ -15,6 +15,8 @@ public struct RightHandItem
 
 public abstract class AgentControllerBase : MonoBehaviour
 {
+    public bool isMultiplayerAgent = false;
+
     [Header("Agent Properties")]
     [SerializeField] protected float movementSpeed;
     [SerializeField] protected float rotateSpeed;
@@ -63,7 +65,7 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     protected virtual void Start()
     {
-        rigidbody = GetComponentInParent<Rigidbody>();
+        rigidbody = GetComponentInParent<Rigidbody>() ?? GetComponent<Rigidbody>() ?? GetComponentInChildren<Rigidbody>();
         interactableLayerMask = LayerMask.GetMask("SariInteractable");
         InitializeHandComponents();
     }
@@ -103,6 +105,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     void FixedUpdate()
     {
         HandleMovement();
+        if (isMultiplayerAgent) return;
 
         RaycastHit hit;
         Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.forward) * 10f, Color.yellow);
@@ -165,7 +168,7 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     void Update()
     {
-        if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
+        if (!isMultiplayerAgent && DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
         {
             if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
             if (Input.GetKeyDown(KeyCode.P)) TogglePoint();
@@ -175,27 +178,30 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     private void HandleMovement()
     {
-        Vector3 fwd = transform.forward;
-        Vector3 right = transform.right;
-        float m = movementSpeed * Time.deltaTime;
-        float r = rotateSpeed * Time.deltaTime;
-        bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-
-        if (!ctrl)
+        if (!isMultiplayerAgent)
         {
-            if (Input.GetKey(KeyCode.W)) rigidbody.AddForce(fwd * m, ForceMode.Impulse);
-            else if (Input.GetKey(KeyCode.A)) rigidbody.AddForce(-right * m, ForceMode.Impulse);
-            else if (Input.GetKey(KeyCode.S)) rigidbody.AddForce(-fwd * m, ForceMode.Impulse);
-            else if (Input.GetKey(KeyCode.D)) rigidbody.AddForce(right * m, ForceMode.Impulse);
+            Vector3 fwd = transform.forward;
+            Vector3 right = transform.right;
+            float m = movementSpeed * Time.deltaTime;
+            float r = rotateSpeed * Time.deltaTime;
+            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
 
-            if (Input.GetKey(KeyCode.RightArrow)) transform.Rotate(Vector3.up, r);
-            else if (Input.GetKey(KeyCode.LeftArrow)) transform.Rotate(Vector3.up, -r);
-            else ApplyVerticalRotation(r);
-        }
-        else
-        {
-            if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
-                HandleManualHandControls();
+            if (!ctrl)
+            {
+                if (Input.GetKey(KeyCode.W)) rigidbody.AddForce(fwd * m, ForceMode.Impulse);
+                else if (Input.GetKey(KeyCode.A)) rigidbody.AddForce(-right * m, ForceMode.Impulse);
+                else if (Input.GetKey(KeyCode.S)) rigidbody.AddForce(-fwd * m, ForceMode.Impulse);
+                else if (Input.GetKey(KeyCode.D)) rigidbody.AddForce(right * m, ForceMode.Impulse);
+
+                if (Input.GetKey(KeyCode.RightArrow)) transform.Rotate(Vector3.up, r);
+                else if (Input.GetKey(KeyCode.LeftArrow)) transform.Rotate(Vector3.up, -r);
+                else ApplyVerticalRotation(r);
+            }
+            else
+            {
+                if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
+                    HandleManualHandControls();
+            }
         }
 
         AnimateHand();

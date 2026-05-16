@@ -49,6 +49,7 @@ public class IKAgentController : AgentControllerBase
     // Up/Down rotates only the head joint; Left/Right (handled in base) rotates the whole body.
     protected override void ApplyVerticalRotation(float r)
     {
+        if (isMultiplayerAgent) return;
         if (ikHeadJoint == null) { base.ApplyVerticalRotation(r); return; }
         if (Input.GetKey(KeyCode.UpArrow)) ikHeadJoint.Rotate(Vector3.right, -r);
         else if (Input.GetKey(KeyCode.DownArrow)) ikHeadJoint.Rotate(Vector3.right, r);
@@ -79,11 +80,13 @@ public class IKAgentController : AgentControllerBase
         Vector3 hVel = rigidbody.linearVelocity;
         hVel.y = 0;
         bodyAnimator.SetFloat("Speed", hVel.magnitude);
-        
+
+        if (isMultiplayerAgent) return;
+
         // Manual hand movement, CTRL+WASD should only move the hand
         if (Input.GetKey(KeyCode.LeftControl) ||
             Input.GetKey(KeyCode.RightControl)) return;
-        
+
         bodyAnimator.SetBool("isWalking", Input.GetKey(KeyCode.W));
         bodyAnimator.SetBool("isWalkingLeft", Input.GetKey(KeyCode.A));
         bodyAnimator.SetBool("isWalkingRight", Input.GetKey(KeyCode.D));

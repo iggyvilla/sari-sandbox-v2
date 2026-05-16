@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using UnityEngine;
 using WebSocketSharp;
@@ -23,8 +24,9 @@ public class WebSocketHandler : MonoBehaviour
     {
         _wss = new WebSocketServer($"ws://localhost:{port}");
         _wss.AddWebSocketService<SariAgentCommandBehavior>("/commands");
+        _wss.AddWebSocketService<SariMultiplayerBehavior>("/multiplayer");
         _wss.Start();
-        Debug.Log($"WebSocket server started on ws://localhost:{port}/commands");
+        Debug.Log($"WebSocket server started on ws://localhost:{port}/commands and /multiplayer");
     }
 
     void Update()
@@ -140,6 +142,206 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                 break;
         }
     }
+
+    private static Vector3 ToVec3(float[] arr)
+    {
+        if (arr == null || arr.Length < 3) return Vector3.zero;
+        return new Vector3(arr[0], arr[1], arr[2]);
+    }
+}
+
+public class SariMultiplayerBehavior : WebSocketBehavior
+{
+    [Serializable] class MultiplayerCommandData
+    {
+        public string command;
+        public float[] translation;
+        public float[] rotation;
+        public float[] handPosition;
+        public float[] handRotation;
+        public string message;
+    }
+
+    [Serializable] class JoinedMsg
+    {
+        public string type = "Joined";
+        public string agentId;
+    }
+
+    [Serializable] class AgentStateMsg
+    {
+        public string type;
+        public string agentId;
+        public float[] position;
+        public float[] rotation;
+    }
+
+    [Serializable] class AgentUpdateMsg
+    {
+        public string type = "AgentUpdate";
+        public string agentId;
+        public string command;
+        public float[] translation;
+        public float[] rotation;
+        public float[] handPosition;
+        public float[] handRotation;
+    }
+
+    [Serializable] class AgentLeftMsg
+    {
+        public string type = "AgentLeft";
+        public string agentId;
+    }
+
+    [Serializable] class ChatMsg
+    {
+        public string type = "Chat";
+        public string agentId;
+        public string message;
+    }
+
+    private string _agentId;
+
+    protected override void OnMessage(MessageEventArgs e)
+    {
+        MultiplayerCommandData cmd = JsonUtility.FromJson<MultiplayerCommandData>(e.Data);
+        if (cmd == null) { Send("Error: invalid JSON"); return; }
+        WebSocketHandler.Instance.Enqueue(() => HandleCommand(cmd));
+    }
+
+    protected override void OnClose(CloseEventArgs e)
+    {
+        if (_agentId == null) return;
+        Sessions.Broadcast(JsonUtility.ToJson(new AgentLeftMsg { agentId = _agentId }));
+        string agentId = _agentId;
+        WebSocketHandler.Instance.Enqueue(() => MultiplayerAgentManager.Instance.DespawnAgent(agentId));
+    }
+
+    private void HandleCommand(MultiplayerCommandData cmd)
+    {
+        switch (cmd.command)
+        {
+            case "Join":
+            {
+                string agentId = MultiplayerAgentManager.Instance.SpawnAgent();
+                _agentId = agentId;
+
+                Send(JsonUtility.ToJson(new JoinedMsg { agentId = agentId }));
+
+                foreach (AgentState s in MultiplayerAgentManager.Instance.GetSnapshot(agentId))
+                    Send(JsonUtility.ToJson(new AgentStateMsg
+                    {
+                        type = "Snapshot",
+                        agentId = s.agentId,
+                        position = Vec3ToArr(s.position),
+                        rotation = Vec3ToArr(s.rotation.eulerAngles)
+                    }));
+
+                AgentControllerBase newAgent = MultiplayerAgentManager.Instance.GetAgent(agentId);
+                Vector3 spawnPos = newAgent != null ? newAgent.transform.position : Vector3.zero;
+                Vector3 spawnRot = newAgent != null ? newAgent.transform.eulerAngles : Vector3.zero;
+                Sessions.Broadcast(JsonUtility.ToJson(new AgentStateMsg
+                {
+                    type = "AgentSpawned",
+                    agentId = agentId,
+                    position = Vec3ToArr(spawnPos),
+                    rotation = Vec3ToArr(spawnRot)
+                }));
+                break;
+            }
+
+            case "RequestScreenshot":
+            {
+                if (_agentId == null) { Send("Error: not joined"); return; }
+                Camera mpCamera = MultiplayerAgentManager.Instance.GetAgentCamera(_agentId);
+                if (mpCamera == null) { Send("Error: no camera found for agent"); return; }
+                Camera originalCamera = GPUInstanceTracker.Instance.MainCamera;
+                WebSocketHandler.Instance.StartCoroutine(ScreenshotRoutine(this, mpCamera, originalCamera));
+                break;
+            }
+
+            case "Chat":
+            {
+                if (_agentId == null) { Send("Error: not joined"); return; }
+                if (string.IsNullOrEmpty(cmd.message)) { Send("Error: empty message"); return; }
+                string chatLine = $"{_agentId}: {cmd.message}";
+                ChatUIManager.Instance.Log(chatLine);
+                Sessions.Broadcast(JsonUtility.ToJson(new ChatMsg { agentId = _agentId, message = cmd.message }));
+                break;
+            }
+
+            default:
+            {
+                if (_agentId == null) { Send("Error: not joined"); return; }
+                AgentControllerBase agent = MultiplayerAgentManager.Instance.GetAgent(_agentId);
+                if (agent == null) { Send("Error: agent not found"); return; }
+
+                ExecuteAgentCommand(cmd, agent);
+
+                Sessions.Broadcast(JsonUtility.ToJson(new AgentUpdateMsg
+                {
+                    agentId = _agentId,
+                    command = cmd.command,
+                    translation = cmd.translation,
+                    rotation = cmd.rotation,
+                    handPosition = cmd.handPosition,
+                    handRotation = cmd.handRotation
+                }));
+                break;
+            }
+        }
+    }
+
+    private void ExecuteAgentCommand(MultiplayerCommandData cmd, AgentControllerBase agent)
+    {
+        switch (cmd.command)
+        {
+            case "TransformAgent":
+                agent.TransformAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
+                Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
+                break;
+            case "TranslateAgent":
+                agent.TranslateAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
+                Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
+                break;
+            case "TransformHand":
+                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
+                Send("Hand transformed");
+                break;
+            case "TranslateHand":
+                agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
+                Send("Hand translated");
+                break;
+            case "ResetHandPosition":
+                agent.ResetHandPosition();
+                Send("Hand position reset");
+                break;
+            case "ToggleGrip":
+                agent.ToggleGrip();
+                Send("Grip toggled");
+                break;
+            case "TogglePoint":
+                agent.TogglePoint();
+                Send("Point toggled");
+                break;
+            default:
+                Send($"Unknown command: {cmd.command}");
+                break;
+        }
+    }
+
+    private static IEnumerator ScreenshotRoutine(SariMultiplayerBehavior session, Camera mpCamera, Camera originalCamera)
+    {
+        GPUInstanceTracker.Instance.SetCamera(mpCamera);
+        yield return null; // let instancer dispatch with new frustum
+        yield return ScreenshotUtility.GetScreenshotBase64(mpCamera, base64 =>
+        {
+            GPUInstanceTracker.Instance.SetCamera(originalCamera);
+            session.Send(base64);
+        });
+    }
+
+    private static float[] Vec3ToArr(Vector3 v) => new float[] { v.x, v.y, v.z };
 
     private static Vector3 ToVec3(float[] arr)
     {

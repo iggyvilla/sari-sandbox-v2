@@ -2279,7 +2279,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &5498093434108450199
 Transform:
   m_ObjectHideFlags: 0
@@ -2460,10 +2460,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d1f92179b2050492ebccb03c51b334bc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  isMultiplayerAgent: 0
   movementSpeed: 15
   rotateSpeed: 50
   throwStrength: 0.1
   agentHand: {fileID: 5441528585605133506}
+  agentBasket: {fileID: 0}
+  basketOffset: {x: 0, y: -0.3, z: 0.6}
   _itemBBoxMaterial: {fileID: 0}
   physicsActivationRadius: 0.4
   handMoveRange: 0.5
