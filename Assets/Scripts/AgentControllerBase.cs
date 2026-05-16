@@ -23,6 +23,10 @@ public abstract class AgentControllerBase : MonoBehaviour
     [Header("Agent Hand Object")]
     [SerializeField] protected GameObject agentHand;
 
+    [Header("Basket")]
+    public GameObject agentBasket;
+    public Vector3 basketOffset = new Vector3(0f, -0.3f, 0.6f);
+
     [Header("Item Drop Settings")]
     [SerializeField] private Material _itemBBoxMaterial;
 
@@ -51,6 +55,11 @@ public abstract class AgentControllerBase : MonoBehaviour
     private LayerMask interactableLayerMask;
     private RightHandItem _rightHandItem;
     private DoorHandle _grabbedDoor;
+
+    private bool _basketInView;
+    private Vector3 _basketStoredPosition;
+    private Quaternion _basketStoredRotation;
+    private Transform _basketStoredParent;
 
     protected virtual void Start()
     {
@@ -160,6 +169,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
             if (Input.GetKeyDown(KeyCode.P)) TogglePoint();
+            if (Input.GetKeyDown(KeyCode.X)) ToggleBasketInView();
         }
     }
 
@@ -275,6 +285,30 @@ public abstract class AgentControllerBase : MonoBehaviour
         float tangentialAmount = Vector3.Dot(inputWorld, tangent);
 
         _grabbedDoor.DoorBuilder.ApplyHandForce(tangent * (tangentialAmount * doorHandleForce));
+    }
+
+    public void ToggleBasketInView()
+    {
+        if (agentBasket == null) return;
+
+        if (!_basketInView)
+        {
+            _basketStoredPosition = agentBasket.transform.position;
+            _basketStoredRotation = agentBasket.transform.rotation;
+            _basketStoredParent = agentBasket.transform.parent;
+
+            agentBasket.transform.SetParent(transform, worldPositionStays: false);
+            agentBasket.transform.localPosition = basketOffset;
+            agentBasket.transform.localRotation = Quaternion.identity;
+        }
+        else
+        {
+            agentBasket.transform.SetParent(_basketStoredParent, worldPositionStays: false);
+            agentBasket.transform.position = _basketStoredPosition;
+            agentBasket.transform.rotation = _basketStoredRotation;
+        }
+
+        _basketInView = !_basketInView;
     }
 
     public void TransformAgent(Vector3 worldPosition, Vector3 eulerRotation)

@@ -22,7 +22,7 @@ public class WebSocketHandler : MonoBehaviour
     void Start()
     {
         _wss = new WebSocketServer($"ws://localhost:{port}");
-        _wss.AddWebSocketService<CommandBehavior>("/commands");
+        _wss.AddWebSocketService<SariAgentCommandBehavior>("/commands");
         _wss.Start();
         Debug.Log($"WebSocket server started on ws://localhost:{port}/commands");
     }
@@ -43,7 +43,7 @@ public class WebSocketHandler : MonoBehaviour
     }
 }
 
-public class CommandBehavior : WebSocketBehavior
+public class SariAgentCommandBehavior : WebSocketBehavior
 {
     [Serializable]
     class CommandData
@@ -66,11 +66,11 @@ public class CommandBehavior : WebSocketBehavior
             return;
         }
 
-        CommandBehavior session = this;
+        SariAgentCommandBehavior session = this;
         WebSocketHandler.Instance.Enqueue(() => HandleCommand(cmd, session));
     }
 
-    private static void HandleCommand(CommandData cmd, CommandBehavior session)
+    private static void HandleCommand(CommandData cmd, SariAgentCommandBehavior session)
     {
         AgentController agent = WebSocketHandler.Instance.Agent;
 
