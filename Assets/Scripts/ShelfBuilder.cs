@@ -39,6 +39,11 @@ public class ShelfBuilder : MonoBehaviour
     public ItemSpawnOption itemSpawnOption;
     [Tooltip("Per-sub-shelf item category, keyed by 'subShelfId_subSubShelfId'")]
     public Dictionary<string, ItemCategory> subShelfCategories = new();
+
+    [Header("Debug")]
+    [Tooltip("Overrides save data category reads and forces all sub-shelves to use forcedCategory")]
+    public bool debugForceItemCategory;
+    public ItemCategory forcedCategory;
     
     [Header("Prefabs/Objects")]
     [Tooltip("The program extrudes this prefab for the shelves")]
@@ -124,6 +129,7 @@ public class ShelfBuilder : MonoBehaviour
 
         DestroyAllChildren();
         BuildRectangularShelf();
+        SpawnItemsOnAllShelves();
         _hasBuilt = true;
     }
 
@@ -383,7 +389,9 @@ public class ShelfBuilder : MonoBehaviour
                 };
 
                 string catKey = $"{subShelfId}_{i}";
-                ItemCategory cat = subShelfCategories.TryGetValue(catKey, out var c) ? c : default;
+                ItemCategory cat = debugForceItemCategory
+                    ? forcedCategory
+                    : subShelfCategories.TryGetValue(catKey, out var c) ? c : default;
 
                 spawner.Init(
                     distanceBetweenLevels,

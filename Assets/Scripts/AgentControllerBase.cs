@@ -349,14 +349,18 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         if (!isGripped)
         {
+            // Turn off pointing mode/states that refer to pointing
             isPointing = false;
+            
             if (_handCollisionDetector != null) _handCollisionDetector.IsPointing = false;
+            
+            // Reset our box collider to the "grip" collider
             if (_handCollider != null)
             {
                 _handCollider.center = _defaultColliderCenter;
                 _handCollider.size = _defaultColliderSize;
             }
-
+            
             if (_handCollisionDetector != null && _handCollisionDetector.DetectedDoorHandle != null)
             {
                 _grabbedDoor = _handCollisionDetector.DetectedDoorHandle;

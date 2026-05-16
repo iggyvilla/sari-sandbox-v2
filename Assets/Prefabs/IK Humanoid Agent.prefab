@@ -2279,7 +2279,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &5498093434108450199
 Transform:
   m_ObjectHideFlags: 0
@@ -2464,6 +2464,8 @@ MonoBehaviour:
   rotateSpeed: 50
   throwStrength: 0.1
   agentHand: {fileID: 5441528585605133506}
+  _itemBBoxMaterial: {fileID: 0}
+  physicsActivationRadius: 0.4
   handMoveRange: 0.5
   handMoveSpeed: 1
   gripSpeed: 2

@@ -199,10 +199,12 @@ public class DataHandler : MonoBehaviour
     public SB_InteractionController interactionController;
     public string agentSandboxScene = "AgentSandboxScene";
 
+    [Header("Store Builder")] public bool debugMode = false;
+    
     // Persists each shelf's intended spawnItems state by shelfId
     public Dictionary<int, bool> shouldShelfSpawnItems = new();
 
-    private int currentShelfId = 0;
+    private int currentShelfId;
 
     void Awake()
     {
@@ -238,7 +240,8 @@ public class DataHandler : MonoBehaviour
 
     void Start()
     {
-        ApplyAvatarSetting();
+        bool isStoreBuilder = SceneManager.GetActiveScene().buildIndex == 0;
+        if (!isStoreBuilder && !debugMode) ApplyAvatarSetting();
     }
 
     void ApplyAvatarSetting()
@@ -247,25 +250,27 @@ public class DataHandler : MonoBehaviour
         {
             if (agentObject != null)
             {
-                agentObject.SetActive(true);
-                agentObject.transform.position = agentSpawnPosition;
+                // agentObject.SetActive(true);
+                // agentObject.transform.position = agentSpawnPosition;
+                GameObject go = Instantiate(agentObject, agentSpawnPosition, Quaternion.identity);
+                Camera cam = go != null ? go.GetComponentInChildren<Camera>() : null;
+                cam.tag = "MainCamera";
+                if (cam != null) GPUInstanceTracker.Instance.SetCamera(cam);
             }
-            if (ikHumanoidObject != null) ikHumanoidObject.SetActive(false);
-
-            Camera cam = agentObject != null ? agentObject.GetComponentInChildren<Camera>() : null;
-            if (cam != null) GPUInstanceTracker.Instance.SetCamera(cam);
+            // if (ikHumanoidObject != null) ikHumanoidObject.SetActive(false);
         }
         else
         {
-            if (agentObject != null) agentObject.SetActive(false);
+            // if (agentObject != null) agentObject.SetActive(false);
             if (ikHumanoidObject != null)
             {
-                ikHumanoidObject.SetActive(true);
-                ikHumanoidObject.transform.position = agentSpawnPosition;
+                // ikHumanoidObject.SetActive(true);
+                // ikHumanoidObject.transform.position = agentSpawnPosition;
+                GameObject go = Instantiate(ikHumanoidObject, agentSpawnPosition, Quaternion.identity);
+                Camera cam = go != null ? go.GetComponentInChildren<Camera>() : null;
+                cam.tag = "MainCamera";
+                if (cam != null) GPUInstanceTracker.Instance.SetCamera(cam);
             }
-
-            Camera cam = ikHumanoidObject != null ? ikHumanoidObject.GetComponentInChildren<Camera>() : null;
-            if (cam != null) GPUInstanceTracker.Instance.SetCamera(cam);
         }
     }
 
@@ -278,7 +283,19 @@ public class DataHandler : MonoBehaviour
     public void SpawnIntoStore()
     {
         SaveStore();
+        SceneManager.sceneLoaded += OnAgentSandboxSceneLoaded;
         SceneManager.LoadScene(agentSandboxScene);
+    }
+
+    private void OnAgentSandboxSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        SceneManager.sceneLoaded -= OnAgentSandboxSceneLoaded;
+
+        RoomStructure roomStructure = FindFirstObjectByType<RoomStructure>();
+        floor = roomStructure != null ? roomStructure.gameObject : null;
+
+        LoadStore();
+        ApplyAvatarSetting();
     }
 
     public void LoadStore()
@@ -293,7 +310,7 @@ public class DataHandler : MonoBehaviour
                  FindObjectsByType<SelfCheckoutMarker>(FindObjectsSortMode.None))
             Destroy(existing.gameObject);
 
-        // Clear any existing agent spawn marker
+        // Clear any existing agent spawn marker (only in Store Builder)
         foreach (AgentSpawnMarker existing in
                  FindObjectsByType<AgentSpawnMarker>(FindObjectsSortMode.None))
             Destroy(existing.gameObject);
@@ -339,8 +356,11 @@ public class DataHandler : MonoBehaviour
 
             ShelfBuilder builder = go.GetComponent<ShelfBuilder>();
             builder.floor      = floor;
-            builder.spawnItems = false;
             builder.InitFromSaveData(data);
+            if (sceneName == "StoreBuilder")
+            {
+                builder.spawnItems = false;
+            }
             builder.Rebuild();
             
             if (sceneName == "StoreBuilder")
@@ -425,7 +445,7 @@ public class DataHandler : MonoBehaviour
                 backShelfConfig       = b.backShelfConfig,
                 leftShelfConfig       = b.leftShelfConfig,
                 rightShelfConfig      = b.rightShelfConfig,
-                spawnItems            = b.spawnItems,
+                spawnItems            = shouldShelfSpawnItems[b.shelfId],
                 spawnPriceTags        = b.spawnPriceTags,
                 itemSpawnOption       = b.itemSpawnOption,
                 subShelfCategories    = b.subShelfCategories,

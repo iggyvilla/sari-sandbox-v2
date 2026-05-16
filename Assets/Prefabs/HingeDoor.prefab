@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 5532210127301735801}
   - component: {fileID: 6347175062279519659}
   - component: {fileID: 6216100191061172152}
-  m_Layer: 6
+  m_Layer: 12
   m_Name: HingeDoor
   m_TagString: Interactable
   m_Icon: {fileID: 0}
@@ -156,7 +156,7 @@ GameObject:
   - component: {fileID: 2618790197242559000}
   - component: {fileID: 8340532287513860801}
   - component: {fileID: 4386973439173173313}
-  m_Layer: 6
+  m_Layer: 12
   m_Name: Glass
   m_TagString: ShelfDoor
   m_Icon: {fileID: 0}
@@ -315,7 +315,7 @@ GameObject:
   - component: {fileID: 1756147032400305070}
   - component: {fileID: 215447452139992828}
   - component: {fileID: 5100460475498700996}
-  m_Layer: 6
+  m_Layer: 12
   m_Name: Handle
   m_TagString: Untagged
   m_Icon: {fileID: 0}

@@ -102,43 +102,6 @@ public class ItemPoolingManager : MonoBehaviour
         obj.name = itemId;
         obj.tag = "RetailItem";
 
-        SetupGrabBBox(obj, itemId);
-
         return obj;
-    }
-
-    private void SetupGrabBBox(GameObject item, string itemId)
-    {
-        Transform lod0 = FindLOD0(item);
-        MeshFilter mf = lod0 != null ? lod0.GetComponent<MeshFilter>() : null;
-        Bounds meshBounds = mf != null ? mf.sharedMesh.bounds : new Bounds(Vector3.zero, Vector3.one);
-
-        GameObject bboxObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        bboxObj.transform.SetParent(item.transform, worldPositionStays: true);
-        bboxObj.transform.position = lod0.TransformPoint(meshBounds.center);
-        bboxObj.transform.rotation = lod0.rotation;
-        bboxObj.transform.localScale = Vector3.Scale(lod0.lossyScale, meshBounds.size);
-
-        bboxObj.GetComponent<BoxCollider>().isTrigger = true;
-        bboxObj.GetComponent<MeshRenderer>().enabled = false;
-        bboxObj.tag = "RetailItemBBox";
-        bboxObj.AddComponent<OutlineFx.OutlineFx>().enabled = false;
-        bboxObj.AddComponent<OutlineController>();
-
-        ItemBBoxInfo info = bboxObj.AddComponent<ItemBBoxInfo>();
-        info.isPhysicsObject = true;
-        info.returnToPoolOnDelete = true;
-        info.itemId = itemId;
-    }
-
-    private Transform FindLOD0(GameObject item)
-    {
-        if (item.transform.childCount == 0) return item.transform;
-        Transform prodChild = item.transform.GetChild(0);
-        foreach (Transform t in prodChild)
-        {
-            if (t.name.EndsWith("_LOD0")) return t;
-        }
-        return prodChild;
     }
 }
