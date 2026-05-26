@@ -2517,6 +2517,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1207245533783509331}
+  - component: {fileID: 8289374444425740536}
   m_Layer: 0
   m_Name: mixamorig:RightHandMiddle1
   m_TagString: Untagged
@@ -2540,6 +2541,20 @@ Transform:
   - {fileID: 2801511280784846708}
   m_Father: {fileID: 9102969025429593278}
   m_LocalEulerAnglesHint: {x: 14.987489, y: -0.72687835, z: -2.282889}
+--- !u!114 &8289374444425740536
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7758004872885555047}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7679f3f2060a14065b94769c328f8456, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  grabRadius: 0.06
+  grabForwardBias: 0.05
 --- !u!1 &7771115668757404107
 GameObject:
   m_ObjectHideFlags: 0
@@ -2581,8 +2596,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 9102969025429593278}
-  - component: {fileID: 4990107143796684673}
-  - component: {fileID: 1298325380284982861}
   m_Layer: 0
   m_Name: mixamorig:RightHand
   m_TagString: Untagged
@@ -2610,40 +2623,6 @@ Transform:
   - {fileID: 7731698059687484336}
   m_Father: {fileID: 671754520307329133}
   m_LocalEulerAnglesHint: {x: 6.7825146, y: -20.240585, z: -0.5177945}
---- !u!65 &4990107143796684673
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7858299243506891951}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.19, y: 0.17, z: 0.06}
-  m_Center: {x: 0, y: 0.13, z: 0.03}
---- !u!114 &1298325380284982861
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7858299243506891951}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7679f3f2060a14065b94769c328f8456, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  itemPassThroughDistance: 0.1
 --- !u!1 &7869529414551467157
 GameObject:
   m_ObjectHideFlags: 0

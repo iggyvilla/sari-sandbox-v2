@@ -14,6 +14,7 @@ public class IKAgentController : AgentControllerBase
     {
         base.Start();
         _fixedY = transform.position.y;
+        handAnimator = bodyAnimator;
     }
 
     private void Update()
@@ -21,6 +22,13 @@ public class IKAgentController : AgentControllerBase
         Vector3 pos = transform.position;
         pos.y = _fixedY;
         transform.position = pos;
+        
+        if (!isMultiplayerAgent && DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
+        {
+            if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
+            // if (Input.GetKeyDown(KeyCode.P)) TogglePoint();
+            // if (Input.GetKeyDown(KeyCode.X)) ToggleBasketInView();
+        }
     }
 
     protected override void InitializeHandComponents()

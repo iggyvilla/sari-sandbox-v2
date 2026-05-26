@@ -7,7 +7,8 @@ public class HandCollisionDetector : MonoBehaviour
     public DoorHandle DetectedDoorHandle { get; private set; }
     public bool IsPointing { get; set; }
 
-    [SerializeField] private float grabRadius = 0.02f;
+    [SerializeField] private float grabRadius = 0.06f;
+    [SerializeField] private float grabForwardBias = 0.05f;
 
     private OutlineController _itemOutlineController;
     private int _shelfDoorOverlapCount;
@@ -35,7 +36,8 @@ public class HandCollisionDetector : MonoBehaviour
         }
 
         Collider[] hits = Physics.OverlapSphere(
-            transform.position,
+            transform.position
+            + transform.forward * grabForwardBias,
             grabRadius,
             _itemBBoxMask,
             QueryTriggerInteraction.Collide);
@@ -46,7 +48,8 @@ public class HandCollisionDetector : MonoBehaviour
         foreach (Collider hit in hits)
         {
             float dist = Vector3.Distance(
-                transform.position,
+                transform.position
+                + transform.forward * grabForwardBias,
                 hit.ClosestPoint(transform.position));
 
             if (dist < nearestDist)
@@ -80,7 +83,11 @@ public class HandCollisionDetector : MonoBehaviour
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(transform.position, grabRadius);
+        Gizmos.DrawWireSphere(
+            transform.position
+            + transform.forward * grabForwardBias, 
+            grabRadius
+        );
     }
 
     private void OnTriggerEnter(Collider other)
