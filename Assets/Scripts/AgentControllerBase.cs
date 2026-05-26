@@ -466,6 +466,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         cube.GetComponent<BoxCollider>().isTrigger = true;
         cube.GetComponent<MeshRenderer>().sharedMaterial = _itemBBoxMaterial;
         cube.tag = "RetailItemBBox";
+        cube.layer = LayerMask.NameToLayer("ItemBBox");
         cube.AddComponent<OutlineFx.OutlineFx>().enabled = false;
         cube.AddComponent<OutlineController>();
 
@@ -505,6 +506,7 @@ public abstract class AgentControllerBase : MonoBehaviour
 
         spawnedItem.transform.Rotate(Vector3.up, -60);
         spawnedItem.tag = "RetailItem";
+        
 
         _rightHandItem = new RightHandItem(spawnedItem, itemName);
     }
