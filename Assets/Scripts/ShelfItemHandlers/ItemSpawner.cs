@@ -313,7 +313,7 @@ public class ItemSpawner : MonoBehaviour
         itemBBoxInfo.spawnRotation = aisleRot;
 
         if (DataHandler.Instance.enableShelfItemPhysics)
-            itemTrigger.AddComponent<ItemPhysicsProxy>();
+            itemTrigger.AddComponent<ItemBBoxPhysicsProxy>();
 
         b.name = productName;
         b.isTrigger = true;

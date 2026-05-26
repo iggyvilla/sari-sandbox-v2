@@ -5,7 +5,8 @@ public class ItemBBoxInfo : MonoBehaviour
     // True when this component is on a dropped/physical item rather than a GPU-instanced shelf item.
     public bool isPhysicsObject;
 
-    // When true, DeleteItem() returns the root to the pool instead of destroying it.
+    // When true, DeleteItem() returns the root (i.e., the physics 
+    // Game Object) to the pool instead of destroying it.
     // Set by ItemPoolingManager on pool-managed physics objects.
     public bool returnToPoolOnDelete;
 
@@ -22,7 +23,7 @@ public class ItemBBoxInfo : MonoBehaviour
     {
         if (isPhysicsObject)
         {
-            // Capture root before the callback potentially unparents us.
+            // Capture root before the callback potentially unparents ItemBBoxInfo.
             GameObject root = transform.root.gameObject;
             onBeforeDelete?.Invoke();
             if (returnToPoolOnDelete && ItemPoolingManager.Instance != null)
@@ -34,7 +35,7 @@ public class ItemBBoxInfo : MonoBehaviour
         {
             // Disable proxy immediately so the deferred Destroy doesn't let a late
             // OnTriggerEnter from the PhysicsActivationSphere re-spawn a physics object.
-            var proxy = GetComponent<ItemPhysicsProxy>();
+            var proxy = GetComponent<ItemBBoxPhysicsProxy>();
             if (proxy != null) proxy.enabled = false;
             Destroy(gameObject);
         }

@@ -389,7 +389,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         if (!isGripped)
         {
-            // Turn off pointing mode/states that refer to pointing
+            // Turn off pointing mode (ensures bounding box is at palm)
             isPointing = false;
             
             if (_handCollisionDetector != null) _handCollisionDetector.IsPointing = false;
@@ -489,24 +489,24 @@ public abstract class AgentControllerBase : MonoBehaviour
         ItemBBoxInfo itemBBoxInfo = _handCollisionDetector.DetectedItemBBoxInfo;
         string itemName = itemBBoxInfo.itemId;
 
-        var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
-        selectedItem.transform.position = Vector3.zero;
-        selectedItem.name = itemName;
+        var spawnedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
+        spawnedItem.transform.position = Vector3.zero;
+        spawnedItem.name = itemName;
 
         itemBBoxInfo.DeleteItem();
-        DisablePhysics(selectedItem);
+        DisablePhysics(spawnedItem);
 
-        selectedItem = Instantiate(
-            selectedItem,
+        spawnedItem = Instantiate(
+            spawnedItem,
             agentHand.transform.position - new Vector3(0, 0.1f, 0),
             transform.rotation,
             agentHand.transform
         );
 
-        selectedItem.transform.Rotate(Vector3.up, -60);
-        selectedItem.tag = "RetailItem";
+        spawnedItem.transform.Rotate(Vector3.up, -60);
+        spawnedItem.tag = "RetailItem";
 
-        _rightHandItem = new RightHandItem(selectedItem, itemName);
+        _rightHandItem = new RightHandItem(spawnedItem, itemName);
     }
 
     private void ThrowItem(GameObject item)

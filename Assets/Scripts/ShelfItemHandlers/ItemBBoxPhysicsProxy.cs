@@ -7,7 +7,7 @@ using UnityEngine;
 // On exit, either unparents and restores the BBox to its original shelf position
 // (item barely moved), or keeps everything permanently as a grabbable dropped item.
 [RequireComponent(typeof(ItemBBoxInfo))]
-public class ItemPhysicsProxy : MonoBehaviour
+public class ItemBBoxPhysicsProxy : MonoBehaviour
 {
     [SerializeField] private float positionThreshold = 0f;
     [SerializeField] private float rotationThreshold = 5f;

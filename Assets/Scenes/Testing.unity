@@ -1921,16 +1921,16 @@ MonoBehaviour:
   itemCategories:
     Categories: []
   agentObject: {fileID: 1145514788}
-  ikHumanoidObject: {fileID: 0}
+  ikHumanoidObject: {fileID: 7456162950078149447, guid: 4bf2d2d779b914bc4891d9b3eb354c9f, type: 3}
   agentSpawnPosition: {x: 0, y: 0, z: 0}
   agentAvatarSetting: 0
   agentInteractionStyle: 1
   agentBasketStyle: 1
   scanningDifficulty: 0
-  selfCheckoutCounter: {fileID: 0}
-  agentSpawnMarkerPrefab: {fileID: 0}
+  selfCheckoutCounter: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
+  agentSpawnMarkerPrefab: {fileID: 1761823292887612564, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
   enableShelfItemPhysics: 1
-  storeName: DefaultStore
+  storeName: TestStore
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   floor: {fileID: 593330296}
@@ -4124,7 +4124,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 4348042779708461388, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
       propertyPath: m_LocalPosition.x
