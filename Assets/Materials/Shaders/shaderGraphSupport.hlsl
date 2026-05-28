@@ -11,7 +11,14 @@ struct DrawData {
     float3 scale;
 };
 
-StructuredBuffer<DrawData> _DrawData;
+struct LodRenderData {
+    float4 rotation;
+    float4 scale;
+};
+
+StructuredBuffer<uint> _VisibleIndices;
+StructuredBuffer<float4> _Positions;
+StructuredBuffer<LodRenderData> _LodTransformData;
 
 inline float4x4 TRSMatrix(float3 position, float4 rotation, float3 scale)
 {
@@ -42,8 +49,14 @@ inline float4x4 TRSMatrix(float3 position, float4 rotation, float3 scale)
 
 inline void SetUnityMatrices(uint instanceID, inout float4x4 objectToWorld, inout float4x4 worldToObject)
 {
-#if UNITY_ANY_INSTANCING_ENABLED
-    DrawData drawData = _DrawData[instanceID];
+#if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
+    uint sourceIndex = _VisibleIndices[instanceID];
+    LodRenderData lodData = _LodTransformData[sourceIndex];
+
+    DrawData drawData;
+    drawData.position = _Positions[sourceIndex].xyz;
+    drawData.rotation = lodData.rotation;
+    drawData.scale = lodData.scale.xyz;
   
     objectToWorld = mul(objectToWorld, TRSMatrix(drawData.position, drawData.rotation, drawData.scale));
 
@@ -71,7 +84,7 @@ void passthroughVec3_float(in float3 In, out float3 Out)
 
 void setup()
 {
-#if UNITY_ANY_INSTANCING_ENABLED
+#if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
     SetUnityMatrices(unity_InstanceID, unity_ObjectToWorld, unity_WorldToObject);
 #endif
 }

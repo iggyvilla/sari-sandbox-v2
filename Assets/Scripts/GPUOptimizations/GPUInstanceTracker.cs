@@ -23,7 +23,7 @@ public class GPUInstanceTracker : MonoBehaviour
     // Default max-distance thresholds (ascending: inner → outer).
     // lods[i].maxDistance = "use this LOD when closer than this distance".
     // lods[0] = LOD0 (closest/highest quality); last entry = hard cull distance (skip entirely beyond this).
-    private static readonly float[] DefaultMaxDistances = { 0f, 5f, 10f, 15f };
+    private static readonly float[] DefaultMaxDistances = { 5f, 7f, 10f, 15f };
 
     void Awake()
     {

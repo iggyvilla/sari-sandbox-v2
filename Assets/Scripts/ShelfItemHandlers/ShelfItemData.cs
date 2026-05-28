@@ -11,8 +11,6 @@ public class RetailItemData
     public GameObject prefab;
     [NonSerialized, JsonIgnore]
     public List<string> tags;
-    [NonSerialized, JsonIgnore]
-    public List<DrawData> itemLocations;
     
     public string name;
     public ItemCategory itemCategory;
@@ -86,8 +84,7 @@ public class ShelfItemData : MonoBehaviour
                 name = product.name,
                 tags = new List<string>(),
                 itemCategory = itemCategory,
-                dimensions = dimensions,
-                itemLocations = new List<DrawData>()
+                dimensions = dimensions
             };
 
             float halfWidth = dimensions.width / 2;

@@ -9,24 +9,8 @@ struct Plane
     float3 normal;
 };
 
-struct DrawData {
-    float3 position;
-    float4 rotation;
-    float3 scale;
-};
-
-struct LodTransform {
-    float3 position;
-    float4 rotation;
-    float3 scale;
-};
-
-struct InstanceData {
-    LodTransform lods[MAX_LODS]; // lods[0] = _LOD0 (highest quality, closest); lods[N-1] = farthest
-};
-
-// in: per-instance data with an independent transform for each LOD level
-StructuredBuffer<InstanceData> draw_buffer;
+// in: per-instance culling positions shared by all LOD levels
+StructuredBuffer<float4> position_buffer;
 // in: how many item locations
 int num_to_draw;
 // in: holds information about the camera's frustum planes
@@ -34,30 +18,27 @@ StructuredBuffer<Plane> planes;
 
 // in: agent (player) world position for LOD selections
 float3 agent_position;
-// in: distance thresholds, ASCENDING (inner → outer), one per LOD level:
-//   lod_distances[j] = max distance for lods[j]
+// in: squared distance thresholds, ASCENDING (inner → outer), one per LOD level:
+//   lod_distances[j] = max distance squared for lods[j]
 //   indices 0..num_lods-2 drive LOD selection; index num_lods-1 is the hard cull distance
-//   (instance is skipped entirely if dist >= lod_distances[num_lods - 1])
+//   (instance is skipped entirely if distSq >= lod_distances[num_lods - 1])
 float4 lod_distances;
 // in: number of active LOD levels (1–4); unused slots are never written to
 int num_lods;
 
-// out: one AppendBuffer per LOD level
+// out: one compact visible-instance index list per LOD level
 // (HLSL cannot declare these as an array — named outputs are the unavoidable constraint)
-AppendStructuredBuffer<DrawData> lod0_buf;
-AppendStructuredBuffer<DrawData> lod1_buf;
-AppendStructuredBuffer<DrawData> lod2_buf;
-AppendStructuredBuffer<DrawData> lod3_buf;
+AppendStructuredBuffer<uint> lod0_buf;
+AppendStructuredBuffer<uint> lod1_buf;
+AppendStructuredBuffer<uint> lod2_buf;
+AppendStructuredBuffer<uint> lod3_buf;
 
 [numthreads(128,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= (uint) num_to_draw) return;
 
-    InstanceData src = draw_buffer[id.x];
-
-    // Cull using lods[0].position (all LODs share approximately the same world location)
-    float3 cullPos = src.lods[0].position;
+    float3 cullPos = position_buffer[id.x].xyz;
 
     [unroll]
     for (int i = 0; i < 6; i++)
@@ -66,33 +47,28 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             return; // culled
     }
 
-    float dist = distance(cullPos, agent_position);
+    float3 toAgent = cullPos - agent_position;
+    float distSq = dot(toAgent, toAgent);
 
     // Hard cull: lod_distances[num_lods - 1] is the max distance for the farthest LOD.
     // Anything beyond it is dropped entirely — not just switched to a lower-quality mesh.
-    if (dist >= lod_distances[num_lods - 1]) return;
+    if (distSq >= lod_distances[num_lods - 1]) return;
 
     // Select LOD: default to the farthest, then walk from LOD0 outward to find the
     // highest-quality level whose threshold (lod_distances[j]) we're still within.
     int lodIdx = num_lods - 1;
     for (int j = 0; j < num_lods - 1; j++)
     {
-        if (dist < lod_distances[j]) { lodIdx = j; break; }
+        if (distSq < lod_distances[j]) { lodIdx = j; break; }
     }
 
-    // Extract the selected LOD's transform — clean array indexing, no named-field soup
-    LodTransform t = src.lods[lodIdx];
-    DrawData d;
-    d.position = t.position;
-    d.rotation = t.rotation;
-    d.scale    = t.scale;
-
-    // Append to the right named buffer (unavoidable HLSL constraint)
+    // Append the source instance index to the right named buffer. The material shader
+    // uses this compact visible list to fetch position + per-LOD transform data.
     switch (lodIdx)
     {
-        case 0: lod0_buf.Append(d); break;
-        case 1: lod1_buf.Append(d); break;
-        case 2: lod2_buf.Append(d); break;
-        case 3: lod3_buf.Append(d); break;
+        case 0: lod0_buf.Append(id.x); break;
+        case 1: lod1_buf.Append(id.x); break;
+        case 2: lod2_buf.Append(id.x); break;
+        case 3: lod3_buf.Append(id.x); break;
     }
 }
