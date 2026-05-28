@@ -1,17 +1,4 @@
-using Unity.VisualScripting;
 using UnityEngine;
-
-public struct RightHandItem
-{
-    public GameObject obj;
-    public string itemId;
-
-    public RightHandItem(GameObject obj, string itemId)
-    {
-        this.obj = obj;
-        this.itemId = itemId;
-    }
-}
 
 public abstract class AgentControllerBase : MonoBehaviour
 {
@@ -55,7 +42,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     protected float currentTrigger;
 
     private LayerMask interactableLayerMask;
-    private RightHandItem _rightHandItem;
+    private RuntimeRetailItem _rightHandItem;
     private DoorHandle _grabbedDoor;
 
     private bool _basketInView;
@@ -112,9 +99,9 @@ public abstract class AgentControllerBase : MonoBehaviour
 
         if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual) return;
 
-        if (Input.GetKey(KeyCode.Q) && _rightHandItem.obj != null)
+        if (Input.GetKey(KeyCode.Q) && _rightHandItem?.gameObject != null)
         {
-            ThrowItem(_rightHandItem.obj);
+            ThrowItem();
         }
 
         if (Physics.Raycast(
@@ -141,26 +128,21 @@ public abstract class AgentControllerBase : MonoBehaviour
                     return;
                 }
 
-                if (_rightHandItem.obj == null)
+                if (_rightHandItem == null)
                 {
-                    var selectedItem = Resources.Load<GameObject>("Prefabs/Products/" + hitName);
-                    selectedItem.transform.position = Vector3.zero;
-
                     Vector3 handLocation = transform.position
                                            + transform.forward * 0.2f
                                            + transform.right * 0.1f
                                            + transform.up * -0.1f;
 
                     ItemBBoxInfo itemBBoxInfo = hit.collider.GetComponent<ItemBBoxInfo>();
-                    itemBBoxInfo.DeleteItem();
-
-                    DisablePhysics(selectedItem);
-
-                    selectedItem = Instantiate(selectedItem, handLocation, transform.rotation, transform);
-                    selectedItem.transform.Rotate(Vector3.up, -60);
-                    selectedItem.tag = "RetailItem";
-
-                    _rightHandItem = new RightHandItem(selectedItem, hitName);
+                    _rightHandItem = RetailItemRuntimeService.Instance.PickUpFromBBox(
+                        itemBBoxInfo,
+                        transform,
+                        handLocation,
+                        transform.rotation,
+                        new Vector3(0f, -60f, 0f)
+                    );
                 }
             }
         }
@@ -360,7 +342,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         agentHand.transform.localRotation = _initialHandLocalRotation;
     }
 
-    public bool IsHoldingItem() => _rightHandItem.obj != null;
+    public bool IsHoldingItem() => _rightHandItem?.gameObject != null;
 
     public void TogglePoint()
     {
@@ -427,111 +409,31 @@ public abstract class AgentControllerBase : MonoBehaviour
             isGripped = false;
         }
 
-        if (!isGripped && _rightHandItem.obj != null)
+        if (!isGripped && _rightHandItem?.gameObject != null)
             DropCurrentlyHeldItem();
     }
 
     private void DropCurrentlyHeldItem()
     {
-        GameObject obj = _rightHandItem.obj;
-        obj.transform.SetParent(null);
-        Rigidbody rb = obj.GetComponent<Rigidbody>();
-        rb.isKinematic = false;
-        rb.useGravity = true;
-        rb.interpolation = RigidbodyInterpolation.Extrapolate;
-        BoxCollider boxCollider = obj.GetComponentInChildren<BoxCollider>();
-        if (boxCollider != null) boxCollider.enabled = true;
-
-        GameObject bboxObj = CreateItemBBox(obj);
-
-        ItemBBoxInfo itemBBoxInfo = bboxObj.AddComponent<ItemBBoxInfo>();
-        itemBBoxInfo.isPhysicsObject = true;
-        itemBBoxInfo.itemId = _rightHandItem.itemId;
-
-        _rightHandItem = default;
-    }
-
-    private GameObject CreateItemBBox(GameObject itemRoot)
-    {
-        Transform lod0 = FindLOD0(itemRoot);
-        MeshFilter mf = lod0.GetComponent<MeshFilter>();
-        Bounds meshBounds = mf != null ? mf.sharedMesh.bounds : new Bounds(Vector3.zero, Vector3.one);
-
-        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        cube.transform.SetParent(itemRoot.transform, worldPositionStays: true);
-        cube.transform.position = lod0.TransformPoint(meshBounds.center);
-        cube.transform.rotation = lod0.rotation;
-        cube.transform.localScale = Vector3.Scale(lod0.lossyScale, meshBounds.size);
-
-        cube.GetComponent<BoxCollider>().isTrigger = true;
-        cube.GetComponent<MeshRenderer>().sharedMaterial = _itemBBoxMaterial;
-        cube.tag = "RetailItemBBox";
-        cube.layer = LayerMask.NameToLayer("ItemBBox");
-        cube.AddComponent<OutlineFx.OutlineFx>().enabled = false;
-        cube.AddComponent<OutlineController>();
-
-        return cube;
-    }
-
-    private Transform FindLOD0(GameObject item)
-    {
-        if (item.transform.childCount == 0) return item.transform;
-        Transform prodChild = item.transform.GetChild(0);
-        foreach (Transform t in prodChild)
-        {
-            if (t.name.EndsWith("_LOD0"))
-                return t;
-        }
-        return prodChild;
+        RetailItemRuntimeService.Instance.DropHeldItem(_rightHandItem, _itemBBoxMaterial);
+        _rightHandItem = null;
     }
 
     private void InstantiateItemFromBBox()
     {
         ItemBBoxInfo itemBBoxInfo = _handCollisionDetector.DetectedItemBBoxInfo;
-        string itemName = itemBBoxInfo.itemId;
-
-        itemBBoxInfo.DeleteItem();
-
-        GameObject prefab = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
-        var spawnedItem = Instantiate(
-            prefab,
+        _rightHandItem = RetailItemRuntimeService.Instance.PickUpFromBBox(
+            itemBBoxInfo,
+            agentHand.transform,
             agentHand.transform.position - new Vector3(0, 0.1f, 0),
             transform.rotation,
-            agentHand.transform
+            new Vector3(0f, -60f, 0f)
         );
-        spawnedItem.name = itemName;
-        DisablePhysics(spawnedItem);
-        spawnedItem.transform.Rotate(Vector3.up, -60);
-        spawnedItem.tag = "RetailItem";
-
-        _rightHandItem = new RightHandItem(spawnedItem, itemName);
     }
 
-    private void ThrowItem(GameObject item)
+    private void ThrowItem()
     {
-        item.transform.SetParent(null);
-        Rigidbody rb = item.GetComponent<Rigidbody>();
-        rb.isKinematic = false;
-        rb.useGravity = true;
-        rb.interpolation = RigidbodyInterpolation.Extrapolate;
-        rb.AddForce(transform.forward * throwStrength, ForceMode.Impulse);
-        BoxCollider boxCollider = item.GetComponentInChildren<BoxCollider>();
-        boxCollider.enabled = true;
-        _rightHandItem = default;
-    }
-
-    private void DisablePhysics(GameObject item)
-    {
-        Rigidbody rb = item.GetComponent<Rigidbody>();
-        rb.isKinematic = true;
-        rb.linearVelocity = Vector3.zero;
-        rb.useGravity = false;
-        rb.interpolation = RigidbodyInterpolation.None;
-        BoxCollider boxCollider = item.GetComponentInChildren<BoxCollider>();
-        boxCollider.enabled = false;
-
-        MeshCollider[] cols = item.GetComponentsInChildren<MeshCollider>(true);
-        foreach (var c in cols)
-            c.isTrigger = true;
+        RetailItemRuntimeService.Instance.ThrowHeldItem(_rightHandItem, transform.forward * throwStrength);
+        _rightHandItem = null;
     }
 }

@@ -21,36 +21,11 @@ public class ItemBBoxInfo : MonoBehaviour
 
     public void DeleteItem()
     {
-        if (isPhysicsObject)
-        {
-            // Capture root before the callback potentially unparents ItemBBoxInfo.
-            GameObject root = transform.root.gameObject;
-            onBeforeDelete?.Invoke();
-            if (returnToPoolOnDelete && ItemPoolingManager.Instance != null)
-                ItemPoolingManager.Instance.ReturnToPool(itemId, root);
-            else
-                Destroy(root);
-        }
-        else
-        {
-            // Disable proxy immediately so the deferred Destroy doesn't let a late
-            // OnTriggerEnter from the PhysicsActivationSphere re-spawn a physics object.
-            var proxy = GetComponent<ItemBBoxPhysicsProxy>();
-            if (proxy != null) proxy.enabled = false;
-            Destroy(gameObject);
-        }
+        RetailItemRuntimeService.Instance.Delete(this);
     }
 
     private void OnDestroy()
     {
-        if (isPhysicsObject) return;
-
-        BatchInstancer itemBatchInstancer =
-            GPUInstanceTracker.Instance?.GetBatchInstancerFromId(itemId);
-
-        if (itemBatchInstancer != null)
-        {
-            itemBatchInstancer.RemoveSingleDrawData(instanceData);
-        }
+        RetailItemRuntimeService.RemoveShelfGpuInstanceForBBox(this);
     }
 }

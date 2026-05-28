@@ -13,27 +13,19 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     [SerializeField] private float rotationThreshold = 5f;
 
     private ItemBBoxInfo _bBoxInfo;
-    private bool _physicsActive;
     private bool _permanentlyPhysical;
-    private GameObject _physicsObj;
-    private Rigidbody _physicsRb;
-    private Vector3 _spawnedPosition;
-    private Quaternion _spawnedRotation;
-    private Vector3 _originalBBoxWorldPos;
-    private Quaternion _originalBBoxWorldRot;
+    private RuntimeRetailItem _runtimeItem;
     private Coroutine _settleCoroutine;
 
     void Awake()
     {
         _bBoxInfo = GetComponent<ItemBBoxInfo>();
-        _originalBBoxWorldPos = transform.position;
-        _originalBBoxWorldRot = transform.rotation;
     }
 
     void OnTriggerEnter(Collider other)
     {
         if (!DataHandler.Instance.enableShelfItemPhysics) return;
-        if (_physicsActive || _permanentlyPhysical) return;
+        if (_runtimeItem != null || _permanentlyPhysical) return;
         if (other.GetComponent<HandPhysicsSphere>() == null) return;
 
         ActivatePhysics();
@@ -42,7 +34,7 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     void OnTriggerExit(Collider other)
     {
         if (other.GetComponent<HandPhysicsSphere>() == null) return;
-        if (!_physicsActive || _permanentlyPhysical) return;
+        if (_runtimeItem == null || _permanentlyPhysical) return;
 
         _settleCoroutine = StartCoroutine(WaitAndEvaluate());
     }
@@ -51,33 +43,14 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     {
         if (_settleCoroutine != null) StopCoroutine(_settleCoroutine);
 
-        if (_physicsActive && _physicsObj != null)
-        {
-            // Unparent before pooling so the BBox doesn't travel with the prefab.
-            transform.SetParent(null);
-            ItemPoolingManager.Instance?.ReturnToPool(_bBoxInfo.itemId, _physicsObj);
-        }
+        RetailItemRuntimeService.Instance.ReleaseActivePhysicsPreview(_runtimeItem);
     }
 
     private void ActivatePhysics()
     {
-        BatchInstancer bi = GPUInstanceTracker.Instance?.GetBatchInstancerFromId(_bBoxInfo.itemId);
-        bi?.RemoveSingleDrawData(_bBoxInfo.instanceData);
-
-        Vector3 pos = _bBoxInfo.instanceData.lod0.position;
-        Quaternion rot = _bBoxInfo.spawnRotation;
-
-        _physicsObj = ItemPoolingManager.Instance.GetOrCreate(_bBoxInfo.itemId, pos, rot);
-        _physicsRb  = _physicsObj != null ? _physicsObj.GetComponent<Rigidbody>() : null;
-        _spawnedPosition = pos;
-        _spawnedRotation = rot;
-
-        transform.SetParent(_physicsObj.transform, worldPositionStays: true);
-        _bBoxInfo.isPhysicsObject    = true;
-        _bBoxInfo.returnToPoolOnDelete = true;
-        _bBoxInfo.onBeforeDelete     = OnBeforeItemGrabbed;
-
-        _physicsActive = true;
+        _runtimeItem = RetailItemRuntimeService.Instance.ActivatePhysicsPreview(_bBoxInfo);
+        if (_runtimeItem != null)
+            _bBoxInfo.onBeforeDelete = OnBeforeItemGrabbed;
     }
 
     // Called by ItemBBoxInfo.DeleteItem() when the agent grabs the item mid-activation.
@@ -91,28 +64,8 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
             _settleCoroutine = null;
         }
 
-        transform.SetParent(null);
-
-        if (_permanentlyPhysical)
-        {
-            // Item had already settled at a new position and is now being picked up.
-            // BBox is no longer needed as a shelf trigger — destroy it.
-            Destroy(gameObject);
-        }
-        else
-        {
-            // Item was bumped but grabbed before it settled — restore BBox to shelf.
-            transform.SetPositionAndRotation(_originalBBoxWorldPos, _originalBBoxWorldRot);
-            // Don't call ResetBBoxToShelf() here — we need returnToPoolOnDelete to stay true
-            // so DeleteItem uses ReturnToPool (immediate SetActive false) instead of Destroy
-            // (deferred), which would leave the physics object visible for one frame.
-            _bBoxInfo.isPhysicsObject = false;
-            _bBoxInfo.onBeforeDelete  = null;
-        }
-
-        _physicsActive = false;
-        _physicsObj    = null;
-        _physicsRb     = null;
+        RetailItemRuntimeService.Instance.PreparePreviewForGrab(_runtimeItem, _permanentlyPhysical);
+        _runtimeItem = null;
     }
 
     private IEnumerator WaitAndEvaluate()
@@ -121,52 +74,33 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
 
         float elapsed = 0f;
         const float maxWait = 2f;
-        while (_physicsRb != null && !_physicsRb.IsSleeping() && elapsed < maxWait)
+        Rigidbody physicsRb = _runtimeItem?.physicsRigidbody;
+        while (physicsRb != null && !physicsRb.IsSleeping() && elapsed < maxWait)
         {
             yield return new WaitForSeconds(0.1f);
             elapsed += 0.1f;
         }
 
-        if (_physicsObj == null)
+        if (_runtimeItem == null || _runtimeItem.gameObject == null)
         {
-            _physicsActive = false;
             _settleCoroutine = null;
             yield break;
         }
 
-        float posDelta = Vector3.Distance(_physicsObj.transform.position, _spawnedPosition);
-        float rotDelta = Quaternion.Angle(_physicsObj.transform.rotation, _spawnedRotation);
+        float posDelta = Vector3.Distance(_runtimeItem.gameObject.transform.position, _runtimeItem.spawnedPosition);
+        float rotDelta = Quaternion.Angle(_runtimeItem.gameObject.transform.rotation, _runtimeItem.spawnedRotation);
 
         if (posDelta > positionThreshold || rotDelta > rotationThreshold)
         {
             _permanentlyPhysical = true;
+            RetailItemRuntimeService.Instance.MarkPhysicsPreviewAsDropped(_runtimeItem);
         }
         else
         {
-            transform.SetParent(null);
-            transform.SetPositionAndRotation(_originalBBoxWorldPos, _originalBBoxWorldRot);
-            ResetBBoxToShelf();
-            ItemPoolingManager.Instance?.ReturnToPool(_bBoxInfo.itemId, _physicsObj);
-            RestoreGPUInstance();
+            RetailItemRuntimeService.Instance.RestorePhysicsPreviewToShelf(_runtimeItem);
+            _runtimeItem = null;
         }
 
-        _physicsActive = false;
-        _physicsObj    = null;
-        _physicsRb     = null;
         _settleCoroutine = null;
-    }
-
-    private void ResetBBoxToShelf()
-    {
-        _bBoxInfo.isPhysicsObject     = false;
-        _bBoxInfo.returnToPoolOnDelete = false;
-        _bBoxInfo.onBeforeDelete      = null;
-    }
-
-    private void RestoreGPUInstance()
-    {
-        GameObject prefab = Resources.Load<GameObject>("Prefabs/Products/" + _bBoxInfo.itemId);
-        if (prefab != null)
-            GPUInstanceTracker.Instance?.AddToInstance(_bBoxInfo.itemId, prefab, _bBoxInfo.instanceData);
     }
 }
