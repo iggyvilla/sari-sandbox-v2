@@ -21,7 +21,8 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     {
         _bBoxInfo = GetComponent<ItemBBoxInfo>();
     }
-
+    
+    // Runs upon entering the hand's trigger sphere
     void OnTriggerEnter(Collider other)
     {
         if (!DataHandler.Instance.enableShelfItemPhysics) return;
@@ -30,12 +31,15 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
 
         ActivatePhysics();
     }
-
+    
+    // Runs upon exiting the hand's trigger sphere
     void OnTriggerExit(Collider other)
     {
         if (other.GetComponent<HandPhysicsSphere>() == null) return;
         if (_runtimeItem == null || _permanentlyPhysical) return;
-
+        
+        // Wait a few seconds (for physics to reach steady state), then 
+        // evaluate if the item should become a physics item or stay GPU
         _settleCoroutine = StartCoroutine(WaitAndEvaluate());
     }
 
@@ -89,7 +93,9 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
 
         float posDelta = Vector3.Distance(_runtimeItem.gameObject.transform.position, _runtimeItem.spawnedPosition);
         float rotDelta = Quaternion.Angle(_runtimeItem.gameObject.transform.rotation, _runtimeItem.spawnedRotation);
-
+        
+        // If the item, when settled, has moved past its threshold,
+        // permanently stay as a physics item
         if (posDelta > positionThreshold || rotDelta > rotationThreshold)
         {
             _permanentlyPhysical = true;

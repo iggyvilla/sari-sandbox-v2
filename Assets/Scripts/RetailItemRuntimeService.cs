@@ -1,5 +1,39 @@
 using UnityEngine;
 
+/*
+ * Centralizes runtime retail item lifetimes.
+ *
+ * Shelf items start as GPU-instanced meshes with an ItemBBoxInfo trigger created by
+ * ItemSpawner. From there, this service owns the destructive/constructive parts of
+ * each state transition:
+ *
+ *   ShelfGpu -> PhysicsPreview
+ *     ItemBBoxPhysicsProxy detects the hand activation sphere, then calls
+ *     ActivatePhysicsPreview(). The service removes the GPU instance, gets a pooled
+ *     physics prefab, and parents the shelf bbox under that prefab.
+ *
+ *   PhysicsPreview -> ShelfGpu
+ *     ItemBBoxPhysicsProxy waits for the physics prefab to settle. If it barely moved,
+ *     RestorePhysicsPreviewToShelf() returns the prefab to the pool, resets the bbox,
+ *     and restores the GPU instance.
+ *
+ *   PhysicsPreview -> Dropped
+ *     If the preview moved/rotated past the configured threshold, ItemBBoxPhysicsProxy
+ *     calls MarkPhysicsPreviewAsDropped(). The real physics object stays in the world.
+ *
+ *   ShelfGpu/PhysicsPreview -> Held
+ *     AgentControllerBase calls PickUpFromBBox() when the agent grabs an item. The
+ *     service deletes or detaches the old bbox representation, instantiates the held
+ *     prefab, disables physics on it, and parents it to the agent/hand.
+ *
+ *   Held -> Dropped
+ *     AgentControllerBase calls DropHeldItem() or ThrowHeldItem(). The service detaches
+ *     the prefab, enables physics, and creates the runtime ItemBBoxInfo used for later
+ *     item detection/deletion.
+ *
+ * ItemBBoxInfo stays intentionally small: it stores item metadata and delegates delete
+ * and shelf GPU cleanup back here. ItemPoolingManager still owns pooled prefab storage.
+ */
 public enum RetailItemRuntimeState
 {
     ShelfGpu,
@@ -131,19 +165,13 @@ public class RetailItemRuntimeService : MonoBehaviour
 
         ItemBBoxInfo bboxInfo = item.shelfBBoxInfo;
         bboxInfo.transform.SetParent(null);
-
-        if (permanentlyPhysical)
-        {
-            Destroy(bboxInfo.gameObject);
-        }
-        else
-        {
-            bboxInfo.transform.SetPositionAndRotation(
-                item.originalBBoxWorldPosition,
-                item.originalBBoxWorldRotation);
-            bboxInfo.isPhysicsObject = false;
-            bboxInfo.onBeforeDelete = null;
-        }
+        
+        bboxInfo.transform.SetPositionAndRotation(
+            item.originalBBoxWorldPosition,
+            item.originalBBoxWorldRotation);
+        bboxInfo.isPhysicsObject = false;
+        bboxInfo.onBeforeDelete = null;
+        Destroy(bboxInfo.gameObject);
 
         item.state = RetailItemRuntimeState.Held;
         item.gameObject = null;
@@ -218,7 +246,8 @@ public class RetailItemRuntimeService : MonoBehaviour
         {
             GameObject root = bboxInfo.transform.root.gameObject;
             bboxInfo.onBeforeDelete?.Invoke();
-
+            
+            // If it's an item that turned physical, but didn't move, return it to the pool
             if (bboxInfo.returnToPoolOnDelete && ItemPoolingManager.Instance != null)
                 ItemPoolingManager.Instance.ReturnToPool(bboxInfo.itemId, root);
             else
