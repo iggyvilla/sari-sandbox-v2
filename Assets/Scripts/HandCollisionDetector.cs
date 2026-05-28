@@ -44,18 +44,25 @@ public class HandCollisionDetector : MonoBehaviour
 
         Collider nearest = null;
         float nearestDist = float.MaxValue;
+        bool nearestIsPhysics = false;
 
+        Vector3 grabCenter = transform.position + transform.forward * grabForwardBias;
         foreach (Collider hit in hits)
         {
-            float dist = Vector3.Distance(
-                transform.position
-                + transform.forward * grabForwardBias,
-                hit.ClosestPoint(transform.position));
+            float dist = Vector3.Distance(grabCenter, hit.ClosestPoint(transform.position));
+            bool isPhysics = hit.GetComponentInParent<ItemBBoxInfo>()?.isPhysicsObject ?? false;
 
-            if (dist < nearestDist)
+            // Physics-backed items always win over shelf items.
+            if (isPhysics && !nearestIsPhysics)
             {
-                nearestDist = dist;
                 nearest = hit;
+                nearestDist = dist;
+                nearestIsPhysics = true;
+            }
+            else if (isPhysics == nearestIsPhysics && dist < nearestDist)
+            {
+                nearest = hit;
+                nearestDist = dist;
             }
         }
 

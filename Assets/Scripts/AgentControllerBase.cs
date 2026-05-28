@@ -490,23 +490,19 @@ public abstract class AgentControllerBase : MonoBehaviour
         ItemBBoxInfo itemBBoxInfo = _handCollisionDetector.DetectedItemBBoxInfo;
         string itemName = itemBBoxInfo.itemId;
 
-        var spawnedItem = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
-        spawnedItem.transform.position = Vector3.zero;
-        spawnedItem.name = itemName;
-
         itemBBoxInfo.DeleteItem();
-        DisablePhysics(spawnedItem);
 
-        spawnedItem = Instantiate(
-            spawnedItem,
+        GameObject prefab = Resources.Load<GameObject>("Prefabs/Products/" + itemName);
+        var spawnedItem = Instantiate(
+            prefab,
             agentHand.transform.position - new Vector3(0, 0.1f, 0),
             transform.rotation,
             agentHand.transform
         );
-
+        spawnedItem.name = itemName;
+        DisablePhysics(spawnedItem);
         spawnedItem.transform.Rotate(Vector3.up, -60);
         spawnedItem.tag = "RetailItem";
-        
 
         _rightHandItem = new RightHandItem(spawnedItem, itemName);
     }

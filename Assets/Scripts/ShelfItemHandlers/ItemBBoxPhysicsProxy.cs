@@ -119,8 +119,13 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     {
         yield return null;
 
-        while (_physicsRb != null && !_physicsRb.IsSleeping())
+        float elapsed = 0f;
+        const float maxWait = 2f;
+        while (_physicsRb != null && !_physicsRb.IsSleeping() && elapsed < maxWait)
+        {
             yield return new WaitForSeconds(0.1f);
+            elapsed += 0.1f;
+        }
 
         if (_physicsObj == null)
         {
