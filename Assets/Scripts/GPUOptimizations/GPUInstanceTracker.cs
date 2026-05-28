@@ -20,9 +20,10 @@ public class GPUInstanceTracker : MonoBehaviour
     private Dictionary<string, BatchInstancer> trackers = new();
     public SimplePlane[] cameraFrustumPlanes;
 
-    // Default upgrade-distance thresholds (descending: outer → inner).
-    // lods[i].upgradeDistance = "switch to lods[i+1] when closer than this".
-    private static readonly float[] DefaultUpgradeDistances = { 40f, 15f, 5f, 0f };
+    // Default max-distance thresholds (ascending: inner → outer).
+    // lods[i].maxDistance = "use this LOD when closer than this distance".
+    // lods[0] = LOD0 (closest/highest quality); last entry = hard cull distance (skip entirely beyond this).
+    private static readonly float[] DefaultMaxDistances = { 0f, 5f, 10f, 15f };
 
     void Awake()
     {
@@ -96,8 +97,8 @@ public class GPUInstanceTracker : MonoBehaviour
 
     void PrepareBatchInstancer(BatchInstancer bi, GameObject obj, string itemId)
     {
-        // Scan the first child's children for _LOD0–_LOD3 meshes (in order, low→high quality).
-        // _LOD0 is always required; higher-index LODs are optional.
+        // Scan the first child's children for _LOD0–_LOD3 meshes (in order, high→low quality).
+        // _LOD0 is always required; higher-index LODs are optional lower-quality fallbacks.
         string[] lodSuffixes = { "_LOD0", "_LOD1", "_LOD2", "_LOD3" };
         var lodList = new List<LODDefinition>();
         Transform prodChild = obj.transform.GetChild(0);
@@ -113,9 +114,9 @@ public class GPUInstanceTracker : MonoBehaviour
 
                 lodList.Add(new LODDefinition
                 {
-                    mesh            = mf.sharedMesh,
-                    materials       = CloneMaterialsForInstancing(mr.sharedMaterials),
-                    upgradeDistance = DefaultUpgradeDistances[lodList.Count]
+                    mesh        = mf.sharedMesh,
+                    materials   = CloneMaterialsForInstancing(mr.sharedMaterials),
+                    maxDistance = DefaultMaxDistances[lodList.Count]
                 });
                 break;
             }

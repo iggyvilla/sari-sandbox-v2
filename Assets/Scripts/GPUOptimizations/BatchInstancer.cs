@@ -53,23 +53,23 @@ public struct DrawData
     public Vector3 scale;
 }
 
-// Describes one LOD level: the mesh, its cloned instancing materials, and the distance
-// threshold below which we upgrade FROM this LOD to the next higher-quality one.
-// upgradeDistance is unused on the last (highest-quality) entry.
+// Describes one LOD level: the mesh, its cloned instancing materials, and the max distance
+// at which this LOD is used. Switch to the next (lower-quality) LOD when dist >= maxDistance.
+// maxDistance is unused on the last entry (it's the catch-all farthest LOD).
 [System.Serializable]
 public struct LODDefinition
 {
     public Mesh mesh;
     public Material[] materials;
-    [Tooltip("Upgrade to the next quality level when closer than this distance. Unused on the last LOD.")]
-    public float upgradeDistance;
+    [Tooltip("Use this LOD when closer than this distance. Unused on the last (farthest) LOD.")]
+    public float maxDistance;
 }
 
 public class BatchInstancer : MonoBehaviour
 {
     public Camera agentCamera;
 
-    // LOD table: lods[0] = _LOD0 (always present), higher indices = higher quality / closer.
+    // LOD table: lods[0] = _LOD0 (highest quality, closest), lods[N-1] = farthest.
     // Set by GPUInstanceTracker.PrepareBatchInstancer, or configured directly in the Inspector.
     public LODDefinition[] lods;
 
@@ -154,11 +154,12 @@ public class BatchInstancer : MonoBehaviour
         _fKernelId   = frustumCullingShader.FindKernel("CSMain");
         _sDrawDataId = Shader.PropertyToID("_DrawData");
 
-        // Assemble lod_distances: lods[i].upgradeDistance = threshold to step up to lods[i+1]
-        // Stored descending (outer → inner) as a float4
+        // Assemble lod_distances: lods[i].maxDistance for all N LODs.
+        // Indices 0..N-2 drive LOD selection; index N-1 is the hard cull distance.
+        // All stored ascending (inner → outer) as a float4.
         Vector4 lodDist = Vector4.zero;
-        for (int i = 0; i < Mathf.Min(lods.Length - 1, MAX_LODS - 1); i++)
-            lodDist[i] = lods[i].upgradeDistance;
+        for (int i = 0; i < Mathf.Min(lods.Length, MAX_LODS); i++)
+            lodDist[i] = lods[i].maxDistance;
 
         frustumCullingShader.SetBuffer(_fKernelId, _fPlanesId, _simplePlaneBuffer);
         frustumCullingShader.SetVector(_fLodDistancesId, lodDist);
@@ -172,7 +173,6 @@ public class BatchInstancer : MonoBehaviour
         _ready = true;
     }
 
-    // LateUpdate because GPUInstanceTracker calculates cameraFrustumPlanes first at Update()
     void Update()
     {
         if (!_ready) return;
@@ -192,7 +192,7 @@ public class BatchInstancer : MonoBehaviour
         frustumCullingShader.SetVector(_fAgentPositionId, new Vector4(agentPos.x, agentPos.y, agentPos.z, 0f));
         Profiler.EndSample();
 
-        Profiler.BeginSample("Dispatch ComputeShader");
+        Profiler.BeginSample("Dispatch Compute Shader");
         for (int i = 0; i < lods.Length; i++)
         {
             _unculledLODBuffers[i].SetData(Array.Empty<DrawData>());
