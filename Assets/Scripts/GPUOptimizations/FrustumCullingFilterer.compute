@@ -32,7 +32,7 @@ int num_to_draw;
 // in: holds information about the camera's frustum planes
 StructuredBuffer<Plane> planes;
 
-// in: agent (player) world position for LOD selection
+// in: agent (player) world position for LOD selections
 float3 agent_position;
 // in: distance thresholds, ASCENDING (inner → outer), one per LOD level:
 //   lod_distances[j] = max distance for lods[j]
