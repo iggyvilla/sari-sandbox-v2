@@ -13,23 +13,24 @@ public struct SimplePlane
 // Singleton class made to track BatchInstancer per Item ID
 public class GPUInstanceTracker : MonoBehaviour
 {
-    
-    public static GPUInstanceTracker Instance {get; private set;}
+    public static GPUInstanceTracker Instance { get; private set; }
     [SerializeField] private Camera mainCamera;
     public ComputeShader frustumCullingShader;
     [SerializeField] private Shader proceduralUrpLitShader;
     private Dictionary<string, BatchInstancer> trackers = new();
     public SimplePlane[] cameraFrustumPlanes;
-    
+
+    // Default upgrade-distance thresholds (descending: outer → inner).
+    // lods[i].upgradeDistance = "switch to lods[i+1] when closer than this".
+    private static readonly float[] DefaultUpgradeDistances = { 40f, 15f, 5f, 0f };
+
     void Awake()
     {
-        // Assemble Singleton class
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
             return;
         }
-
         Instance = this;
     }
 
@@ -42,10 +43,7 @@ public class GPUInstanceTracker : MonoBehaviour
     public BatchInstancer GetBatchInstancerFromId(string itemId)
     {
         if (trackers.ContainsKey(itemId))
-        {
             return trackers[itemId];
-        }
-
         return null;
     }
 
@@ -61,93 +59,78 @@ public class GPUInstanceTracker : MonoBehaviour
     public void DespawnAllItems()
     {
         Debug.Log("Despawning all items...");
-
         foreach (KeyValuePair<string, BatchInstancer> kvp in trackers)
-        {
             kvp.Value.ClearAllDrawData();
-        }
     }
-    
+
     private SimplePlane[] GetFrustumPlanes(Camera camera)
     {
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
-        
         SimplePlane[] simplePlanes = new SimplePlane[6];
-        
         for (int i = 0; i < 6; i++)
         {
-            SimplePlane sPlane = new SimplePlane
+            simplePlanes[i] = new SimplePlane
             {
                 distance = planes[i].distance,
-                normal = planes[i].normal
+                normal   = planes[i].normal
             };
-            simplePlanes[i] = sPlane; 
         }
-
         return simplePlanes;
     }
-    
-    public void AddToInstance(string itemId, GameObject obj, InstanceLODData instanceLODData)
+
+    public void AddToInstance(string itemId, GameObject obj, InstanceData instanceData)
     {
         if (trackers.ContainsKey(itemId))
         {
-            trackers[itemId].AddObjectToBatch(instanceLODData);
+            trackers[itemId].AddObjectToBatch(instanceData);
         }
         else
         {
             BatchInstancer batchInstancer = gameObject.AddComponent<BatchInstancer>();
-
             PrepareBatchInstancer(batchInstancer, obj, itemId);
-
             batchInstancer.Init();
-            batchInstancer.AddObjectToBatch(instanceLODData);
-
+            batchInstancer.AddObjectToBatch(instanceData);
             trackers[itemId] = batchInstancer;
         }
     }
 
-    void PrepareBatchInstancer(BatchInstancer batchInstancer, GameObject obj, string itemId)
+    void PrepareBatchInstancer(BatchInstancer bi, GameObject obj, string itemId)
     {
-        // Traverse the first child's children to find _LOD0 and _LOD1 meshes and renderers
+        // Scan the first child's children for _LOD0–_LOD3 meshes (in order, low→high quality).
+        // _LOD0 is always required; higher-index LODs are optional.
+        string[] lodSuffixes = { "_LOD0", "_LOD1", "_LOD2", "_LOD3" };
+        var lodList = new List<LODDefinition>();
         Transform prodChild = obj.transform.GetChild(0);
-        Mesh lod0Mesh = null;
-        Mesh lod1Mesh = null;
-        MeshRenderer lod0Renderer = null;
-        MeshRenderer lod1Renderer = null;
 
-        foreach (Transform child in prodChild)
+        foreach (string suffix in lodSuffixes)
         {
-            MeshFilter mf = child.GetComponent<MeshFilter>();
-            if (mf == null) continue;
+            foreach (Transform child in prodChild)
+            {
+                if (!child.name.EndsWith(suffix)) continue;
+                var mf = child.GetComponent<MeshFilter>();
+                var mr = child.GetComponent<MeshRenderer>();
+                if (mf == null || mr == null) break;
 
-            if (child.name.EndsWith("_LOD1"))
-            {
-                lod1Mesh = mf.sharedMesh;
-                lod1Renderer = child.GetComponent<MeshRenderer>();
-            }
-            else if (child.name.EndsWith("_LOD0"))
-            {
-                lod0Mesh = mf.sharedMesh;
-                lod0Renderer = child.GetComponent<MeshRenderer>();
+                lodList.Add(new LODDefinition
+                {
+                    mesh            = mf.sharedMesh,
+                    materials       = CloneMaterialsForInstancing(mr.sharedMaterials),
+                    upgradeDistance = DefaultUpgradeDistances[lodList.Count]
+                });
+                break;
             }
         }
 
-        if (lod0Mesh == null || lod0Renderer == null)
+        if (lodList.Count == 0)
         {
-            Debug.LogError("LOD0 mesh/renderer not found on " + obj.name);
+            Debug.LogError("No LOD meshes (_LOD0–_LOD3) found on " + obj.name);
             return;
         }
 
-        batchInstancer.lodMesh0 = lod0Mesh;
-        batchInstancer.lodMesh1 = lod1Mesh; // may be null — BatchInstancer handles this
-        batchInstancer.frustumCullingShader = Instantiate(frustumCullingShader);
-        batchInstancer.agentCamera = mainCamera;
-        batchInstancer.itemId = itemId;
-
-        batchInstancer.materials0 = CloneMaterialsForInstancing(lod0Renderer.sharedMaterials);
-
-        if (lod1Renderer != null)
-            batchInstancer.materials1 = CloneMaterialsForInstancing(lod1Renderer.sharedMaterials);
+        bi.lods                 = lodList.ToArray();
+        bi.frustumCullingShader = Instantiate(frustumCullingShader);
+        bi.agentCamera          = mainCamera;
+        bi.itemId               = itemId;
     }
 
     /* Make each material a new clone of itself, since the
@@ -161,11 +144,10 @@ public class GPUInstanceTracker : MonoBehaviour
         {
             cloned[i] = new Material(source[i])
             {
-                shader = proceduralUrpLitShader,
-                enableInstancing = true
+                shader            = proceduralUrpLitShader,
+                enableInstancing  = true
             };
         }
         return cloned;
     }
-    
 }

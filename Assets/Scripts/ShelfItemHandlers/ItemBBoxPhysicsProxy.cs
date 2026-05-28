@@ -62,9 +62,9 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     private void ActivatePhysics()
     {
         BatchInstancer bi = GPUInstanceTracker.Instance?.GetBatchInstancerFromId(_bBoxInfo.itemId);
-        bi?.RemoveSingleDrawData(_bBoxInfo.instanceLODData);
+        bi?.RemoveSingleDrawData(_bBoxInfo.instanceData);
 
-        Vector3 pos = _bBoxInfo.instanceLODData.position0;
+        Vector3 pos = _bBoxInfo.instanceData.lod0.position;
         Quaternion rot = _bBoxInfo.spawnRotation;
 
         _physicsObj = ItemPoolingManager.Instance.GetOrCreate(_bBoxInfo.itemId, pos, rot);
@@ -167,6 +167,6 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     {
         GameObject prefab = Resources.Load<GameObject>("Prefabs/Products/" + _bBoxInfo.itemId);
         if (prefab != null)
-            GPUInstanceTracker.Instance?.AddToInstance(_bBoxInfo.itemId, prefab, _bBoxInfo.instanceLODData);
+            GPUInstanceTracker.Instance?.AddToInstance(_bBoxInfo.itemId, prefab, _bBoxInfo.instanceData);
     }
 }

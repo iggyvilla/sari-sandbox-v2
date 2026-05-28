@@ -1,6 +1,8 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
+#define MAX_LODS 4
+
 struct Plane
 {
     float distance;
@@ -13,17 +15,18 @@ struct DrawData {
     float3 scale;
 };
 
-struct InstanceLODData {
-    float3 position0;
-    float4 rotation0;
-    float3 scale0;
-    float3 position1;
-    float4 rotation1;
-    float3 scale1;
+struct LodTransform {
+    float3 position;
+    float4 rotation;
+    float3 scale;
 };
 
-// in: per-instance data with rotation/scale for both LOD levels
-StructuredBuffer<InstanceLODData> draw_buffer;
+struct InstanceData {
+    LodTransform lods[MAX_LODS]; // lods[0] = _LOD0 (base/farthest), higher = closer/higher-quality
+};
+
+// in: per-instance data with an independent transform for each LOD level
+StructuredBuffer<InstanceData> draw_buffer;
 // in: how many item locations
 int num_to_draw;
 // in: holds information about the camera's frustum planes
@@ -31,67 +34,63 @@ StructuredBuffer<Plane> planes;
 
 // in: agent (player) world position for LOD selection
 float3 agent_position;
-// in: distance threshold — below uses LOD1 (low poly), above uses LOD0 (high poly)
-float lod_distance;
-// in: whether each LOD mesh is assigned (1 = assigned, 0 = not)
-int has_lod1;
-int has_lod0;
+// in: distance thresholds, DESCENDING (outer → inner):
+//   x = LOD0→LOD1 threshold, y = LOD1→LOD2, z = LOD2→LOD3
+//   below lod_distances[j], we upgrade from lods[j] to lods[j+1]
+float4 lod_distances;
+// in: number of active LOD levels (1–4); unused slots are never written to
+int num_lods;
 
-// out: unculled items close to agent (LOD1, high poly)
-AppendStructuredBuffer<DrawData> unculled_lod1_buf;
-// out: unculled items far from agent (LOD0, low poly)
-AppendStructuredBuffer<DrawData> unculled_lod0_buf;
+// out: one AppendBuffer per LOD level
+// (HLSL cannot declare these as an array — named outputs are the unavoidable constraint)
+AppendStructuredBuffer<DrawData> lod0_buf;
+AppendStructuredBuffer<DrawData> lod1_buf;
+AppendStructuredBuffer<DrawData> lod2_buf;
+AppendStructuredBuffer<DrawData> lod3_buf;
 
 [numthreads(64,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    if (id.x > (uint) num_to_draw-1) return;
+    if (id.x >= (uint) num_to_draw) return;
 
-    InstanceLODData src = draw_buffer[id.x];
+    InstanceData src = draw_buffer[id.x];
 
-    // Cull using position0 (both LODs share approximately the same world location)
-    float3 pos0 = src.position0;
+    // Cull using lods[0].position (all LODs share approximately the same world location)
+    float3 cullPos = src.lods[0].position;
 
-    // ensures loop is unrolled at compile time
     [unroll]
     for (int i = 0; i < 6; i++)
     {
-        if (dot(planes[i].normal, pos0) + planes[i].distance < -0.2f)
+        if (dot(planes[i].normal, cullPos) + planes[i].distance < -0.2f)
             return; // culled
     }
 
-    DrawData d;
+    // Determine LOD index by distance.
+    // lod_distances is DESCENDING: each entry is the max dist at which we upgrade one level.
+    // Walk inward: each step asks "am I close enough to upgrade to the next quality level?"
+    float dist = distance(cullPos, agent_position);
+    int lodIdx = 0;                              // default: lods[0] (farthest / only mesh)
+    for (int j = 0; j < num_lods - 1; j++)
+    {
+        if (dist >= lod_distances[j]) break;     // too far for this upgrade
+        lodIdx = j + 1;                          // close enough — use next quality level
+    }
+    // When num_lods == 1, the loop never runs: lodIdx == 0 always (lods[0] covers everything).
+    // When num_lods == 2, only lod_distances.x is checked: lods[0] absorbs all farther bands.
 
-    // If both LODs are present, split by distance; otherwise route to whichever is assigned
-    if (has_lod1 && has_lod0)
+    // Extract the selected LOD's transform — clean array indexing, no named-field soup
+    LodTransform t = src.lods[lodIdx];
+    DrawData d;
+    d.position = t.position;
+    d.rotation = t.rotation;
+    d.scale    = t.scale;
+
+    // Append to the right named buffer (unavoidable HLSL constraint)
+    switch (lodIdx)
     {
-        if (distance(pos0, agent_position) < lod_distance)
-        {
-            d.position = pos0;
-            d.rotation = src.rotation0;
-            d.scale    = src.scale0;
-            unculled_lod0_buf.Append(d);
-        }
-        else
-        {
-            d.position = src.position1;
-            d.rotation = src.rotation1;
-            d.scale    = src.scale1;
-            unculled_lod1_buf.Append(d);
-        }
-    }
-    else if (has_lod1)
-    {
-        d.position = src.position1;
-        d.rotation = src.rotation1;
-        d.scale    = src.scale1;
-        unculled_lod1_buf.Append(d);
-    }
-    else
-    {
-        d.position = pos0;
-        d.rotation = src.rotation0;
-        d.scale    = src.scale0;
-        unculled_lod0_buf.Append(d);
+        case 0: lod0_buf.Append(d); break;
+        case 1: lod1_buf.Append(d); break;
+        case 2: lod2_buf.Append(d); break;
+        case 3: lod3_buf.Append(d); break;
     }
 }

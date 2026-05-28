@@ -1,150 +1,181 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.Profiling;
-using UnityEngine.Rendering;
 
-public struct DrawData {
+// Per-LOD transform uploaded to the GPU.
+// Matches the HLSL LodTransform struct layout exactly.
+[StructLayout(LayoutKind.Sequential)]
+public struct LodTransform
+{
     public Vector3 position;
     public Vector4 rotation;
     public Vector3 scale;
-};
+}
 
-// Per-instance data uploaded to the GPU; carries rotation/scale for both LOD levels
-// so the compute shader can assemble the correct DrawData for whichever LOD it routes to.
-public struct InstanceLODData : IEquatable<InstanceLODData> {
-    public Vector3 position0;
-    public Vector4 rotation0;
-    public Vector3 scale0;
-    public Vector3 position1;
-    public Vector4 rotation1;
-    public Vector3 scale1;
+// Per-instance data for the GPU: one independent transform per LOD level.
+// lods[0] = _LOD0 (always present — base / farthest), higher indices = closer / higher quality.
+// Matches HLSL InstanceData { LodTransform lods[4]; } — fields are sequential in memory.
+[StructLayout(LayoutKind.Sequential)]
+public struct InstanceData : IEquatable<InstanceData>
+{
+    public LodTransform lod0;   // _LOD0 (required)
+    public LodTransform lod1;   // _LOD1 (optional; zeroed if absent — shader won't index it)
+    public LodTransform lod2;   // _LOD2 (optional)
+    public LodTransform lod3;   // _LOD3 (optional)
 
-    public bool Equals(InstanceLODData other)
+    public bool Equals(InstanceData other)
     {
-        return position0 == other.position0 &&
-               rotation0 == other.rotation0 &&
-               scale0 == other.scale0 &&
-               position1 == other.position1 &&
-               rotation1 == other.rotation1 &&
-               scale1 == other.scale1;
+        return lod0.position == other.lod0.position &&
+               lod0.rotation == other.lod0.rotation &&
+               lod0.scale    == other.lod0.scale    &&
+               lod1.position == other.lod1.position &&
+               lod1.rotation == other.lod1.rotation &&
+               lod1.scale    == other.lod1.scale    &&
+               lod2.position == other.lod2.position &&
+               lod2.rotation == other.lod2.rotation &&
+               lod2.scale    == other.lod2.scale    &&
+               lod3.position == other.lod3.position &&
+               lod3.rotation == other.lod3.rotation &&
+               lod3.scale    == other.lod3.scale;
     }
 
-    public override int GetHashCode()
-    {
-        return HashCode.Combine(position0, rotation0, scale0, position1, rotation1, scale1);
-    }
-};
+    public override int GetHashCode() =>
+        HashCode.Combine(lod0.position, lod0.rotation, lod0.scale,
+                         lod1.position, lod1.rotation, lod1.scale);
+}
+
+public struct DrawData
+{
+    public Vector3 position;
+    public Vector4 rotation;
+    public Vector3 scale;
+}
+
+// Describes one LOD level: the mesh, its cloned instancing materials, and the distance
+// threshold below which we upgrade FROM this LOD to the next higher-quality one.
+// upgradeDistance is unused on the last (highest-quality) entry.
+[System.Serializable]
+public struct LODDefinition
+{
+    public Mesh mesh;
+    public Material[] materials;
+    [Tooltip("Upgrade to the next quality level when closer than this distance. Unused on the last LOD.")]
+    public float upgradeDistance;
+}
 
 public class BatchInstancer : MonoBehaviour
 {
     public Camera agentCamera;
-    // LOD1 = high-poly (close), LOD0 = low-poly (far); LOD1 may be null
-    public Mesh lodMesh1;
-    public Mesh lodMesh0;
-    public Material[] materials0;
-    public Material[] materials1;
-    private SubMeshInstance[] subMeshInstancesLOD1;
-    private SubMeshInstance[] subMeshInstancesLOD0;
 
-    public float lodDistance = 3f;
+    // LOD table: lods[0] = _LOD0 (always present), higher indices = higher quality / closer.
+    // Set by GPUInstanceTracker.PrepareBatchInstancer, or configured directly in the Inspector.
+    public LODDefinition[] lods;
 
-    /* custom shader buffers setup */
-
-    /* holds InstanceLODData for ALL items (of one type) to draw */
-    private List<InstanceLODData> instances = new();
+    private List<InstanceData> instances = new();
     public string itemId;
+
     private ComputeBuffer _drawDataBuffer;
-    private int instanceLODDataSize = Marshal.SizeOf<InstanceLODData>();
-    private int drawDataSize = Marshal.SizeOf<DrawData>();
+    private int _instanceDataSize;
+    private int _drawDataSize = Marshal.SizeOf<DrawData>();
 
     private int _sDrawDataId;
 
-    /* frustum culling compute shader setup */
-
     public ComputeShader frustumCullingShader;
     private ComputeBuffer _simplePlaneBuffer;
-    private ComputeBuffer _unculledLOD1Buffer;
-    private ComputeBuffer _unculledLOD0Buffer;
 
-    private int simplePlaneSize = sizeof(float) * 4;
+    // One AppendBuffer per active LOD; _dummyBuffer fills unused named HLSL slots
+    private ComputeBuffer[] _unculledLODBuffers;
+    private ComputeBuffer _dummyBuffer;
+    private SubMeshInstance[][] _subMeshPerLOD;
+
+    private readonly int _simplePlaneSize = sizeof(float) * 4;
 
     private int _fDrawBufferId;
     private int _fNumToDrawId;
     private int _fPlanesId;
-    private int _fUnculledLOD1BufferId;
-    private int _fUnculledLOD0BufferId;
+    private int _fLodDistancesId;
+    private int _fNumLodsId;
     private int _fAgentPositionId;
-    private int _fLodDistanceId;
-    private int _fHasLOD1Id;
-    private int _fHasLOD0Id;
     private int _fKernelId;
 
-    private bool ready = false;
+    // Matches the 4 named AppendStructuredBuffer outputs in the compute shader
+    private static readonly string[] LodBufNames = { "lod0_buf", "lod1_buf", "lod2_buf", "lod3_buf" };
+    private readonly int[] _fLodBufIds = new int[LodBufNames.Length];
+
+    private const int MAX_LODS = 4;
+
+    private bool _ready = false;
     private bool _buffersDirty = false;
 
     public void Init()
     {
-        if (lodMesh1 != null && materials1 != null)
+        _instanceDataSize = Marshal.SizeOf<InstanceData>();
+
+        if (lods == null || lods.Length == 0)
         {
-            int count1 = Mathf.Min(materials1.Length, lodMesh1.subMeshCount);
-            subMeshInstancesLOD1 = new SubMeshInstance[count1];
-            for (int i = 0; i < count1; i++)
+            Debug.LogError($"BatchInstancer ({itemId}): no LODs defined.");
+            return;
+        }
+
+        // Build SubMeshInstance arrays for each active LOD
+        _subMeshPerLOD = new SubMeshInstance[lods.Length][];
+        for (int i = 0; i < lods.Length; i++)
+        {
+            Mesh m = lods[i].mesh;
+            Material[] mats = lods[i].materials;
+            if (m == null || mats == null) continue;
+
+            int count = Mathf.Min(mats.Length, m.subMeshCount);
+            _subMeshPerLOD[i] = new SubMeshInstance[count];
+            for (int s = 0; s < count; s++)
             {
-                subMeshInstancesLOD1[i] = new SubMeshInstance(
-                    lodMesh1.GetIndexCount(i),
-                    lodMesh1.GetIndexStart(i),
-                    lodMesh1.GetBaseVertex(i),
-                    materials1[i]
+                _subMeshPerLOD[i][s] = new SubMeshInstance(
+                    m.GetIndexCount(s),
+                    m.GetIndexStart(s),
+                    m.GetBaseVertex(s),
+                    mats[s]
                 );
             }
         }
 
-        if (lodMesh0 != null && materials0 != null)
-        {
-            int count0 = Mathf.Min(materials0.Length, lodMesh0.subMeshCount);
-            subMeshInstancesLOD0 = new SubMeshInstance[count0];
-            for (int i = 0; i < count0; i++)
-            {
-                subMeshInstancesLOD0[i] = new SubMeshInstance(
-                    lodMesh0.GetIndexCount(i),
-                    lodMesh0.GetIndexStart(i),
-                    lodMesh0.GetBaseVertex(i),
-                    materials0[i]
-                );
-            }
-        }
+        _simplePlaneBuffer = new ComputeBuffer(6, _simplePlaneSize);
 
-        _simplePlaneBuffer = new ComputeBuffer(6, simplePlaneSize);
+        _fDrawBufferId    = Shader.PropertyToID("draw_buffer");
+        _fNumToDrawId     = Shader.PropertyToID("num_to_draw");
+        _fPlanesId        = Shader.PropertyToID("planes");
+        _fLodDistancesId  = Shader.PropertyToID("lod_distances");
+        _fNumLodsId       = Shader.PropertyToID("num_lods");
+        _fAgentPositionId = Shader.PropertyToID("agent_position");
+        for (int i = 0; i < LodBufNames.Length; i++)
+            _fLodBufIds[i] = Shader.PropertyToID(LodBufNames[i]);
 
-        _fDrawBufferId         = Shader.PropertyToID("draw_buffer");
-        _fNumToDrawId          = Shader.PropertyToID("num_to_draw");
-        _fPlanesId             = Shader.PropertyToID("planes");
-        _fUnculledLOD1BufferId = Shader.PropertyToID("unculled_lod1_buf");
-        _fUnculledLOD0BufferId = Shader.PropertyToID("unculled_lod0_buf");
-        _fAgentPositionId      = Shader.PropertyToID("agent_position");
-        _fLodDistanceId        = Shader.PropertyToID("lod_distance");
-        _fHasLOD1Id            = Shader.PropertyToID("has_lod1");
-        _fHasLOD0Id            = Shader.PropertyToID("has_lod0");
-        _fKernelId             = frustumCullingShader.FindKernel("CSMain");
-
+        _fKernelId   = frustumCullingShader.FindKernel("CSMain");
         _sDrawDataId = Shader.PropertyToID("_DrawData");
 
-        frustumCullingShader.SetBuffer(_fKernelId, _fPlanesId, _simplePlaneBuffer);
-        frustumCullingShader.SetFloat(_fLodDistanceId, lodDistance);
-        frustumCullingShader.SetInt(_fHasLOD1Id, lodMesh1 != null ? 1 : 0);
-        frustumCullingShader.SetInt(_fHasLOD0Id, lodMesh0 != null ? 1 : 0);
+        // Assemble lod_distances: lods[i].upgradeDistance = threshold to step up to lods[i+1]
+        // Stored descending (outer → inner) as a float4
+        Vector4 lodDist = Vector4.zero;
+        for (int i = 0; i < Mathf.Min(lods.Length - 1, MAX_LODS - 1); i++)
+            lodDist[i] = lods[i].upgradeDistance;
 
-        ready = true;
+        frustumCullingShader.SetBuffer(_fKernelId, _fPlanesId, _simplePlaneBuffer);
+        frustumCullingShader.SetVector(_fLodDistancesId, lodDist);
+        frustumCullingShader.SetInt(_fNumLodsId, lods.Length);
+
+        // Dummy 1-element buffer for HLSL slots beyond the active LOD count
+        _dummyBuffer = new ComputeBuffer(1, _drawDataSize, ComputeBufferType.Append);
+        for (int i = lods.Length; i < MAX_LODS; i++)
+            frustumCullingShader.SetBuffer(_fKernelId, _fLodBufIds[i], _dummyBuffer);
+
+        _ready = true;
     }
 
-    // LateUpdate because GPUInstanceTracker has to
-    // calculate cameraFrustumPlanes first at Update()
+    // LateUpdate because GPUInstanceTracker calculates cameraFrustumPlanes first at Update()
     void Update()
     {
-        if (!ready) return;
+        if (!_ready) return;
 
         if (_buffersDirty && instances.Count > 0)
             RebuildBuffers();
@@ -162,12 +193,11 @@ public class BatchInstancer : MonoBehaviour
         Profiler.EndSample();
 
         Profiler.BeginSample("Dispatch ComputeShader");
-        
-        _unculledLOD1Buffer.SetData(Array.Empty<DrawData>());
-        _unculledLOD1Buffer.SetCounterValue(0);
-        
-        _unculledLOD0Buffer.SetData(Array.Empty<DrawData>());
-        _unculledLOD0Buffer.SetCounterValue(0);
+        for (int i = 0; i < lods.Length; i++)
+        {
+            _unculledLODBuffers[i].SetData(Array.Empty<DrawData>());
+            _unculledLODBuffers[i].SetCounterValue(0);
+        }
 
         frustumCullingShader.Dispatch(
             _fKernelId,
@@ -177,38 +207,21 @@ public class BatchInstancer : MonoBehaviour
         );
         Profiler.EndSample();
 
-        // Draw LOD1 (high-poly, close)
-        if (subMeshInstancesLOD1 != null && lodMesh1 != null)
+        // Draw each active LOD
+        for (int i = 0; i < lods.Length; i++)
         {
-            for (int i = 0; i < subMeshInstancesLOD1.Length; i++)
+            if (_subMeshPerLOD[i] == null || lods[i].mesh == null) continue;
+            for (int s = 0; s < _subMeshPerLOD[i].Length; s++)
             {
-                subMeshInstancesLOD1[i].material.SetBuffer(_sDrawDataId, _unculledLOD1Buffer);
-                subMeshInstancesLOD1[i].UpdateInstanceCountBuf(_unculledLOD1Buffer);
+                _subMeshPerLOD[i][s].material.SetBuffer(_sDrawDataId, _unculledLODBuffers[i]);
+                _subMeshPerLOD[i][s].UpdateInstanceCountBuf(_unculledLODBuffers[i]);
 
                 Graphics.DrawMeshInstancedIndirect(
-                    lodMesh1,
-                    i,
-                    subMeshInstancesLOD1[i].material,
+                    lods[i].mesh,
+                    s,
+                    _subMeshPerLOD[i][s].material,
                     new Bounds(Vector3.zero, Vector3.one * 1000f),
-                    subMeshInstancesLOD1[i].argsBuffer
-                );
-            }
-        }
-
-        // Draw LOD0 (low-poly, far)
-        if (subMeshInstancesLOD0 != null && lodMesh0 != null)
-        {
-            for (int i = 0; i < subMeshInstancesLOD0.Length; i++)
-            {
-                subMeshInstancesLOD0[i].material.SetBuffer(_sDrawDataId, _unculledLOD0Buffer);
-                subMeshInstancesLOD0[i].UpdateInstanceCountBuf(_unculledLOD0Buffer);
-
-                Graphics.DrawMeshInstancedIndirect(
-                    lodMesh0,
-                    i,
-                    subMeshInstancesLOD0[i].material,
-                    new Bounds(Vector3.zero, Vector3.one * 1000f),
-                    subMeshInstancesLOD0[i].argsBuffer
+                    _subMeshPerLOD[i][s].argsBuffer
                 );
             }
         }
@@ -216,23 +229,20 @@ public class BatchInstancer : MonoBehaviour
 
     void OnDestroy()
     {
-        /*
-         * Destroy ComputeBuffers
-         * C# doesn't handle the cleanup of these
-         * since they are in the GPU
-         */
-        if (subMeshInstancesLOD1 != null)
-            foreach (var t in subMeshInstancesLOD1) t.Release();
-        if (subMeshInstancesLOD0 != null)
-            foreach (var t in subMeshInstancesLOD0) t.Release();
+        if (_subMeshPerLOD != null)
+            foreach (var lodSubs in _subMeshPerLOD)
+                if (lodSubs != null)
+                    foreach (var sub in lodSubs) sub.Release();
 
         _drawDataBuffer?.Release();
         _simplePlaneBuffer?.Release();
-        _unculledLOD1Buffer?.Release();
-        _unculledLOD0Buffer?.Release();
+        _dummyBuffer?.Release();
+
+        if (_unculledLODBuffers != null)
+            foreach (var buf in _unculledLODBuffers) buf?.Release();
     }
 
-    public void RemoveSingleDrawData(InstanceLODData d)
+    public void RemoveSingleDrawData(InstanceData d)
     {
         instances.Remove(d);
         _buffersDirty = true;
@@ -244,14 +254,14 @@ public class BatchInstancer : MonoBehaviour
         _buffersDirty = true;
     }
 
-    public void RemoveDrawDataRange(List<InstanceLODData> toRemove)
+    public void RemoveDrawDataRange(List<InstanceData> toRemove)
     {
-        foreach (InstanceLODData d in toRemove)
+        foreach (InstanceData d in toRemove)
             instances.Remove(d);
         _buffersDirty = true;
     }
 
-    public void AddObjectToBatch(InstanceLODData d)
+    public void AddObjectToBatch(InstanceData d)
     {
         instances.Add(d);
         _buffersDirty = true;
@@ -260,19 +270,21 @@ public class BatchInstancer : MonoBehaviour
     private void RebuildBuffers()
     {
         _drawDataBuffer?.Release();
-        _drawDataBuffer = new ComputeBuffer(instances.Count, instanceLODDataSize);
+        _drawDataBuffer = new ComputeBuffer(instances.Count, _instanceDataSize);
         _drawDataBuffer.SetData(instances);
 
-        _unculledLOD1Buffer?.Release();
-        _unculledLOD1Buffer = new ComputeBuffer(instances.Count, drawDataSize, ComputeBufferType.Append);
+        if (_unculledLODBuffers != null)
+            foreach (var buf in _unculledLODBuffers) buf?.Release();
 
-        _unculledLOD0Buffer?.Release();
-        _unculledLOD0Buffer = new ComputeBuffer(instances.Count, drawDataSize, ComputeBufferType.Append);
+        _unculledLODBuffers = new ComputeBuffer[lods.Length];
+        for (int i = 0; i < lods.Length; i++)
+        {
+            _unculledLODBuffers[i] = new ComputeBuffer(instances.Count, _drawDataSize, ComputeBufferType.Append);
+            frustumCullingShader.SetBuffer(_fKernelId, _fLodBufIds[i], _unculledLODBuffers[i]);
+        }
 
         frustumCullingShader.SetInt(_fNumToDrawId, instances.Count);
         frustumCullingShader.SetBuffer(_fKernelId, _fDrawBufferId, _drawDataBuffer);
-        frustumCullingShader.SetBuffer(_fKernelId, _fUnculledLOD1BufferId, _unculledLOD1Buffer);
-        frustumCullingShader.SetBuffer(_fKernelId, _fUnculledLOD0BufferId, _unculledLOD0Buffer);
 
         _buffersDirty = false;
     }

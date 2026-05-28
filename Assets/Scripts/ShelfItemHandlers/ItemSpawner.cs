@@ -194,13 +194,13 @@ public class ItemSpawner : MonoBehaviour
 
                     Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
 
-                    InstanceLODData instanceLODData =
+                    InstanceData instanceData =
                         GenerateProductDrawData(product, spawnPosition, itemHeight);
 
                     GPUInstanceTracker.Instance.AddToInstance(
                         product.name,
                         product,
-                        instanceLODData
+                        instanceData
                     );
 
                     GenerateBoundingBoxTriggerForItem(
@@ -209,7 +209,7 @@ public class ItemSpawner : MonoBehaviour
                         itemWidth,
                         itemDepth,
                         product.name,
-                        instanceLODData,
+                        instanceData,
                         aisleRot
                     );
                 }
@@ -262,26 +262,24 @@ public class ItemSpawner : MonoBehaviour
         }
     }
 
-    InstanceLODData AdjustDrawDataIfPivotOnCenter(Transform lod0Transform, Transform lod1Transform, InstanceLODData data, float itemHeight)
+    InstanceData AdjustDrawDataIfPivotOnCenter(Transform lod0Transform, InstanceData data, float itemHeight)
     {
         Mesh mesh0 = lod0Transform != null ? lod0Transform.GetComponent<MeshFilter>()?.sharedMesh : null;
-        Mesh mesh1 = lod1Transform != null ? lod1Transform.GetComponent<MeshFilter>()?.sharedMesh : null;
-        
-        // note: used mesh0.bounds.center
+
         if (mesh0 != null && lod0Transform.position != Vector3.zero)
         {
             /*
              * Our shelf position calcs assume the pivot
-             * is at the items bottom, not center, so adjust
+             * is at the item's bottom, not center, so adjust
              * for it. Without this, items spawn IN the shelves,
-             * not ON.
+             * not ON. All LOD slots share the same spawn position,
+             * so adjust them all together.
              */
-            data.position0.y += itemHeight / 2;
-        }
-
-        if (mesh1 != null && lod1Transform.position != Vector3.zero)
-        {
-            data.position1.y += itemHeight / 2;
+            float adj = itemHeight / 2;
+            data.lod0.position.y += adj;
+            data.lod1.position.y += adj;
+            data.lod2.position.y += adj;
+            data.lod3.position.y += adj;
         }
 
         return data;
@@ -293,7 +291,7 @@ public class ItemSpawner : MonoBehaviour
                       (itemWidth + interItemPadding));
     }
 
-    void GenerateBoundingBoxTriggerForItem(Vector3 spawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceLODData instanceLODData, Quaternion aisleRot)
+    void GenerateBoundingBoxTriggerForItem(Vector3 spawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
     {
         GameObject itemTrigger = GameObject.CreatePrimitive(PrimitiveType.Cube);
         BoxCollider b = itemTrigger.GetComponent<BoxCollider>();
@@ -309,7 +307,7 @@ public class ItemSpawner : MonoBehaviour
         itemTrigger.GetComponent<Renderer>().material = _airMaterial;
 
         itemBBoxInfo.itemId = productName;
-        itemBBoxInfo.instanceLODData = instanceLODData;
+        itemBBoxInfo.instanceData = instanceData;
         itemBBoxInfo.spawnRotation = aisleRot;
 
         if (DataHandler.Instance.enableShelfItemPhysics)
@@ -328,45 +326,58 @@ public class ItemSpawner : MonoBehaviour
         // itemTrigger.transform.SetParent(transform);
     }
 
-    InstanceLODData GenerateProductDrawData(GameObject product, Vector3 spawnPosition, float itemHeight)
+    InstanceData GenerateProductDrawData(GameObject product, Vector3 spawnPosition, float itemHeight)
     {
         /*
-         * get the transforms of LOD0 (and LOD1, 2, and 3 if present)
-         * if you get the transforms of the product itself,
-         * some items won't spawn properly (local vs world coords)
+         * Get the transforms of _LOD0–_LOD3 (if present).
+         * Using the LOD child transforms rather than the product root ensures
+         * correct local-vs-world coordinates for items with non-identity rotations/scales.
          */
         Transform prodChild = product.transform.GetChild(0);
 
         Transform lod0Transform = null;
         Transform lod1Transform = null;
+        Transform lod2Transform = null;
+        Transform lod3Transform = null;
         foreach (Transform child in prodChild)
         {
-            if (child.name.EndsWith("_LOD0")) lod0Transform = child;
+            if      (child.name.EndsWith("_LOD0")) lod0Transform = child;
             else if (child.name.EndsWith("_LOD1")) lod1Transform = child;
+            else if (child.name.EndsWith("_LOD2")) lod2Transform = child;
+            else if (child.name.EndsWith("_LOD3")) lod3Transform = child;
         }
 
         if (lod0Transform is null)
         {
-            Debug.LogWarning("Could not find LOD0 for object " + product.name);
+            Debug.LogWarning("Could not find _LOD0 for object " + product.name);
             lod0Transform = prodChild;
         }
 
         Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
-        Quaternion q0 = aisleRot * lod0Transform.rotation;
-        Quaternion q1 = lod1Transform != null ? aisleRot * lod1Transform.rotation : q0;
-        Vector3 s1 = lod1Transform != null ? lod1Transform.lossyScale : lod0Transform.lossyScale;
 
-        InstanceLODData data = new InstanceLODData
+        // Build a LodTransform for the given child; falls back to lod0 if the child is absent.
+        // Unused slots are safe to zero because the compute shader never indexes beyond num_lods-1.
+        LodTransform MakeLodTransform(Transform t, Transform fallback)
         {
-            position0 = spawnPosition,
-            rotation0 = new Vector4(q0.x, q0.y, q0.z, q0.w),
-            scale0    = lod0Transform.lossyScale,
-            position1 = spawnPosition,
-            rotation1 = new Vector4(q1.x, q1.y, q1.z, q1.w),
-            scale1    = s1
+            Transform src = t != null ? t : fallback;
+            Quaternion q = aisleRot * src.rotation;
+            return new LodTransform
+            {
+                position = spawnPosition,
+                rotation = new Vector4(q.x, q.y, q.z, q.w),
+                scale    = src.lossyScale
+            };
+        }
+
+        InstanceData data = new InstanceData
+        {
+            lod0 = MakeLodTransform(lod0Transform, lod0Transform),
+            lod1 = MakeLodTransform(lod1Transform, lod0Transform),
+            lod2 = MakeLodTransform(lod2Transform, lod0Transform),
+            lod3 = MakeLodTransform(lod3Transform, lod0Transform),
         };
 
-        return AdjustDrawDataIfPivotOnCenter(lod0Transform, lod1Transform, data, itemHeight);
+        return AdjustDrawDataIfPivotOnCenter(lod0Transform, data, itemHeight);
     }
     
     Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum, bool bBoxDepth = false)

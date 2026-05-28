@@ -5,13 +5,13 @@ public class ItemBBoxInfo : MonoBehaviour
     // True when this component is on a dropped/physical item rather than a GPU-instanced shelf item.
     public bool isPhysicsObject;
 
-    // When true, DeleteItem() returns the root (i.e., the physics 
+    // When true, DeleteItem() returns the root (i.e., the physics
     // Game Object) to the pool instead of destroying it.
     // Set by ItemPoolingManager on pool-managed physics objects.
     public bool returnToPoolOnDelete;
 
     public string itemId;
-    public InstanceLODData instanceLODData;
+    public InstanceData instanceData;
     // Aisle-facing rotation for the prefab root (not baked with LOD child offsets).
     // Used by ItemPhysicsProxy to spawn the physics prefab at the correct orientation.
     public Quaternion spawnRotation;
@@ -50,7 +50,7 @@ public class ItemBBoxInfo : MonoBehaviour
 
         if (itemBatchInstancer != null)
         {
-            itemBatchInstancer.RemoveSingleDrawData(instanceLODData);
+            itemBatchInstancer.RemoveSingleDrawData(instanceData);
         }
     }
 }

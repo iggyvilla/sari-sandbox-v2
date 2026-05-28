@@ -4021,6 +4021,14 @@ PrefabInstance:
       propertyPath: itemCategory
       value: 5
       objectReference: {fileID: 0}
+    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+      propertyPath: forcedCategory
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+      propertyPath: debugForceItemCategory
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_Name
       value: ShelfBuilder
