@@ -68,7 +68,7 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
             _settleCoroutine = null;
         }
 
-        RetailItemRuntimeService.Instance.PreparePreviewForGrab(_runtimeItem, _permanentlyPhysical);
+        RetailItemRuntimeService.Instance.PreparePreviewForGrab(_runtimeItem);
         _runtimeItem = null;
     }
 

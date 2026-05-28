@@ -159,13 +159,13 @@ public class RetailItemRuntimeService : MonoBehaviour
         return item;
     }
 
-    public void PreparePreviewForGrab(RuntimeRetailItem item, bool permanentlyPhysical)
+    public void PreparePreviewForGrab(RuntimeRetailItem item)
     {
         if (item == null || item.shelfBBoxInfo == null) return;
 
         ItemBBoxInfo bboxInfo = item.shelfBBoxInfo;
         bboxInfo.transform.SetParent(null);
-        
+
         bboxInfo.transform.SetPositionAndRotation(
             item.originalBBoxWorldPosition,
             item.originalBBoxWorldRotation);
