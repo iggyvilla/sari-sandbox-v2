@@ -7,6 +7,8 @@ using Random = UnityEngine.Random;
 
 public class ItemSpawner : MonoBehaviour
 {
+    private const float StackVerticalClearance = 0.001f;
+
     private float widthBudget;
     private float depthBudget;
     private float shelfWidth;
@@ -405,7 +407,7 @@ public class ItemSpawner : MonoBehaviour
             // stacks items sidewards
             shelfPos.x + (ShelfIsFacingZ() ? sideOffset : backOffset),
             // stacks items (only stackable ones) upwards
-            shelfPos.y + shelfWidth / 2 + itemHeight * stackNum,
+            shelfPos.y + shelfWidth / 2 + (itemHeight + StackVerticalClearance) * stackNum,
             // stacks items backwards
             shelfPos.z + (ShelfIsFacingZ() ? backOffset : sideOffset)
         );

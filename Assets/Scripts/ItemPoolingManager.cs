@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -5,8 +6,17 @@ public class ItemPoolingManager : MonoBehaviour
 {
     public static ItemPoolingManager Instance { get; private set; }
 
+    private const float ItemMaxDepenetrationVelocity = 2f;
+    private const int ItemSolverIterations = 12;
+    private const int ItemSolverVelocityIterations = 4;
+    private const float SpawnOverlapPadding = 0.002f;
+    private const int SpawnOverlapResolveIterations = 6;
+    private const int SpawnActivationDelayFixedFrames = 2;
+
     private readonly Dictionary<string, Queue<GameObject>> _pool = new();
+    private readonly Dictionary<Rigidbody, Coroutine> _activationCoroutines = new();
     private Transform _poolParent;
+    private PhysicsMaterial _stableItemMaterial;
 
     void Awake()
     {
@@ -18,6 +28,7 @@ public class ItemPoolingManager : MonoBehaviour
 
         Instance = this;
         _poolParent = new GameObject("[ItemPool]").transform;
+        _stableItemMaterial = CreateStableItemMaterial();
     }
 
     // Returns a physics-ready item at the given world position and rotation.
@@ -41,15 +52,26 @@ public class ItemPoolingManager : MonoBehaviour
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
         {
-            rb.isKinematic = false;
-            rb.useGravity = true;
+            rb.isKinematic = true;
+            rb.useGravity = false;
             rb.interpolation = RigidbodyInterpolation.Extrapolate;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.maxDepenetrationVelocity = ItemMaxDepenetrationVelocity;
+            rb.solverIterations = ItemSolverIterations;
+            rb.solverVelocityIterations = ItemSolverVelocityIterations;
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
         }
 
+        ApplyStablePhysicsMaterial(obj);
+
         BoxCollider bc = obj.GetComponentInChildren<BoxCollider>(true);
         if (bc != null) bc.enabled = true;
+
+        ResolveSpawnOverlaps(obj);
+
+        if (rb != null)
+            SchedulePhysicsActivation(rb);
 
         return obj;
     }
@@ -61,6 +83,7 @@ public class ItemPoolingManager : MonoBehaviour
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
         {
+            CancelPhysicsActivation(rb);
             rb.isKinematic = true;
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
@@ -82,11 +105,15 @@ public class ItemPoolingManager : MonoBehaviour
 
     public void ClearPool()
     {
+        foreach (Coroutine coroutine in _activationCoroutines.Values)
+            if (coroutine != null) StopCoroutine(coroutine);
+
         foreach (var queue in _pool.Values)
             foreach (var obj in queue)
                 if (obj != null) Destroy(obj);
 
         _pool.Clear();
+        _activationCoroutines.Clear();
     }
 
     private GameObject CreatePhysicsItem(string itemId, Vector3 position, Quaternion rotation)
@@ -103,5 +130,118 @@ public class ItemPoolingManager : MonoBehaviour
         obj.tag = "RetailItem";
 
         return obj;
+    }
+
+    private static PhysicsMaterial CreateStableItemMaterial()
+    {
+        return new PhysicsMaterial("Stable Retail Item")
+        {
+            dynamicFriction = 0.7f,
+            staticFriction = 0.8f,
+            bounciness = 0f,
+            frictionCombine = PhysicsMaterialCombine.Maximum,
+            bounceCombine = PhysicsMaterialCombine.Minimum
+        };
+    }
+
+    private void ApplyStablePhysicsMaterial(GameObject obj)
+    {
+        if (_stableItemMaterial == null)
+            _stableItemMaterial = CreateStableItemMaterial();
+
+        Collider[] colliders = obj.GetComponentsInChildren<Collider>(true);
+        foreach (Collider collider in colliders)
+        {
+            if (!collider.isTrigger)
+                collider.sharedMaterial = _stableItemMaterial;
+        }
+    }
+
+    private static void ResolveSpawnOverlaps(GameObject obj)
+    {
+        Collider[] itemColliders = obj.GetComponentsInChildren<Collider>(true);
+
+        for (int i = 0; i < SpawnOverlapResolveIterations; i++)
+        {
+            bool moved = false;
+
+            foreach (Collider itemCollider in itemColliders)
+            {
+                if (!ShouldResolveCollider(itemCollider)) continue;
+
+                Bounds bounds = itemCollider.bounds;
+                Collider[] overlaps = Physics.OverlapBox(
+                    bounds.center,
+                    bounds.extents + Vector3.one * SpawnOverlapPadding,
+                    Quaternion.identity,
+                    Physics.DefaultRaycastLayers,
+                    QueryTriggerInteraction.Ignore);
+
+                foreach (Collider overlap in overlaps)
+                {
+                    if (!ShouldResolveCollider(overlap) || overlap.transform.IsChildOf(obj.transform))
+                        continue;
+
+                    if (!Physics.ComputePenetration(
+                            itemCollider,
+                            itemCollider.transform.position,
+                            itemCollider.transform.rotation,
+                            overlap,
+                            overlap.transform.position,
+                            overlap.transform.rotation,
+                            out Vector3 direction,
+                            out float distance))
+                        continue;
+
+                    obj.transform.position += direction * (distance + SpawnOverlapPadding);
+                    Physics.SyncTransforms();
+                    moved = true;
+                    break;
+                }
+
+                if (moved) break;
+            }
+
+            if (!moved) break;
+        }
+    }
+
+    private static bool ShouldResolveCollider(Collider collider)
+    {
+        return collider != null && collider.enabled && !collider.isTrigger && collider.gameObject.activeInHierarchy;
+    }
+
+    private void SchedulePhysicsActivation(Rigidbody rb)
+    {
+        CancelPhysicsActivation(rb);
+        _activationCoroutines[rb] = StartCoroutine(EnablePhysicsAfterSpawn(rb));
+    }
+
+    private void CancelPhysicsActivation(Rigidbody rb)
+    {
+        if (rb == null || !_activationCoroutines.TryGetValue(rb, out Coroutine coroutine))
+            return;
+
+        if (coroutine != null)
+            StopCoroutine(coroutine);
+
+        _activationCoroutines.Remove(rb);
+    }
+
+    private IEnumerator EnablePhysicsAfterSpawn(Rigidbody rb)
+    {
+        for (int i = 0; i < SpawnActivationDelayFixedFrames; i++)
+            yield return new WaitForFixedUpdate();
+
+        _activationCoroutines.Remove(rb);
+
+        if (rb == null || !rb.gameObject.activeInHierarchy)
+            yield break;
+
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.useGravity = true;
+        rb.isKinematic = false;
+        rb.WakeUp();
     }
 }

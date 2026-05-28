@@ -9,7 +9,7 @@ using UnityEngine;
 [RequireComponent(typeof(ItemBBoxInfo))]
 public class ItemBBoxPhysicsProxy : MonoBehaviour
 {
-    [SerializeField] private float positionThreshold = 0f;
+    [SerializeField] private float positionThreshold = 0.01f;
     [SerializeField] private float rotationThreshold = 5f;
 
     private ItemBBoxInfo _bBoxInfo;
