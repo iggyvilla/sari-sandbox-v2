@@ -402,38 +402,19 @@ public class ItemSpawner : MonoBehaviour
     InstanceData GenerateProductDrawData(GameObject product, Vector3 spawnPosition)
     {
         /*
-         * Get the transforms of _LOD0–_LOD3 (if present).
-         * Using the LOD child transforms rather than the product root ensures
-         * correct local-vs-world coordinates for items with non-identity rotations/scales.
+         * Get the transforms of _LOD0–_LOD3 via the shared resolver (single source of
+         * truth for the scan + fallback logic). Using the LOD child transforms rather
+         * than the product root ensures correct local-vs-world coordinates for items
+         * with non-identity rotations/scales.
+         *
+         * lods[i] is guaranteed non-null; missing LODs carry forward the last found one.
          */
-        Transform prodChild = product.transform.GetChild(0);
-
-        Transform lod0Transform = null;
-        Transform lod1Transform = null;
-        Transform lod2Transform = null;
-        Transform lod3Transform = null;
-        
-        foreach (Transform child in prodChild)
-        {
-            if      (child.name.EndsWith("_LOD0")) lod0Transform = child;
-            else if (child.name.EndsWith("_LOD1")) lod1Transform = child;
-            else if (child.name.EndsWith("_LOD2")) lod2Transform = child;
-            else if (child.name.EndsWith("_LOD3")) lod3Transform = child;
-        }
-
-        if (lod0Transform is null)
-        {
-            Debug.LogWarning("Could not find _LOD0 for object " + product.name);
-            lod0Transform = prodChild;
-        }
+        Transform[] lods = LodHierarchy.ResolveLodTransforms(product);
 
         Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
 
-        // Build a LodTransform for the given child; falls back to lod0 if the child is absent.
-        // Unused slots are safe to zero because the compute shader never indexes beyond num_lods-1.
-        LodTransform MakeLodTransform(Transform t, Transform fallback)
+        LodTransform MakeLodTransform(Transform src)
         {
-            Transform src = t != null ? t : fallback;
             Quaternion q = aisleRot * src.rotation;
             return new LodTransform
             {
@@ -445,13 +426,13 @@ public class ItemSpawner : MonoBehaviour
 
         InstanceData data = new InstanceData
         {
-            lod0 = MakeLodTransform(lod0Transform, lod0Transform),
-            lod1 = MakeLodTransform(lod1Transform, lod0Transform),
-            lod2 = MakeLodTransform(lod2Transform, lod0Transform),
-            lod3 = MakeLodTransform(lod3Transform, lod0Transform),
+            lod0 = MakeLodTransform(lods[0]),
+            lod1 = MakeLodTransform(lods[1]),
+            lod2 = MakeLodTransform(lods[2]),
+            lod3 = MakeLodTransform(lods[3]),
         };
 
-        return AdjustDrawDataIfPivotOnCenter(lod0Transform, lod1Transform, lod2Transform, lod3Transform, data);
+        return AdjustDrawDataIfPivotOnCenter(lods[0], lods[1], lods[2], lods[3], data);
     }
     
     Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum, bool bBoxDepth = false)

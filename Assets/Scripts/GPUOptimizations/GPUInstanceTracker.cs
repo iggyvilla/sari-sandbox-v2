@@ -19,6 +19,10 @@ public class GPUInstanceTracker : MonoBehaviour
     private Dictionary<string, BatchInstancer> trackers = new();
     public SimplePlane[] cameraFrustumPlanes;
 
+    // LOD2/LOD3 are disabled until their mesh scales are fixed. Flip to true (here or in
+    // the Inspector) to restore all 4 LODs — no other code change needed.
+    [SerializeField] private bool enableLod2AndLod3 = false;
+
     // Default max-distance thresholds (ascending: inner → outer).
     // lods[i].maxDistance = "use this LOD when closer than this distance".
     // lods[0] = LOD0 (closest/highest quality); last entry = hard cull distance (skip entirely beyond this).
@@ -95,50 +99,34 @@ public class GPUInstanceTracker : MonoBehaviour
 
     void PrepareBatchInstancer(BatchInstancer bi, GameObject obj, string itemId)
     {
-        // Scan the first child's children for _LOD0–_LOD3 meshes (in order, high→low quality).
-        // _LOD0 is required; missing higher-index LODs reuse the last available mesh so
-        // single-LOD products stay visible through the normal far-distance buckets.
-        string[] lodSuffixes = { "_LOD0", "_LOD1", "_LOD2", "_LOD3" };
+        // Resolve _LOD0–_LOD3 child transforms via the shared resolver (same scan + carry-forward
+        // fallback used by ItemSpawner). Missing LODs reuse the last found one, so single-LOD
+        // products stay visible through the normal far-distance buckets.
+        Transform[] lodTransforms = LodHierarchy.ResolveLodTransforms(obj);
+
+        // LOD2/LOD3 are disabled by default; cap to 2 active LODs until their scales are fixed.
+        int activeLods = enableLod2AndLod3 ? LodHierarchy.MaxLods : 2;
         var lodList = new List<LODDefinition>();
-        Transform prodChild = obj.transform.GetChild(0);
-        LODDefinition? fallbackLod = null;
 
-        for (int i = 0; i < lodSuffixes.Length; i++)
+        for (int i = 0; i < activeLods; i++)
         {
-            string suffix = lodSuffixes[i];
-            LODDefinition? foundLod = null;
+            Transform t = lodTransforms[i];
+            var mf = t.GetComponent<MeshFilter>();
+            var mr = t.GetComponent<MeshRenderer>();
+            if (mf == null || mr == null) continue;
 
-            foreach (Transform child in prodChild)
-            {
-                if (!child.name.EndsWith(suffix)) continue;
-                var mf = child.GetComponent<MeshFilter>();
-                var mr = child.GetComponent<MeshRenderer>();
-                if (mf == null || mr == null) break;
+            // The last active LOD is the catch-all: give it the original hard-cull distance so
+            // disabling LOD2/LOD3 preserves the full visibility range instead of shrinking it.
+            float maxDistance = (i == activeLods - 1)
+                ? DefaultMaxDistances[LodHierarchy.MaxLods - 1]
+                : DefaultMaxDistances[i];
 
-                foundLod = new LODDefinition
-                {
-                    mesh        = mf.sharedMesh,
-                    materials   = CloneMaterialsForInstancing(mr.sharedMaterials),
-                    maxDistance = DefaultMaxDistances[i]
-                };
-                break;
-            }
-
-            if (foundLod.HasValue)
+            lodList.Add(new LODDefinition
             {
-                fallbackLod = foundLod.Value;
-                lodList.Add(foundLod.Value);
-            }
-            else if (fallbackLod.HasValue)
-            {
-                LODDefinition fallback = fallbackLod.Value;
-                lodList.Add(new LODDefinition
-                {
-                    mesh        = fallback.mesh,
-                    materials   = CloneMaterialsForInstancing(fallback.materials),
-                    maxDistance = DefaultMaxDistances[i]
-                });
-            }
+                mesh        = mf.sharedMesh,
+                materials   = CloneMaterialsForInstancing(mr.sharedMaterials),
+                maxDistance = maxDistance
+            });
         }
 
         if (lodList.Count == 0)
