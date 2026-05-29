@@ -128,7 +128,7 @@ public class RetailItemRuntimeService : MonoBehaviour
         BatchInstancer bi = GPUInstanceTracker.Instance?.GetBatchInstancerFromId(bboxInfo.itemId);
         bi?.RemoveSingleDrawData(bboxInfo.instanceData);
 
-        Vector3 pos = bboxInfo.instanceData.lod0.position;
+        Vector3 pos = bboxInfo.physicsSpawnPosition;
         Quaternion rot = bboxInfo.spawnRotation;
         if (ItemPoolingManager.Instance == null)
         {

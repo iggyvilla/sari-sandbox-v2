@@ -1967,7 +1967,7 @@ GameObject:
   - component: {fileID: 809956052}
   - component: {fileID: 809956051}
   m_Layer: 0
-  m_Name: Camera
+  m_Name: Price Tag Bake Camera
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

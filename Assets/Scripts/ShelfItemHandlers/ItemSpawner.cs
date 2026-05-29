@@ -204,6 +204,7 @@ public class ItemSpawner : MonoBehaviour
 
                     GenerateBoundingBoxTriggerForItem(
                         instanceData.lod0.position,
+                        spawnPosition,
                         itemHeight,
                         itemWidth,
                         itemDepth,
@@ -280,7 +281,6 @@ public class ItemSpawner : MonoBehaviour
                 Debug.Log("Cannot find mesh for: " + lodTransform.name);
                 return;
             }
-            if (mesh.name.Contains("COWHEAD")) Debug.Log(lodTransform.position);
             if (lodTransform.position == Vector3.zero) return;
 
             /*
@@ -289,7 +289,6 @@ public class ItemSpawner : MonoBehaviour
              * shelves, not ON.
             */
             float bottomOffset = -mesh.bounds.min.y * Mathf.Abs(lodTransform.lossyScale.y);
-            if (mesh.name.Contains("COWHEAD")) Debug.Log(bottomOffset);
             lodData.position.y += bottomOffset;
         }
 
@@ -307,7 +306,7 @@ public class ItemSpawner : MonoBehaviour
                       (itemWidth + interItemPadding));
     }
 
-    void GenerateBoundingBoxTriggerForItem(Vector3 spawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
+    void GenerateBoundingBoxTriggerForItem(Vector3 drawPosition, Vector3 physicsSpawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
     {
         GameObject bbox = GameObject.CreatePrimitive(PrimitiveType.Cube);
         BoxCollider b = bbox.GetComponent<BoxCollider>();
@@ -317,13 +316,14 @@ public class ItemSpawner : MonoBehaviour
         bbox.AddComponent<OutlineFx.OutlineFx>();
         bbox.AddComponent<OutlineController>();
 
-        bbox.transform.position = spawnPosition + new Vector3(0, itemHeight/2, 0);
+        bbox.transform.position = drawPosition + new Vector3(0, itemHeight/2, 0);
         bbox.layer = itemTriggerMask;
 
         bbox.GetComponent<Renderer>().material = _airMaterial;
 
         itemBBoxInfo.itemId = productName;
         itemBBoxInfo.instanceData = instanceData;
+        itemBBoxInfo.physicsSpawnPosition = physicsSpawnPosition;
         itemBBoxInfo.spawnRotation = aisleRot;
 
         if (DataHandler.Instance.enableShelfItemPhysics)

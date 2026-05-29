@@ -12,6 +12,8 @@ public class ItemBBoxInfo : MonoBehaviour
 
     public string itemId;
     public InstanceData instanceData;
+    // Original shelf/root spawn position before GPU-only pivot correction.
+    public Vector3 physicsSpawnPosition;
     // Aisle-facing rotation for the prefab root (not baked with LOD child offsets).
     // Used by ItemPhysicsProxy to spawn the physics prefab at the correct orientation.
     public Quaternion spawnRotation;
