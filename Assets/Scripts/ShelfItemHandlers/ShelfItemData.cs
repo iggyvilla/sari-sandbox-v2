@@ -52,12 +52,15 @@ public class ShelfItemData : MonoBehaviour
 
         while (lengthwiseOffset < widthBudget)
         {
-            GameObject product = null;
-            
-            product = GetRandomProduct(itemCategory);
-            if (product == null) break;
+            GameObject product = GetRandomProduct(itemCategory);
+            if (product is null)
+            {
+                Debug.LogWarning("Null product, retrying...");
+                continue;
+            }
             
             MeshRenderer r = product.GetComponentInChildren<MeshRenderer>();
+            Debug.Log(product.name);
             if (r is null)
             {
                 Debug.LogError(product.name + " has no mesh renderer");

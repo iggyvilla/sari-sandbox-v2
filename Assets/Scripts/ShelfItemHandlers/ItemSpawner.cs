@@ -203,7 +203,7 @@ public class ItemSpawner : MonoBehaviour
                     );
 
                     GenerateBoundingBoxTriggerForItem(
-                        spawnPosition,
+                        instanceData.lod0.position,
                         itemHeight,
                         itemWidth,
                         itemDepth,
@@ -270,15 +270,12 @@ public class ItemSpawner : MonoBehaviour
     {
         void AdjustLod(Transform lodTransform, ref LodTransform lodData)
         {
-            if (lodTransform == null)
-            {
-                return;
-            }
-
+            if (lodTransform is null) return;
+            
             Mesh mesh = lodTransform.GetComponent<MeshFilter>()?.sharedMesh;
             
             // If mesh exists, and its pivot is already at the bottom, no need to adjust
-            if (mesh == null)
+            if (mesh is null)
             {
                 Debug.Log("Cannot find mesh for: " + lodTransform.name);
                 return;
@@ -312,31 +309,31 @@ public class ItemSpawner : MonoBehaviour
 
     void GenerateBoundingBoxTriggerForItem(Vector3 spawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
     {
-        GameObject itemTrigger = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        BoxCollider b = itemTrigger.GetComponent<BoxCollider>();
-        ItemBBoxInfo itemBBoxInfo = itemTrigger.AddComponent<ItemBBoxInfo>();
+        GameObject bbox = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        BoxCollider b = bbox.GetComponent<BoxCollider>();
+        ItemBBoxInfo itemBBoxInfo = bbox.AddComponent<ItemBBoxInfo>();
 
-        itemTrigger.tag = "RetailItemBBox";
-        itemTrigger.AddComponent<OutlineFx.OutlineFx>();
-        itemTrigger.AddComponent<OutlineController>();
+        bbox.tag = "RetailItemBBox";
+        bbox.AddComponent<OutlineFx.OutlineFx>();
+        bbox.AddComponent<OutlineController>();
 
-        itemTrigger.transform.position = spawnPosition + new Vector3(0, itemHeight/2, 0);
-        itemTrigger.layer = itemTriggerMask;
+        bbox.transform.position = spawnPosition + new Vector3(0, itemHeight/2, 0);
+        bbox.layer = itemTriggerMask;
 
-        itemTrigger.GetComponent<Renderer>().material = _airMaterial;
+        bbox.GetComponent<Renderer>().material = _airMaterial;
 
         itemBBoxInfo.itemId = productName;
         itemBBoxInfo.instanceData = instanceData;
         itemBBoxInfo.spawnRotation = aisleRot;
 
         if (DataHandler.Instance.enableShelfItemPhysics)
-            itemTrigger.AddComponent<ItemBBoxPhysicsProxy>();
+            bbox.AddComponent<ItemBBoxPhysicsProxy>();
 
         b.name = productName;
         b.isTrigger = true;
         b.size = Vector3.one;
 
-        itemTrigger.transform.localScale = new Vector3(
+        bbox.transform.localScale = new Vector3(
             (ShelfIsFacingZ() ? itemWidth : itemDepth) + _bBoxPadding,
             itemHeight + _bBoxPadding,
             (ShelfIsFacingZ() ? itemDepth : itemWidth) + _bBoxPadding
@@ -358,6 +355,7 @@ public class ItemSpawner : MonoBehaviour
         Transform lod1Transform = null;
         Transform lod2Transform = null;
         Transform lod3Transform = null;
+        
         foreach (Transform child in prodChild)
         {
             if      (child.name.EndsWith("_LOD0")) lod0Transform = child;
