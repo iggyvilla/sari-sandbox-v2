@@ -212,9 +212,11 @@ public class ItemSpawner : MonoBehaviour
                         product,
                         instanceData
                     );
-
+                    
+                    // Pass in spawnPosition because bounding box position
+                    // calcs assumes mesh origin at bottom
                     GenerateBoundingBoxTriggerForItem(
-                        instanceData.lod0.position,
+                        spawnPosition,
                         spawnPosition,
                         itemHeight,
                         itemWidth,
@@ -371,9 +373,12 @@ public class ItemSpawner : MonoBehaviour
         bbox.tag = "RetailItemBBox";
         bbox.AddComponent<OutlineFx.OutlineFx>();
         bbox.AddComponent<OutlineController>();
-
-        bbox.transform.position = drawPosition;
-        // + new Vector3(0, itemHeight/2, 0)
+        
+        // Squares in Unity extrude from the center, hence the need to
+        // add itemHeight since we assume that the item's
+        // pivot is at it's bottom
+        bbox.transform.position =
+            drawPosition + new Vector3(0, itemHeight / 2, 0);
         bbox.layer = itemTriggerMask;
 
         bbox.GetComponent<Renderer>().material = _airMaterial;
