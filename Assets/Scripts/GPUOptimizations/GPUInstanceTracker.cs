@@ -96,13 +96,18 @@ public class GPUInstanceTracker : MonoBehaviour
     void PrepareBatchInstancer(BatchInstancer bi, GameObject obj, string itemId)
     {
         // Scan the first child's children for _LOD0–_LOD3 meshes (in order, high→low quality).
-        // _LOD0 is always required; higher-index LODs are optional lower-quality fallbacks.
+        // _LOD0 is required; missing higher-index LODs reuse the last available mesh so
+        // single-LOD products stay visible through the normal far-distance buckets.
         string[] lodSuffixes = { "_LOD0", "_LOD1", "_LOD2", "_LOD3" };
         var lodList = new List<LODDefinition>();
         Transform prodChild = obj.transform.GetChild(0);
+        LODDefinition? fallbackLod = null;
 
-        foreach (string suffix in lodSuffixes)
+        for (int i = 0; i < lodSuffixes.Length; i++)
         {
+            string suffix = lodSuffixes[i];
+            LODDefinition? foundLod = null;
+
             foreach (Transform child in prodChild)
             {
                 if (!child.name.EndsWith(suffix)) continue;
@@ -110,13 +115,29 @@ public class GPUInstanceTracker : MonoBehaviour
                 var mr = child.GetComponent<MeshRenderer>();
                 if (mf == null || mr == null) break;
 
-                lodList.Add(new LODDefinition
+                foundLod = new LODDefinition
                 {
                     mesh        = mf.sharedMesh,
                     materials   = CloneMaterialsForInstancing(mr.sharedMaterials),
-                    maxDistance = DefaultMaxDistances[lodList.Count]
-                });
+                    maxDistance = DefaultMaxDistances[i]
+                };
                 break;
+            }
+
+            if (foundLod.HasValue)
+            {
+                fallbackLod = foundLod.Value;
+                lodList.Add(foundLod.Value);
+            }
+            else if (fallbackLod.HasValue)
+            {
+                LODDefinition fallback = fallbackLod.Value;
+                lodList.Add(new LODDefinition
+                {
+                    mesh        = fallback.mesh,
+                    materials   = CloneMaterialsForInstancing(fallback.materials),
+                    maxDistance = DefaultMaxDistances[i]
+                });
             }
         }
 
