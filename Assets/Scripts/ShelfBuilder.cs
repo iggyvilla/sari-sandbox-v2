@@ -148,6 +148,14 @@ public class ShelfBuilder : MonoBehaviour
             // Destroy the GameObject the script is attached to
             Destroy(instance.gameObject);
         }
+
+        BakedPriceTag[] bakedInstances =
+            FindObjectsByType<BakedPriceTag>(FindObjectsSortMode.None);
+
+        foreach (BakedPriceTag instance in bakedInstances)
+        {
+            Destroy(instance.gameObject);
+        }
     }
     
     public static void DespawnAllItemsInScene()

@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using UnityEngine;
+using Quaternion = UnityEngine.Quaternion;
+using Vector2 = UnityEngine.Vector2;
+using Vector3 = UnityEngine.Vector3;
+using Vector4 = UnityEngine.Vector4;
 
 public class ItemSpawner : MonoBehaviour
 {
@@ -28,8 +33,10 @@ public class ItemSpawner : MonoBehaviour
     private LayerMask itemTriggerMask;
     private ShelfInfo _shelfInfo;
 
+    private const float PriceTagScale = 1.1f;
     private GameObject _priceTagPrefab;
     private float _priceTagHeight;
+    private float _priceTagWidth;
     
     public ShelfItemData shelfItemData;
 
@@ -69,7 +76,11 @@ public class ItemSpawner : MonoBehaviour
         
         _priceTagPrefab = priceTagPrefab;
         if (priceTagPrefab != null)
-            _priceTagHeight = priceTagPrefab.GetComponent<Renderer>().bounds.size.y;
+        {
+            Bounds priceTagBounds = priceTagPrefab.GetComponent<Renderer>().bounds;
+            _priceTagWidth = priceTagBounds.size.x;
+            _priceTagHeight = priceTagBounds.size.y;
+        }
         _shelfInfo = shelfInfo;
     }
 
@@ -227,20 +238,31 @@ public class ItemSpawner : MonoBehaviour
                                    + transform.forward * (depthBudget/2 + 0.001f)
                                    + transform.up * shelfWidth/2
                                    - transform.up * _priceTagHeight/2;
-                    
-        GameObject pt = Instantiate(
-            _priceTagPrefab, 
-            priceTagSpawnPos,
-            Quaternion.LookRotation(-transform.up, transform.forward)
-        );
-                    
-        PriceTag ptconfig = pt.GetComponent<PriceTag>();
+
+        Quaternion priceTagRotation = Quaternion.LookRotation(-transform.up, transform.forward);
 
         if (
             itemPriceData.TryGetValue(
                 shelfItem.name,
                 out ItemPriceData ptinfo)
             )
+        {
+            if (TrySpawnBakedPriceTag(shelfItem.name, priceTagSpawnPos, priceTagRotation))
+            {
+                return;
+            }
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        GameObject pt = Instantiate(
+            _priceTagPrefab, 
+            priceTagSpawnPos,
+            priceTagRotation
+        );
+                    
+        PriceTag ptconfig = pt.GetComponent<PriceTag>();
+
+        if (ptconfig != null && itemPriceData.TryGetValue(shelfItem.name, out ptinfo))
         {
             ptconfig.SetValues(
                 shelfItem.name,
@@ -252,6 +274,40 @@ public class ItemSpawner : MonoBehaviour
         pt.isStatic = true;
         // Set name in Unity hierarchy, helpful when debugging
         pt.name = shelfItem.name + "_PRICE_TAG";
+#endif
+    }
+
+    private bool TrySpawnBakedPriceTag(string itemId, Vector3 position, Quaternion rotation)
+    {
+        if (!BakedPriceTag.TryGetSprite(itemId, out Sprite sprite))
+        {
+            return false;
+        }
+
+        GameObject priceTag = new(itemId + "_PRICE_TAG");
+        priceTag.transform.SetPositionAndRotation(position, rotation);
+        priceTag.transform.Rotate(90, 180, 0);
+        priceTag.isStatic = true;
+
+        SpriteRenderer spriteRenderer = priceTag.AddComponent<SpriteRenderer>();
+        spriteRenderer.sprite = sprite;
+        spriteRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        spriteRenderer.receiveShadows = false;
+        spriteRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+
+        priceTag.AddComponent<BakedPriceTag>();
+
+        Vector2 spriteSize = sprite.bounds.size;
+        if (spriteSize.x > 0f && spriteSize.y > 0f)
+        {
+            priceTag.transform.localScale = new Vector3(
+                _priceTagWidth / spriteSize.x * PriceTagScale,
+                _priceTagHeight / spriteSize.y * PriceTagScale,
+                1f
+            );
+        }
+
+        return true;
     }
 
     private void OnDestroy()
@@ -316,7 +372,8 @@ public class ItemSpawner : MonoBehaviour
         bbox.AddComponent<OutlineFx.OutlineFx>();
         bbox.AddComponent<OutlineController>();
 
-        bbox.transform.position = drawPosition + new Vector3(0, itemHeight/2, 0);
+        bbox.transform.position = drawPosition;
+        // + new Vector3(0, itemHeight/2, 0)
         bbox.layer = itemTriggerMask;
 
         bbox.GetComponent<Renderer>().material = _airMaterial;

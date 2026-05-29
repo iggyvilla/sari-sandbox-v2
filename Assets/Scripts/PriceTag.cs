@@ -27,6 +27,13 @@ public class PriceTag : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Awake()
     {
+        EnsureInitialized();
+    }
+
+    private void EnsureInitialized()
+    {
+        if (_itemIDText != null) return;
+
         _itemIDText = itemIDText.GetComponent<TextMeshPro>();
         _priceText = priceText.GetComponent<TextMeshPro>();
         _priceDecimalText = priceDecimalText.GetComponent<TextMeshPro>();
@@ -42,6 +49,8 @@ public class PriceTag : MonoBehaviour
 
     public void SetValues(string idText, float price, string weight)
     {
+        EnsureInitialized();
+
         // Price without the decimal
         int priceWhole = (int) (price - price % 1);
         // Only the decimal of the price
