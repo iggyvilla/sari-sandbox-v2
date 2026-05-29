@@ -12,14 +12,14 @@ using UnityEngine;
 public class BarcodeScanner : MonoBehaviour
 {
     [Header("References")]
-    public SelfCheckoutUIHandler checkoutUI;
+    [SerializeField] private SelfCheckoutUIHandler checkoutUI;
 
     [Header("Audio")]
-    public AudioClip beepClip;
+    [SerializeField] private AudioClip beepClip;
 
     [Header("Hard Settings")]
     [Tooltip("Max raycast distance used in Hard difficulty.")]
-    public float scanRange = 1.5f;
+    [SerializeField] private float scanRange = 1.5f;
 
     // ── Preset box dimensions ─────────────────────────────────────────────────
     // Easy  : whatever the user configured in the Inspector (saved at Start).

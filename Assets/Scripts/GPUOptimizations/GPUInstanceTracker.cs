@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using JetBrains.Annotations;
 using UnityEngine;
 using Plane = UnityEngine.Plane;
 using Vector3 = UnityEngine.Vector3;
@@ -40,7 +39,6 @@ public class GPUInstanceTracker : MonoBehaviour
         cameraFrustumPlanes = GetFrustumPlanes(mainCamera);
     }
 
-    [CanBeNull]
     public BatchInstancer GetBatchInstancerFromId(string itemId)
     {
         if (trackers.ContainsKey(itemId))

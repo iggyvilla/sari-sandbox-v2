@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -11,10 +10,8 @@ public class ItemPoolingManager : MonoBehaviour
     private const int ItemSolverVelocityIterations = 4;
     private const float SpawnOverlapPadding = 0.002f;
     private const int SpawnOverlapResolveIterations = 6;
-    private const int SpawnActivationDelayFixedFrames = 2;
 
     private readonly Dictionary<string, Queue<GameObject>> _pool = new();
-    private readonly Dictionary<Rigidbody, Coroutine> _activationCoroutines = new();
     private Transform _poolParent;
     private PhysicsMaterial _stableItemMaterial;
 
@@ -52,8 +49,8 @@ public class ItemPoolingManager : MonoBehaviour
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
         {
-            rb.isKinematic = true;
-            rb.useGravity = false;
+            rb.isKinematic = false;
+            rb.useGravity = true;
             rb.interpolation = RigidbodyInterpolation.Extrapolate;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.maxDepenetrationVelocity = ItemMaxDepenetrationVelocity;
@@ -68,10 +65,7 @@ public class ItemPoolingManager : MonoBehaviour
         BoxCollider bc = obj.GetComponentInChildren<BoxCollider>(true);
         if (bc != null) bc.enabled = true;
 
-        ResolveSpawnOverlaps(obj);
-
-        if (rb != null)
-            SchedulePhysicsActivation(rb);
+        // ResolveSpawnOverlaps(obj);
 
         return obj;
     }
@@ -83,7 +77,6 @@ public class ItemPoolingManager : MonoBehaviour
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
         {
-            CancelPhysicsActivation(rb);
             rb.isKinematic = true;
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
@@ -105,15 +98,11 @@ public class ItemPoolingManager : MonoBehaviour
 
     public void ClearPool()
     {
-        foreach (Coroutine coroutine in _activationCoroutines.Values)
-            if (coroutine != null) StopCoroutine(coroutine);
-
         foreach (var queue in _pool.Values)
             foreach (var obj in queue)
                 if (obj != null) Destroy(obj);
 
         _pool.Clear();
-        _activationCoroutines.Clear();
     }
 
     private GameObject CreatePhysicsItem(string itemId, Vector3 position, Quaternion rotation)
@@ -209,39 +198,5 @@ public class ItemPoolingManager : MonoBehaviour
     private static bool ShouldResolveCollider(Collider collider)
     {
         return collider != null && collider.enabled && !collider.isTrigger && collider.gameObject.activeInHierarchy;
-    }
-
-    private void SchedulePhysicsActivation(Rigidbody rb)
-    {
-        CancelPhysicsActivation(rb);
-        _activationCoroutines[rb] = StartCoroutine(EnablePhysicsAfterSpawn(rb));
-    }
-
-    private void CancelPhysicsActivation(Rigidbody rb)
-    {
-        if (rb == null || !_activationCoroutines.TryGetValue(rb, out Coroutine coroutine))
-            return;
-
-        if (coroutine != null)
-            StopCoroutine(coroutine);
-
-        _activationCoroutines.Remove(rb);
-    }
-
-    private IEnumerator EnablePhysicsAfterSpawn(Rigidbody rb)
-    {
-        for (int i = 0; i < SpawnActivationDelayFixedFrames; i++)
-            yield return new WaitForFixedUpdate();
-
-        _activationCoroutines.Remove(rb);
-
-        if (rb == null || !rb.gameObject.activeInHierarchy)
-            yield break;
-
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        rb.useGravity = true;
-        rb.isKinematic = false;
-        rb.WakeUp();
     }
 }

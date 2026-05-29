@@ -5,16 +5,16 @@ using UnityEngine;
 public class SelfCheckoutUIHandler : MonoBehaviour
 {
     [Header("UI References")]
-    public TextMeshProUGUI itemListText;
-    public TextMeshProUGUI subtotalText;
-    public TextMeshProUGUI taxTotalSavingsText;
-    public GameObject      startScreen;
-    public GameObject      mainScreen;
+    [SerializeField] private TextMeshProUGUI itemListText;
+    [SerializeField] private TextMeshProUGUI subtotalText;
+    [SerializeField] private TextMeshProUGUI taxTotalSavingsText;
+    [SerializeField] private GameObject      startScreen;
+    [SerializeField] private GameObject      mainScreen;
 
     [Header("Settings")]
-    public int   itemIDStringLength = 21;
+    [SerializeField] private int   itemIDStringLength = 21;
     [Range(0f, 1f)]
-    public float taxRate            = 0.12f;
+    [SerializeField] private float taxRate            = 0.12f;
 
     // Ordered unique item IDs, so display order is preserved
     private List<string>            itemOrder    = new();

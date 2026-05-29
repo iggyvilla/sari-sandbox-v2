@@ -4,8 +4,8 @@ using UnityEngine;
 public class SariUIHandler : MonoBehaviour
 {
     public static SariUIHandler Instance {get; private set;}
-    public TextMeshProUGUI infoText;
-    public TextMeshProUGUI interactionStyleText;
+    [SerializeField] private TextMeshProUGUI infoText;
+    [SerializeField] private TextMeshProUGUI interactionStyleText;
     private string lastItemInfo;
     
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -31,12 +31,14 @@ public class SariUIHandler : MonoBehaviour
         if (lastItemInfo != itemInfo)
         {
             lastItemInfo = itemInfo;
-            infoText.text = $"looking at: {itemInfo}";
+            if (infoText != null)
+                infoText.text = $"looking at: {itemInfo}";
         }
     }
 
     public void UpdateInteractionStyleText(AgentInteractionStyle interactionStyle)
     {
-        interactionStyleText.text = $"agent interaction style: {interactionStyle.ToString()}";
+        if (interactionStyleText != null)
+            interactionStyleText.text = $"agent interaction style: {interactionStyle.ToString()}";
     }
 }

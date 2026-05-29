@@ -65,8 +65,6 @@ public class ShelfBuilder : MonoBehaviour
     
     [Tooltip("Reference to the floor, so shelves know where to spawn on")]
     public GameObject floor;
-    // [Tooltip("DEBUG ONLY: Spawns template shelves in editor mode")]
-    // public bool spawnShelves;
     
     [Header("Fridge Options")]
     [Tooltip("Spawn fridge hinge doors. Automatically switches shelf material to metal.")]
@@ -81,7 +79,6 @@ public class ShelfBuilder : MonoBehaviour
     
     private List<GameObject> shelfObjects;
 
-    private bool _itemsAlreadySpawned = false;
     private bool _hasBuilt = false;
 
     public void InitFromSaveData(ShelfSaveData data)
@@ -429,8 +426,6 @@ public class ShelfBuilder : MonoBehaviour
                 spawner.SpawnProducts();
             }
         }
-
-        _itemsAlreadySpawned = true;
     }
     
     

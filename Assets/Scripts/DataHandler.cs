@@ -171,7 +171,9 @@ public class DataHandler : MonoBehaviour
     [Header("Agent")]
     public GameObject agentObject;
     public GameObject ikHumanoidObject;
-    public Vector3 AgentPosition => agentObject != null ? agentObject.transform.position : Vector3.zero;
+    public Vector3 AgentPosition => _activeAgentObject != null
+        ? _activeAgentObject.transform.position
+        : agentObject != null ? agentObject.transform.position : Vector3.zero;
     public Vector3 agentSpawnPosition;
     public AgentAvatarSetting agentAvatarSetting;
     public AgentInteractionStyle agentInteractionStyle;
@@ -205,6 +207,7 @@ public class DataHandler : MonoBehaviour
     public Dictionary<int, bool> shouldShelfSpawnItems = new();
 
     private int currentShelfId;
+    private GameObject _activeAgentObject;
 
     void Awake()
     {
@@ -253,9 +256,13 @@ public class DataHandler : MonoBehaviour
                 // agentObject.SetActive(true);
                 // agentObject.transform.position = agentSpawnPosition;
                 GameObject go = Instantiate(agentObject, agentSpawnPosition, Quaternion.identity);
+                _activeAgentObject = go;
                 Camera cam = go != null ? go.GetComponentInChildren<Camera>() : null;
-                cam.tag = "MainCamera";
-                if (cam != null) GPUInstanceTracker.Instance.SetCamera(cam);
+                if (cam != null)
+                {
+                    cam.tag = "MainCamera";
+                    GPUInstanceTracker.Instance.SetCamera(cam);
+                }
             }
             // if (ikHumanoidObject != null) ikHumanoidObject.SetActive(false);
         }
@@ -267,9 +274,13 @@ public class DataHandler : MonoBehaviour
                 // ikHumanoidObject.SetActive(true);
                 // ikHumanoidObject.transform.position = agentSpawnPosition;
                 GameObject go = Instantiate(ikHumanoidObject, agentSpawnPosition, Quaternion.identity);
+                _activeAgentObject = go;
                 Camera cam = go != null ? go.GetComponentInChildren<Camera>() : null;
-                cam.tag = "MainCamera";
-                if (cam != null) GPUInstanceTracker.Instance.SetCamera(cam);
+                if (cam != null)
+                {
+                    cam.tag = "MainCamera";
+                    GPUInstanceTracker.Instance.SetCamera(cam);
+                }
             }
         }
     }
@@ -445,7 +456,9 @@ public class DataHandler : MonoBehaviour
                 backShelfConfig       = b.backShelfConfig,
                 leftShelfConfig       = b.leftShelfConfig,
                 rightShelfConfig      = b.rightShelfConfig,
-                spawnItems            = shouldShelfSpawnItems[b.shelfId],
+                spawnItems            = shouldShelfSpawnItems.TryGetValue(b.shelfId, out bool wantsSpawnItems)
+                    ? wantsSpawnItems
+                    : b.spawnItems,
                 spawnPriceTags        = b.spawnPriceTags,
                 itemSpawnOption       = b.itemSpawnOption,
                 subShelfCategories    = b.subShelfCategories,
@@ -494,10 +507,11 @@ public class DataHandler : MonoBehaviour
         foreach (GameObject obj in GameObject.FindGameObjectsWithTag("RetailItem"))
             Destroy(obj);
 
-        if (agentObject != null)
+        GameObject agent = _activeAgentObject != null ? _activeAgentObject : agentObject;
+        if (agent != null)
         {
-            agentObject.transform.position = agentSpawnPosition;
-            Rigidbody rb = agentObject.GetComponentInChildren<Rigidbody>();
+            agent.transform.position = agentSpawnPosition;
+            Rigidbody rb = agent.GetComponentInChildren<Rigidbody>();
             if (rb != null)
             {
                 rb.linearVelocity = Vector3.zero;

@@ -386,6 +386,7 @@ public abstract class AgentControllerBase : MonoBehaviour
             if (_handCollisionDetector != null && _handCollisionDetector.DetectedDoorHandle != null)
             {
                 _grabbedDoor = _handCollisionDetector.DetectedDoorHandle;
+                Physics.IgnoreLayerCollision(9, 12, true);
             }
             else if (agentHand != null &&
                      _handCollisionDetector != null &&
@@ -398,6 +399,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         }
         else
         {
+            // If we're currently grabbing a door, un-grab it
             if (_grabbedDoor != null)
             {
                 agentHand.transform.localPosition = _initialHandLocalPosition;
@@ -405,6 +407,7 @@ public abstract class AgentControllerBase : MonoBehaviour
                 _grabbedDoor.DoorRigidbody.linearVelocity = Vector3.zero;
                 _grabbedDoor.DoorRigidbody.angularVelocity = Vector3.zero;
                 _grabbedDoor = null;
+                Physics.IgnoreLayerCollision(9, 12, false);
             }
             isGripped = false;
         }

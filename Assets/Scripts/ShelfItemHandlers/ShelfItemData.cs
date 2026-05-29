@@ -41,17 +41,12 @@ public class ShelfItemData : MonoBehaviour
     public List<RetailItemData> shelfItems = new();
     public float itemsTotalWidth = 0f;
     private ItemCategories itemCategories;
+    private bool _initialized;
     
-    void Awake()
-    {
-        while (itemCategories == null)
-        {
-            itemCategories = DataHandler.Instance.itemCategories;
-        }
-    }
-
     public void RandomFillFromCategory(ItemCategory itemCategory, float interItemPadding, float widthBudget)
     {
+        if (!TryInitialize()) return;
+
         float lengthwiseOffset = 0.0f;
         bool firstItem = true;
 
@@ -59,10 +54,8 @@ public class ShelfItemData : MonoBehaviour
         {
             GameObject product = null;
             
-            while (product is null)
-            {
-                product = GetRandomProduct(itemCategory);
-            }
+            product = GetRandomProduct(itemCategory);
+            if (product == null) break;
             
             MeshRenderer r = product.GetComponentInChildren<MeshRenderer>();
             if (r is null)
@@ -153,4 +146,25 @@ public class ShelfItemData : MonoBehaviour
         return Resources.Load<GameObject>("Prefabs/Products/" + chosenId);
     }
 
+    private bool TryInitialize()
+    {
+        if (_initialized) return true;
+
+        DataHandler dataHandler = DataHandler.Instance;
+        if (dataHandler == null)
+        {
+            Debug.LogError($"{nameof(ShelfItemData)} on {name}: DataHandler.Instance is missing.");
+            return false;
+        }
+
+        if (dataHandler.itemCategories == null)
+        {
+            Debug.LogError($"{nameof(ShelfItemData)} on {name}: DataHandler itemCategories is not loaded.");
+            return false;
+        }
+
+        itemCategories = dataHandler.itemCategories;
+        _initialized = true;
+        return true;
+    }
 }

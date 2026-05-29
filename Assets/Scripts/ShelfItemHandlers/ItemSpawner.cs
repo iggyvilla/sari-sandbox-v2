@@ -1,13 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography.X509Certificates;
-using Unity.VisualScripting;
 using UnityEngine;
-using Random = UnityEngine.Random;
 
 public class ItemSpawner : MonoBehaviour
 {
-    private const float StackVerticalClearance = 0.001f;
+    private const float StackVerticalClearance = 0f;
 
     private float widthBudget;
     private float depthBudget;
@@ -15,14 +12,12 @@ public class ItemSpawner : MonoBehaviour
     // Set by ShelfBuilder, specified by user
     private float heightBudget;
     
-    private ShelfBuilder shelfBuilder; // get from parent
-    private ItemCategories itemCategories;
     private Dictionary<string, ItemPriceData> itemPriceData;
     
     public float itemOuterPadding;
     public float itemBackPadding;
-    public float interItemPadding;
-    public float fillFraction;
+    private float interItemPadding = 0.01f;
+    private float fillFraction = 0.25f;
     private Material _airMaterial;
     private ItemCategory itemCategory;
     
@@ -40,22 +35,19 @@ public class ItemSpawner : MonoBehaviour
 
     private ItemSpawnOption _itemSpawnOption;
     private bool spawnPriceTags = false;
+    private bool _initialized;
     
     void Awake()
     {
-        // triggers = new List<GameObject>();
-        
-        // Instantiate a DataHandler to access objects
-        while (itemCategories == null)
-        {
-            itemCategories = DataHandler.Instance.itemCategories;
-            itemPriceData = DataHandler.Instance.itemPriceData;
-        }
-        
         itemTriggerMask = LayerMask.NameToLayer("ItemBBox");
-        
         shelfItemData = GetComponent<ShelfItemData>();
-        
+        if (shelfItemData == null)
+        {
+            Debug.LogError($"{nameof(ItemSpawner)} on {name}: missing {nameof(ShelfItemData)} component.");
+            enabled = false;
+            return;
+        }
+
         UpdateShelfDimensions();
         
         /*
@@ -67,6 +59,8 @@ public class ItemSpawner : MonoBehaviour
 
     public void Init(float distanceBetweenShelves, ItemSpawnOption spawnOption, bool _spawnPriceTags, ItemCategory category, Material airMaterial, GameObject priceTagPrefab, ShelfInfo shelfInfo)
     {
+        TryInitialize();
+
         heightBudget = distanceBetweenShelves;
         _itemSpawnOption = spawnOption;
         itemCategory = category;
@@ -74,7 +68,8 @@ public class ItemSpawner : MonoBehaviour
         _airMaterial = airMaterial;
         
         _priceTagPrefab = priceTagPrefab;
-        _priceTagHeight = priceTagPrefab.GetComponent<Renderer>().bounds.size.y;
+        if (priceTagPrefab != null)
+            _priceTagHeight = priceTagPrefab.GetComponent<Renderer>().bounds.size.y;
         _shelfInfo = shelfInfo;
     }
 
@@ -116,6 +111,8 @@ public class ItemSpawner : MonoBehaviour
 
     public void SpawnProducts()
     {
+        if (!TryInitialize()) return;
+
         // Update our knowledge of the shelf dimensions
         UpdateShelfDimensions();
         
@@ -179,7 +176,7 @@ public class ItemSpawner : MonoBehaviour
             int numRows = CalculateRows(itemDepth);
             int numStack = CalculateStackHeight(itemHeight, itemCategory);
 
-            if (spawnPriceTags) SpawnPriceTag(shelfItem, lengthwiseOffset);
+            if (spawnPriceTags && _priceTagPrefab != null) SpawnPriceTag(shelfItem, lengthwiseOffset);
 
             for (int j = 0; j < numRows; j++)
             {
@@ -197,7 +194,7 @@ public class ItemSpawner : MonoBehaviour
                     Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
 
                     InstanceData instanceData =
-                        GenerateProductDrawData(product, spawnPosition, itemHeight);
+                        GenerateProductDrawData(product, spawnPosition);
 
                     GPUInstanceTracker.Instance.AddToInstance(
                         product.name,
@@ -264,25 +261,45 @@ public class ItemSpawner : MonoBehaviour
         }
     }
 
-    InstanceData AdjustDrawDataIfPivotOnCenter(Transform lod0Transform, InstanceData data, float itemHeight)
+    InstanceData AdjustDrawDataIfPivotOnCenter(
+        Transform lod0Transform,
+        Transform lod1Transform,
+        Transform lod2Transform,
+        Transform lod3Transform,
+        InstanceData data)
     {
-        Mesh mesh0 = lod0Transform != null ? lod0Transform.GetComponent<MeshFilter>()?.sharedMesh : null;
-
-        if (mesh0 != null && lod0Transform.position != Vector3.zero)
+        void AdjustLod(Transform lodTransform, ref LodTransform lodData)
         {
+            if (lodTransform == null)
+            {
+                return;
+            }
+
+            Mesh mesh = lodTransform.GetComponent<MeshFilter>()?.sharedMesh;
+            
+            // If mesh exists, and its pivot is already at the bottom, no need to adjust
+            if (mesh == null)
+            {
+                Debug.Log("Cannot find mesh for: " + lodTransform.name);
+                return;
+            }
+            if (mesh.name.Contains("COWHEAD")) Debug.Log(lodTransform.position);
+            if (lodTransform.position == Vector3.zero) return;
+
             /*
-             * Our shelf position calcs assume the pivot
-             * is at the item's bottom, not center, so adjust
-             * for it. Without this, items spawn IN the shelves,
-             * not ON. All LOD slots share the same spawn position,
-             * so adjust them all together.
-             */
-            float adj = itemHeight / 2;
-            data.lod0.position.y += adj;
-            data.lod1.position.y += adj;
-            data.lod2.position.y += adj;
-            data.lod3.position.y += adj;
+             * Our shelf position calcs assume the pivot is at the item's bottom,
+             * not center, so adjust for it. Without this, items spawn IN the
+             * shelves, not ON.
+            */
+            float bottomOffset = -mesh.bounds.min.y * Mathf.Abs(lodTransform.lossyScale.y);
+            if (mesh.name.Contains("COWHEAD")) Debug.Log(bottomOffset);
+            lodData.position.y += bottomOffset;
         }
+
+        AdjustLod(lod0Transform, ref data.lod0);
+        AdjustLod(lod1Transform, ref data.lod1);
+        AdjustLod(lod2Transform, ref data.lod2);
+        AdjustLod(lod3Transform, ref data.lod3);
 
         return data;
     }
@@ -328,7 +345,7 @@ public class ItemSpawner : MonoBehaviour
         // itemTrigger.transform.SetParent(transform);
     }
 
-    InstanceData GenerateProductDrawData(GameObject product, Vector3 spawnPosition, float itemHeight)
+    InstanceData GenerateProductDrawData(GameObject product, Vector3 spawnPosition)
     {
         /*
          * Get the transforms of _LOD0–_LOD3 (if present).
@@ -379,7 +396,7 @@ public class ItemSpawner : MonoBehaviour
             lod3 = MakeLodTransform(lod3Transform, lod0Transform),
         };
 
-        return AdjustDrawDataIfPivotOnCenter(lod0Transform, data, itemHeight);
+        return AdjustDrawDataIfPivotOnCenter(lod0Transform, lod1Transform, lod2Transform, lod3Transform, data);
     }
     
     Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum, bool bBoxDepth = false)
@@ -427,17 +444,6 @@ public class ItemSpawner : MonoBehaviour
         return 0;
     }
 
-    GameObject GetRandomProduct(ItemCategory itemCategory)
-    {
-        string[] categoryIds = itemCategories.Categories[(int)itemCategory].Items;
-        string chosenId = categoryIds[Random.Range(0, categoryIds.Length)];
-        
-        // return Resources.Load<GameObject>("Prefabs/Products/LIBBYS_VIENNA_SAUSAGE_130G");
-        // return Resources.Load<GameObject>("Prefabs/Products/NESTLE_KOKOKRUNCH_CHOCOLATE_330G");
-        
-        return Resources.Load<GameObject>("Prefabs/Products/" + chosenId);
-    }
-
     int CalculateStackHeight(float itemHeight, ItemCategory category)
     {
         // TODO: can implement randomness for row front (i.e., iteration = 0)
@@ -449,5 +455,35 @@ public class ItemSpawner : MonoBehaviour
         }
         
         return 1;
+    }
+
+    private bool TryInitialize()
+    {
+        if (_initialized) return true;
+
+        DataHandler dataHandler = DataHandler.Instance;
+        if (dataHandler == null)
+        {
+            Debug.LogError($"{nameof(ItemSpawner)} on {name}: DataHandler.Instance is missing.");
+            return false;
+        }
+
+        if (dataHandler.itemCategories == null || dataHandler.itemPriceData == null)
+        {
+            Debug.LogError($"{nameof(ItemSpawner)} on {name}: DataHandler item data is not loaded.");
+            return false;
+        }
+
+        if (shelfItemData == null)
+        {
+            Debug.LogError($"{nameof(ItemSpawner)} on {name}: missing {nameof(ShelfItemData)} component.");
+            enabled = false;
+            return false;
+        }
+
+        itemPriceData = dataHandler.itemPriceData;
+
+        _initialized = true;
+        return true;
     }
 }

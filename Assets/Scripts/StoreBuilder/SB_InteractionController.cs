@@ -1,4 +1,3 @@
-using JetBrains.Annotations;
 using UnityEngine;
 
 public class SB_InteractionController : MonoBehaviour
@@ -26,9 +25,9 @@ public class SB_InteractionController : MonoBehaviour
     public bool IsInPlacementMode => _placementMode;
     private bool _isPropPlacement = false;
     private bool _isAgentSpawnPlacement = false;
-    [CanBeNull] private GameObject _previewShelf = null;
-    [CanBeNull] private ShelfSelector _movingSelector = null;
-    [CanBeNull] private PropSelector _movingPropSelector = null;
+    private GameObject _previewShelf = null;
+    private ShelfSelector _movingSelector = null;
+    private PropSelector _movingPropSelector = null;
     private bool _isDuplicatePlacement = false;
     private Camera _cam;
     private LayerMask _sariFloorLayerMask;
