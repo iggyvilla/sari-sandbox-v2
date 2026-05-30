@@ -282,7 +282,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1959,6 +1959,7 @@ MonoBehaviour:
   mainCamera: {fileID: 2075032115}
   frustumCullingShader: {fileID: 7200000, guid: d5463ca6d0b334167b75bd90351fcb44, type: 3}
   proceduralUrpLitShader: {fileID: -6465566751694194690, guid: 8006f7beaf2004d31a1813a124fd0cf0, type: 3}
+  enableLod2AndLod3: 0
 --- !u!4 &669521194
 Transform:
   m_ObjectHideFlags: 0
@@ -2872,7 +2873,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_LocalPosition.x
@@ -2973,7 +2974,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_LocalPosition.x

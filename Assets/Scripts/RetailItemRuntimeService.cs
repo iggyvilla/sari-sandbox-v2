@@ -64,6 +64,11 @@ public sealed class RuntimeRetailItem
 
 public class RetailItemRuntimeService : MonoBehaviour
 {
+    [Tooltip("Delay before the physics prefab is returned to the pool when restoring " +
+             "a preview to the shelf, giving the restored GPU instance a frame to render " +
+             "and avoiding a flicker.")]
+    [SerializeField] private float restorePoolReturnDelaySeconds = 0.05f;
+
     public static RetailItemRuntimeService Instance
     {
         get
@@ -189,14 +194,25 @@ public class RetailItemRuntimeService : MonoBehaviour
             item.originalBBoxWorldRotation);
         ResetBBoxToShelf(bboxInfo);
 
-        if (item.gameObject != null)
-            ItemPoolingManager.Instance?.ReturnToPool(item.itemId, item.gameObject);
-
         RestoreGpuInstance(bboxInfo);
+
+        // The GPU instance won't actually render until the next frame. Returning the
+        // physics prefab to the pool immediately would leave a one-frame gap where
+        // neither representation is visible, causing a flicker. Defer the pool return
+        // by a short delay so the GPU instance has rendered first.
+        if (item.gameObject != null)
+            StartCoroutine(ReturnToPoolDelayed(item.itemId, item.gameObject, restorePoolReturnDelaySeconds));
 
         item.state = RetailItemRuntimeState.ShelfGpu;
         item.gameObject = null;
         item.physicsRigidbody = null;
+    }
+
+    private System.Collections.IEnumerator ReturnToPoolDelayed(string itemId, GameObject go, float delaySeconds)
+    {
+        yield return new WaitForSeconds(delaySeconds);
+        if (go != null)
+            ItemPoolingManager.Instance?.ReturnToPool(itemId, go);
     }
 
     public void MarkPhysicsPreviewAsDropped(RuntimeRetailItem item)
