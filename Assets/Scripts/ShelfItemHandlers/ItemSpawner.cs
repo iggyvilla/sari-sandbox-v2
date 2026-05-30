@@ -22,7 +22,7 @@ public class ItemSpawner : MonoBehaviour
     public float itemOuterPadding;
     public float itemBackPadding;
     private float interItemPadding = 0.01f;
-    private float fillFraction = 0.25f;
+    private float fillFraction = 0.5f;
     private Material _airMaterial;
     private ItemCategory itemCategory;
     
@@ -189,6 +189,25 @@ public class ItemSpawner : MonoBehaviour
 
             if (spawnPriceTags && _priceTagPrefab != null) SpawnPriceTag(shelfItem, lengthwiseOffset);
 
+            // Experiment: combine each row of identical products into one mesh and GPU-instance that
+            // shared "row chunk" across every shelf with the same product + arrangement + facing.
+            // Rows with the same key are identical relative to their pivot, so the mesh is built once
+            // and reused; later rows just add an instance. See DataHandler.combineRowMeshes.
+            bool combine = DataHandler.Instance.combineRowMeshes;
+            string chunkKey = null;
+            bool buildChunkMesh = false;
+            Transform lod0Src = null;
+            GameObject chunkRoot = null;
+            Vector3 chunkPivot = Vector3.zero;
+            bool chunkPivotSet = false;
+
+            if (combine)
+            {
+                chunkKey = $"{product.name}_CHUNK_{numRows}x{numStack}_{(int)DegreesToAisle()}";
+                buildChunkMesh = !GPUInstanceTracker.Instance.HasChunk(chunkKey);
+                if (buildChunkMesh) lod0Src = LodHierarchy.ResolveLodTransforms(product)[0];
+            }
+
             for (int j = 0; j < numRows; j++)
             {
                 for (int k = 0; k < numStack; k++)
@@ -207,12 +226,29 @@ public class ItemSpawner : MonoBehaviour
                     InstanceData instanceData =
                         GenerateProductDrawData(product, spawnPosition);
 
-                    GPUInstanceTracker.Instance.AddToInstance(
-                        product.name,
-                        product,
-                        instanceData
-                    );
-                    
+                    if (combine)
+                    {
+                        // The row's first spawn position is the chunk pivot (the empty's location).
+                        if (!chunkPivotSet) { chunkPivot = spawnPosition; chunkPivotSet = true; }
+
+                        // Only build the shared mesh the first time this arrangement is seen.
+                        if (buildChunkMesh)
+                        {
+                            if (chunkRoot == null)
+                                chunkRoot = CreateChunkRoot(product.name, spawnPosition);
+
+                            AddRowMeshChild(lod0Src, instanceData.lod0, chunkRoot.transform);
+                        }
+                    }
+                    else
+                    {
+                        GPUInstanceTracker.Instance.AddToInstance(
+                            product.name,
+                            product,
+                            instanceData
+                        );
+                    }
+
                     // Pass in spawnPosition because bounding box position
                     // calcs assumes mesh origin at bottom
                     GenerateBoundingBoxTriggerForItem(
@@ -228,9 +264,93 @@ public class ItemSpawner : MonoBehaviour
                 }
             }
 
+            if (combine && chunkPivotSet)
+            {
+                if (buildChunkMesh && chunkRoot != null)
+                    FinalizeChunk(chunkRoot, chunkKey, chunkPivot, ProductIsMultiMaterial(lod0Src));
+                else
+                    GPUInstanceTracker.Instance.AddChunkInstance(chunkKey, chunkPivot);
+            }
+
             firstItem = false;
             lengthwiseOffset += itemWidth/2;
         }
+    }
+
+    /*
+     * --- Row mesh-combining experiment (DataHandler.combineRowMeshes) ---
+     *
+     * Instead of registering each product with the GPU instancer, we instantiate the row's
+     * products as children of an empty "chunk root" placed at the first spawn position, combine
+     * them into one mesh (MeshCombiner), then hand that single mesh + the root's position to the
+     * GPU instancer. Because the children are parented to the root, MeshCombiner's reset-to-origin
+     * step bakes the verts PIVOT-RELATIVE to the root, so the chunk draws correctly at the root's
+     * position with identity rotation / unit scale.
+     */
+
+    // Empty that acts as the combined row's pivot, placed at the row's first spawn position.
+    GameObject CreateChunkRoot(string productName, Vector3 pivot)
+    {
+        GameObject root = new GameObject(productName + "_CHUNK");
+        root.transform.position = pivot;
+        // MeshCombiner requires these; the combined mesh lands on this MeshFilter.
+        root.AddComponent<MeshFilter>();
+        root.AddComponent<MeshRenderer>();
+        return root;
+    }
+
+    // Instantiate the product's _LOD0 mesh at the exact transform the GPU would have drawn it,
+    // parented to the chunk root so it gets folded into the combined mesh.
+    void AddRowMeshChild(Transform lod0Src, LodTransform draw, Transform parent)
+    {
+        MeshFilter srcMf = lod0Src.GetComponent<MeshFilter>();
+        MeshRenderer srcMr = lod0Src.GetComponent<MeshRenderer>();
+        if (srcMf == null || srcMr == null) return;
+
+        GameObject child = new GameObject("ROW_ITEM");
+        child.transform.SetParent(parent, false);
+        child.transform.SetPositionAndRotation(
+            draw.position,
+            new Quaternion(draw.rotation.x, draw.rotation.y, draw.rotation.z, draw.rotation.w));
+        // Parent (chunk root) has unit scale, so localScale == the intended lossy scale.
+        child.transform.localScale = draw.scale;
+
+        child.AddComponent<MeshFilter>().sharedMesh = srcMf.sharedMesh;
+        child.AddComponent<MeshRenderer>().sharedMaterials = srcMr.sharedMaterials;
+    }
+
+    // True if the product needs the multi-material combine path: MeshCombiner's single-material
+    // path only keeps submesh 0 + the first material, which drops geometry/materials on items with
+    // multiple submeshes (e.g. cans). The multi-material path preserves per-material submeshes.
+    static bool ProductIsMultiMaterial(Transform lod0Src)
+    {
+        MeshFilter mf = lod0Src.GetComponent<MeshFilter>();
+        MeshRenderer mr = lod0Src.GetComponent<MeshRenderer>();
+        return (mr != null && mr.sharedMaterials.Length > 1)
+            || (mf != null && mf.sharedMesh != null && mf.sharedMesh.subMeshCount > 1);
+    }
+
+    // Combine the chunk root's children into one mesh, register it under the shared key (which also
+    // adds the first instance at the pivot), then discard the root.
+    void FinalizeChunk(GameObject chunkRoot, string chunkKey, Vector3 pivot, bool multiMaterial)
+    {
+        MeshCombiner combiner = chunkRoot.AddComponent<MeshCombiner>();
+        combiner.DestroyCombinedChildren = true;
+        // Multi-submesh items must use the multi-material combine path or they lose submeshes.
+        combiner.CreateMultiMaterialMesh = multiMaterial;
+        combiner.CombineMeshes(false);
+
+        Mesh combined = chunkRoot.GetComponent<MeshFilter>().sharedMesh;
+        Material[] mats = chunkRoot.GetComponent<MeshRenderer>().sharedMaterials;
+
+        if (combined != null)
+            GPUInstanceTracker.Instance.AddCombinedChunk(chunkKey, combined, mats, pivot);
+
+        // The BatchInstancer now owns the combined mesh; drop the root so its own MeshRenderer
+        // doesn't double-render it.
+        MeshRenderer rootRenderer = chunkRoot.GetComponent<MeshRenderer>();
+        if (rootRenderer != null) rootRenderer.enabled = false;
+        Destroy(chunkRoot);
     }
 
     private void SpawnPriceTag(RetailItemData shelfItem, float lengthwiseOffset)

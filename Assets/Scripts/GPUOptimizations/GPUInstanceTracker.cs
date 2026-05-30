@@ -97,6 +97,76 @@ public class GPUInstanceTracker : MonoBehaviour
         }
     }
 
+    /// <summary>True if a combined-chunk batcher already exists for this key.</summary>
+    public bool HasChunk(string itemId) => trackers.ContainsKey(itemId);
+
+    /// <summary>
+    /// Adds one more instance of an already-registered combined chunk at <paramref name="position"/>.
+    /// Used when a later row shares the same (product, arrangement, facing) as an earlier one, so it
+    /// can reuse the existing combined mesh instead of rebuilding it.
+    /// </summary>
+    public void AddChunkInstance(string itemId, Vector3 position)
+    {
+        if (trackers.TryGetValue(itemId, out BatchInstancer bi))
+            bi.AddObjectToBatch(MakeChunkInstanceData(position));
+        else
+            Debug.LogError($"AddChunkInstance: no chunk registered for '{itemId}'.");
+    }
+
+    /// <summary>
+    /// Registers a pre-combined row mesh as a single-LOD chunk and draws its first instance.
+    ///
+    /// Unlike <see cref="AddToInstance"/> (which resolves _LOD0–_LOD3 from a prefab), the mesh here
+    /// is a whole combined row. Rows with the same (product, row×stack counts, facing) are identical
+    /// relative to their pivot, so they SHARE one key: this builds the batcher + mesh once, and later
+    /// rows pile on via <see cref="AddChunkInstance"/>.
+    ///
+    /// The combined mesh verts are already pivot-relative to <paramref name="position"/> (the row's
+    /// first spawn point) with all per-item rotation/scale baked in, so each instance carries identity
+    /// rotation and unit scale.
+    /// </summary>
+    public void AddCombinedChunk(string itemId, Mesh mesh, Material[] materials, Vector3 position)
+    {
+        InstanceData chunkInstance = MakeChunkInstanceData(position);
+
+        if (trackers.TryGetValue(itemId, out BatchInstancer existing))
+        {
+            existing.AddObjectToBatch(chunkInstance);
+            return;
+        }
+
+        BatchInstancer bi = gameObject.AddComponent<BatchInstancer>();
+        bi.lods = new[]
+        {
+            new LODDefinition
+            {
+                mesh        = mesh,
+                materials   = CloneMaterialsForInstancing(materials),
+                // Single catch-all LOD: use the original hard-cull distance.
+                maxDistance = DefaultMaxDistances[LodHierarchy.MaxLods - 1]
+            }
+        };
+        bi.frustumCullingShader = Instantiate(frustumCullingShader);
+        bi.agentCamera          = mainCamera;
+        bi.itemId               = itemId;
+        bi.Init();
+        bi.AddObjectToBatch(chunkInstance);
+        trackers[itemId] = bi;
+    }
+
+    // A chunk's geometry is baked in world space relative to its pivot, so every LOD slot shares
+    // the same identity transform at the pivot position.
+    private static InstanceData MakeChunkInstanceData(Vector3 position)
+    {
+        LodTransform t = new LodTransform
+        {
+            position = position,
+            rotation = new Vector4(0f, 0f, 0f, 1f),
+            scale    = Vector3.one
+        };
+        return new InstanceData { lod0 = t, lod1 = t, lod2 = t, lod3 = t };
+    }
+
     void PrepareBatchInstancer(BatchInstancer bi, GameObject obj, string itemId)
     {
         // Resolve _LOD0–_LOD3 child transforms via the shared resolver (same scan + carry-forward

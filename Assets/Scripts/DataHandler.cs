@@ -189,6 +189,12 @@ public class DataHandler : MonoBehaviour
     [Header("Item Physics")]
     public bool enableShelfItemPhysics;
 
+    [Header("Experimental")]
+    [Tooltip("If true, ItemSpawner combines each row of identical products into one mesh and " +
+             "registers that single combined chunk with the GPU instancer instead of adding each " +
+             "product individually. Used for A/B perf comparison.")]
+    public bool combineRowMeshes;
+
     [Header("Store")]
     public string storeName = "DefaultStore";
     [Tooltip("If true, destroy scene shelves on Awake and load from saved JSON")]
