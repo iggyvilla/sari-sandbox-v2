@@ -62,7 +62,11 @@ public class ShelfBuilder : MonoBehaviour
     public GameObject fridgeDoorLights;
     [Tooltip("Prefab for the fridge badge/logo placed near the lights.")]
     public GameObject fridgeBadge;
-    
+    [Tooltip("Vertical rail placed in front of the shelf back wall.")]
+    public GameObject shelfRail;
+    [Tooltip("Support bracket placed under each shelf, in front of each rail. Its pivot is offset front/back so only its height needs setting.")]
+    public GameObject shelfSupport;
+
     [Tooltip("Material for the shelf walls")]
     public Material wallMaterial;
     
@@ -90,6 +94,10 @@ public class ShelfBuilder : MonoBehaviour
     private const float FridgeBadgeTopOffset = 0.05f;
     // Padding between the badge and the right edge of the border cube.
     private const float FridgeBadgeRightPadding = 0.1f;
+    // Shelf width above which a third rail is spawned in the middle of the shelf.
+    private const float ShelfRailThreshold = 1.5f;
+    // Horizontal gap left between the shelf edge and the left/right rails.
+    private const float ShelfRailPadding = 0.05f;
 
     private float subShelfHeight;
     private float subShelfDepth;
@@ -452,6 +460,9 @@ public class ShelfBuilder : MonoBehaviour
             spawnPos.z
         );
 
+        // Underside Y of each (non-roof) shelf, used to place supports beneath them.
+        List<float> shelfBottomYs = new List<float>();
+
         // Instantiate 1 shelf for each level, starting from the bottom
         for (int i = 0; i < shelfLevels + 1; i++)
         {
@@ -485,6 +496,8 @@ public class ShelfBuilder : MonoBehaviour
                 extrudedScale.y = roof ? shelfRoofHeight : shelfBootHeight;
 
             shelfExtruded.transform.localScale = extrudedScale;
+
+            if (!roof) shelfBottomYs.Add(shelfPosition.y - extrudedScale.y / 2f);
 
             if (!roof)
             {
@@ -532,8 +545,86 @@ public class ShelfBuilder : MonoBehaviour
             // set parent to the empty
             shelfExtruded.transform.SetParent(emptyParent.transform);
         }
-        
+
+        BuildRailsAndSupports(emptyParent.transform, spawnPos, width, shelfBottomYs);
+
         emptyParent.transform.Rotate(Vector3.up, rotY);
+    }
+
+    // Spawns the decorative vertical rails in front of the back wall and the support
+    // brackets beneath each shelf. Children are parented to the (still-unrotated) shelf
+    // group so they rotate into place with the rest of the sub-shelf. Purely eye candy.
+    void BuildRailsAndSupports(Transform parent, Vector3 spawnPos, float width, List<float> shelfBottomYs)
+    {
+        if (shelfRail == null && shelfSupport == null) return;
+
+        float wallHeight = CalculateShelfHeight();
+
+        // The back wall's front face sits half its depth in front of the group center.
+        float backWallFrontZ = spawnPos.z - subShelfDepth / 2f;
+        float railDepth = shelfRail != null ? shelfRail.transform.localScale.z : 0f;
+        float railZ = backWallFrontZ + railDepth / 2f;
+
+        // One rail at each padded edge, plus a middle rail for wide shelves.
+        List<float> railXOffsets = new List<float>
+        {
+            -(width / 2f - ShelfRailPadding),
+            width / 2f - ShelfRailPadding
+        };
+        if (width > ShelfRailThreshold) railXOffsets.Add(0f);
+
+        foreach (float railXOffset in railXOffsets)
+        {
+            float x = spawnPos.x + railXOffset;
+
+            if (shelfRail != null)
+            {
+                GameObject rail = Instantiate(
+                    shelfRail,
+                    new Vector3(x, wallHeight / 2f, railZ),
+                    shelfRail.transform.rotation,
+                    parent
+                );
+                rail.name = "ShelfRail";
+
+                Vector3 railScale = shelfRail.transform.localScale;
+                // NOTE: The rails "up" is X (thanks Blender)
+                railScale.x = wallHeight;
+                rail.transform.localScale = railScale;
+
+                // Each rail gets its own material instance (accessing .material clones it)
+                // so its Y tiling can be scaled with its height, preventing the texture
+                // from stretching as the rail is stretched to fit the shelf.
+                Renderer railRenderer = rail.GetComponentInChildren<Renderer>();
+                if (railRenderer != null)
+                {
+                    Material railMat = railRenderer.materials[1];
+                    Vector2 tiling = railMat.mainTextureScale;
+                    // Change this constant if the texture appears stretched
+                    tiling.y = 80 * railScale.x;
+                    railMat.mainTextureScale = tiling;
+                }
+
+                rail.isStatic = true;
+            }
+
+            // A support under each shelf, in front of this rail. The prefab's off-center
+            // pivot handles the front/back placement, so only height (Y) is set.
+            if (shelfSupport != null)
+            {
+                foreach (float shelfBottomY in shelfBottomYs)
+                {
+                    GameObject support = Instantiate(
+                        shelfSupport,
+                        new Vector3(x, shelfBottomY, railZ),
+                        shelfSupport.transform.rotation,
+                        parent
+                    );
+                    support.name = "ShelfSupport";
+                    support.isStatic = true;
+                }
+            }
+        }
     }
 
     public void SpawnItemsOnAllShelves()
