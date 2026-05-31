@@ -60,7 +60,7 @@ public class ShelfItemData : MonoBehaviour
             }
             
             MeshRenderer r = product.GetComponentInChildren<MeshRenderer>();
-            Debug.Log(product.name);
+
             if (r is null)
             {
                 Debug.LogError(product.name + " has no mesh renderer");

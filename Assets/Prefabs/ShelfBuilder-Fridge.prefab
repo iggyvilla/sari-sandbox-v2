@@ -86,6 +86,6 @@ MonoBehaviour:
   wallMaterial: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
   airMaterial: {fileID: 2100000, guid: a1e0527347dd447dca8ce9830f3e8e10, type: 2}
   floor: {fileID: 0}
-  spawnHingeDoors: 1
+  isFridge: 1
   fridgeDoorStyle: 1
   sideShelfWidth: 0

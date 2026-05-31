@@ -5,7 +5,7 @@ public partial class ShelfBuilder
 {
     void SpawnHingeDoors()
     {
-        if (!spawnHingeDoors) return;
+        if (!isFridge) return;
 
         float doorHeight = shelfLevels * distanceBetweenLevels;
         float fullDoorWidth = shelfWidth + 2f * subShelfHeight;
@@ -53,7 +53,7 @@ public partial class ShelfBuilder
     // of the fridge roof. Only runs for fridge shelves.
     void SpawnFridgeRoofDecor()
     {
-        if (!spawnHingeDoors) return;
+        if (!isFridge) return;
 
         float thickness = FridgeBorderThicknessPadding * 2;
         float decorWidth = shelfWidth + 2f * subShelfHeight;

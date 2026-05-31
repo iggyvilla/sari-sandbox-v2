@@ -455,7 +455,7 @@ public class SB_UIHandler : MonoBehaviour
     {
         if (selectedShelf == null) return;
         
-        selectedShelf.spawnHingeDoors = toggle.isOn;
+        selectedShelf.isFridge = toggle.isOn;
         
         SafeRebuildShelf();
     }

@@ -77,7 +77,7 @@ public class ShelfEditGroupHandler : MonoBehaviour
         spawnRShelf?.SetIsOnWithoutNotify(shelf.rightShelfConfig.buildShelves);
         
         // Hinge door toggle
-        spawnHingeDoors?.SetIsOnWithoutNotify(shelf.spawnHingeDoors);
+        spawnHingeDoors?.SetIsOnWithoutNotify(shelf.isFridge);
         
         // Roof configuration
         spawnLShelfRoof?.SetIsOnWithoutNotify(shelf.leftShelfConfig.buildShelfRoof);

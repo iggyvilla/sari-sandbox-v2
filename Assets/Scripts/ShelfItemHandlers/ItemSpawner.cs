@@ -7,6 +7,7 @@ using Vector2 = UnityEngine.Vector2;
 using Vector3 = UnityEngine.Vector3;
 using Vector4 = UnityEngine.Vector4;
 
+// Attached to the shelf side profile prefab
 public class ItemSpawner : MonoBehaviour
 {
     private const float StackVerticalClearance = 0f;
@@ -21,7 +22,7 @@ public class ItemSpawner : MonoBehaviour
     
     public float itemOuterPadding;
     public float itemBackPadding;
-    private const float InterItemPadding = 0.02f;
+    private const float InterItemPadding = 0.03f;
     private const float CanFillFraction = 0.5f;
     private Material _airMaterial;
     private ItemCategory itemCategory;

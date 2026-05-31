@@ -3,8 +3,8 @@ using UnityEngine;
 
 public partial class ShelfBuilder
 {
-    private Material EffectiveShelfMaterial => spawnHingeDoors ? metalShelfMaterial : shelfMaterial;
-    private Material EffectiveWallMaterial => spawnHingeDoors ? metalShelfMaterial : wallMaterial;
+    private Material EffectiveShelfMaterial => isFridge ? metalShelfMaterial : shelfMaterial;
+    private Material EffectiveWallMaterial => isFridge ? metalShelfMaterial : wallMaterial;
 
     void BuildRectangularShelf()
     {

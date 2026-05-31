@@ -468,7 +468,7 @@ public class DataHandler : MonoBehaviour
                 spawnPriceTags        = b.spawnPriceTags,
                 itemSpawnOption       = b.itemSpawnOption,
                 subShelfCategories    = b.subShelfCategories,
-                spawnHingeDoors       = b.spawnHingeDoors,
+                spawnHingeDoors       = b.isFridge,
                 fridgeDoorStyle       = b.fridgeDoorStyle,
                 shelfId               = b.shelfId
             });

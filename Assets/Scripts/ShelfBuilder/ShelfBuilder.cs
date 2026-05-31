@@ -78,8 +78,8 @@ public partial class ShelfBuilder : MonoBehaviour
     public GameObject floor;
 
     [Header("Fridge Options")]
-    [Tooltip("Spawn fridge hinge doors. Automatically switches shelf material to metal.")]
-    public bool spawnHingeDoors;
+    [Tooltip("Indicates that this shelf is a fridge.")]
+    public bool isFridge;
     [Tooltip("Single door or double door")]
     public FridgeDoorStyle fridgeDoorStyle;
 
@@ -121,7 +121,7 @@ public partial class ShelfBuilder : MonoBehaviour
         spawnPriceTags        = data.spawnPriceTags;
         itemSpawnOption       = data.itemSpawnOption;
         subShelfCategories    = data.subShelfCategories ?? new Dictionary<string, ItemCategory>();
-        spawnHingeDoors       = data.spawnHingeDoors;
+        isFridge       = data.spawnHingeDoors;
         fridgeDoorStyle       = data.fridgeDoorStyle;
         shelfId               = data.shelfId;
     }
