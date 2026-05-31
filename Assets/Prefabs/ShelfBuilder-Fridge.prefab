@@ -70,16 +70,19 @@ MonoBehaviour:
   spawnItems: 1
   spawnPriceTags: 1
   itemSpawnOption: 1
-  debugForceItemCategory: 1
+  debugForceItemCategory: 0
   forcedCategory: 3
   shelfSideProfile: {fileID: 6631391007982317998, guid: 7fcc8c80075bc4173a9eccb352b8d2c2, type: 3}
   shelfMaterial: {fileID: 2100000, guid: 9f1200f208a524fc79e71847e7f7a499, type: 2}
+  shelfBootMaterial: {fileID: 2100000, guid: 34180f79f32724a5a83c8aba46ec696e, type: 2}
   metalShelfMaterial: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
   hingeDoorPrefab: {fileID: 520072958513338024, guid: 1bf1d8a8e76cb44958dbc41575410996, type: 3}
   priceTagPrefab: {fileID: 7931005315621676498, guid: d57044680a73d4489995adfdda70a9ae, type: 3}
   borderCube: {fileID: 2580651419899479545, guid: 775272fdbf4f8401a85443b034bd57d4, type: 3}
   fridgeDoorLights: {fileID: 7504401535033963833, guid: 2d13f23a9cbd44d91b9005def7cf9a3f, type: 3}
   fridgeBadge: {fileID: 8897958985483328215, guid: ee4e77916b6a1457e9c9a2aa0d4ad65a, type: 3}
+  shelfRail: {fileID: 0}
+  shelfSupport: {fileID: 0}
   wallMaterial: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
   airMaterial: {fileID: 2100000, guid: a1e0527347dd447dca8ce9830f3e8e10, type: 2}
   floor: {fileID: 0}

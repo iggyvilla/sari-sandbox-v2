@@ -24,7 +24,8 @@ public partial class ShelfBuilder
             category,
             airMaterial,
             priceTagPrefab,
-            shelfInfo
+            shelfInfo,
+            spawnHingeDoors
         );
 
         shelfObjects.Add(shelf);

@@ -3864,6 +3864,10 @@ PrefabInstance:
       propertyPath: floor
       value: 
       objectReference: {fileID: 593330296}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: debugForceItemCategory
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -3947,76 +3951,12 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 593330296}
     - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: shelfRail
-      value: 
-      objectReference: {fileID: 8779932042298763653, guid: 0ebb4d3fa47404aaf93eaa238dce8dc1, type: 3}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: borderCube
-      value: 
-      objectReference: {fileID: 2580651419899479545, guid: 775272fdbf4f8401a85443b034bd57d4, type: 3}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: spawnItems
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: fridgeBadge
-      value: 
-      objectReference: {fileID: 8897958985483328215, guid: ee4e77916b6a1457e9c9a2aa0d4ad65a, type: 3}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: itemCategory
-      value: 5
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: shelfSupport
-      value: 
-      objectReference: {fileID: 6173060447390014305, guid: f436b0627a9ec4efa9e6ddfb17efe0b2, type: 3}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: forcedCategory
-      value: 7
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: spawnPriceTags
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: itemSpawnOption
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: fridgeDoorLights
-      value: 
-      objectReference: {fileID: 7504401535033963833, guid: 2d13f23a9cbd44d91b9005def7cf9a3f, type: 3}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: debugForceItemCategory
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: backShelfConfig.buildShelves
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: leftShelfConfig.buildShelves
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: leftShelfConfig.buildBackWall
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: rightShelfConfig.buildShelves
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: rightShelfConfig.buildBackWall
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_Name
       value: ShelfBuilder
-      objectReference: {fileID: 0}
-    - target: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
-      propertyPath: m_IsActive
-      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8696224954924250644, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: m_LocalPosition.x

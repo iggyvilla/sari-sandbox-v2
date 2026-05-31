@@ -21,8 +21,8 @@ public class ItemSpawner : MonoBehaviour
     
     public float itemOuterPadding;
     public float itemBackPadding;
-    private float interItemPadding = 0.01f;
-    private float fillFraction = 0.5f;
+    private const float InterItemPadding = 0.02f;
+    private const float CanFillFraction = 0.5f;
     private Material _airMaterial;
     private ItemCategory itemCategory;
     
@@ -42,6 +42,7 @@ public class ItemSpawner : MonoBehaviour
 
     private ItemSpawnOption _itemSpawnOption;
     private bool spawnPriceTags = false;
+    private bool _spawnHingeDoors;
     private bool _initialized;
     
     void Awake()
@@ -64,7 +65,7 @@ public class ItemSpawner : MonoBehaviour
          */
     }
 
-    public void Init(float distanceBetweenShelves, ItemSpawnOption spawnOption, bool _spawnPriceTags, ItemCategory category, Material airMaterial, GameObject priceTagPrefab, ShelfInfo shelfInfo)
+    public void Init(float distanceBetweenShelves, ItemSpawnOption spawnOption, bool _spawnPriceTags, ItemCategory category, Material airMaterial, GameObject priceTagPrefab, ShelfInfo shelfInfo, bool spawnHingeDoors)
     {
         TryInitialize();
 
@@ -72,6 +73,7 @@ public class ItemSpawner : MonoBehaviour
         _itemSpawnOption = spawnOption;
         itemCategory = category;
         spawnPriceTags = _spawnPriceTags;
+        _spawnHingeDoors = spawnHingeDoors;
         _airMaterial = airMaterial;
         
         _priceTagPrefab = priceTagPrefab;
@@ -132,7 +134,7 @@ public class ItemSpawner : MonoBehaviour
             // If we spawn items randomly, then just fill our ShelfItemData with random items
             shelfItemData.RandomFillFromCategory(
                 itemCategory,
-                interItemPadding, 
+                InterItemPadding, 
                 widthBudget
             );
         }
@@ -141,7 +143,7 @@ public class ItemSpawner : MonoBehaviour
             // Generate random items, then save to a JSON
             shelfItemData.RandomFillFromCategory(
                 itemCategory,
-                interItemPadding, 
+                InterItemPadding, 
                 widthBudget
             );
             shelfItemData.SaveItemsToJson(_shelfInfo);
@@ -150,7 +152,7 @@ public class ItemSpawner : MonoBehaviour
         {
             if (!shelfItemData.LoadItemsFromJson(_shelfInfo))
             {
-                shelfItemData.RandomFillFromCategory(itemCategory, interItemPadding, widthBudget);
+                shelfItemData.RandomFillFromCategory(itemCategory, InterItemPadding, widthBudget);
                 shelfItemData.SaveItemsToJson(_shelfInfo);
             }
         }
@@ -179,7 +181,7 @@ public class ItemSpawner : MonoBehaviour
              * Only worry about interItemPadding if it
              * isn't the leftmost/first item on the shelf
              */
-            lengthwiseOffset += itemWidth/2 + (!firstItem ? interItemPadding : 0);
+            lengthwiseOffset += itemWidth/2 + (!firstItem ? InterItemPadding : 0);
 
             /* Stop spawning if the item we're about to spawn is outside the shelf */
             if (lengthwiseOffset + itemWidth/2 + itemOuterPadding > widthBudget) break;
@@ -363,13 +365,17 @@ public class ItemSpawner : MonoBehaviour
 
         Quaternion priceTagRotation = Quaternion.LookRotation(-transform.up, transform.forward);
 
+        // For a fridge's lowest shelf, the tag stands upright against the glass instead of
+        // lying flat on the lip (handled inside TrySpawnBakedPriceTag).
+        bool isFridgeBottomShelf = _spawnHingeDoors && _shelfInfo.subSubShelfId == 0;
+
         if (
             itemPriceData.TryGetValue(
                 shelfItem.name,
                 out ItemPriceData ptinfo)
             )
         {
-            if (TrySpawnBakedPriceTag(shelfItem.name, priceTagSpawnPos, priceTagRotation))
+            if (TrySpawnBakedPriceTag(shelfItem.name, priceTagSpawnPos, priceTagRotation, isFridgeBottomShelf))
             {
                 return;
             }
@@ -399,16 +405,27 @@ public class ItemSpawner : MonoBehaviour
 #endif
     }
 
-    private bool TrySpawnBakedPriceTag(string itemId, Vector3 position, Quaternion rotation)
+    private bool TrySpawnBakedPriceTag(string itemId, Vector3 position, Quaternion rotation, bool isFridgeBottomShelf)
     {
         if (!BakedPriceTag.TryGetSprite(itemId, out Sprite sprite))
         {
             return false;
         }
 
+        // On a fridge's lowest shelf, raise the tag by half the shelf thickness so it clears
+        // the lip and stands upright against the glass.
+        if (isFridgeBottomShelf)
+        {
+            position += transform.up * (shelfWidth / 2f + 0.01f);
+        }
+
         GameObject priceTag = new(itemId + "_PRICE_TAG");
         priceTag.transform.SetPositionAndRotation(position, rotation);
         priceTag.transform.Rotate(90, 180, 0);
+        if (isFridgeBottomShelf)
+        {
+            priceTag.transform.Rotate(90, 0, 0);
+        }
         priceTag.isStatic = true;
 
         SpriteRenderer spriteRenderer = priceTag.AddComponent<SpriteRenderer>();
@@ -481,7 +498,7 @@ public class ItemSpawner : MonoBehaviour
     int CalculateRows(float itemWidth)
     {
         return (int) ((depthBudget-itemOuterPadding-itemBackPadding) /
-                      (itemWidth + interItemPadding));
+                      (itemWidth + InterItemPadding));
     }
 
     void GenerateBoundingBoxTriggerForItem(Vector3 drawPosition, Vector3 physicsSpawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
@@ -576,7 +593,7 @@ public class ItemSpawner : MonoBehaviour
         else
         {
             backOffset =
-                (depthBudget/2 - ((itemDepth + interItemPadding) 
+                (depthBudget/2 - ((itemDepth + InterItemPadding) 
                                   * (rowNum + 0.5f)) - itemOuterPadding) * direction;
         }
         
@@ -612,7 +629,7 @@ public class ItemSpawner : MonoBehaviour
         // stack only if of type "Can" or "Biscuit"
         if (category is ItemCategory.Can)
         {
-            return (int)((heightBudget * fillFraction) / itemHeight);
+            return (int)((heightBudget * CanFillFraction) / itemHeight);
         }
         
         return 1;

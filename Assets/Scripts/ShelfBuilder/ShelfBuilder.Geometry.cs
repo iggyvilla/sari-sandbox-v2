@@ -77,7 +77,9 @@ public partial class ShelfBuilder
             return;
         }
 
-        Vector3 shelfPosition = new Vector3(spawnPos.x, floorY + shelfBootHeight / 2, spawnPos.z);
+        // The lowest shelf keeps the side profile at its natural y; a separate boot cube fills the
+        // space beneath it so that boot + profile together total shelfBootHeight.
+        Vector3 shelfPosition = new Vector3(spawnPos.x, floorY + shelfBootHeight - subShelfHeight / 2, spawnPos.z);
         List<float> shelfBottomYs = new List<float>();
 
         for (int i = 0; i < shelfLevels + 1; i++)
@@ -102,8 +104,8 @@ public partial class ShelfBuilder
 
             Vector3 extrudedScale = shelfSideProfile.transform.localScale;
             extrudedScale.x = width;
-            if (isBottomShelf || roof)
-                extrudedScale.y = roof ? shelfRoofHeight : shelfBootHeight;
+            if (roof)
+                extrudedScale.y = shelfRoofHeight;
 
             shelfExtruded.transform.localScale = extrudedScale;
             if (!roof) shelfBottomYs.Add(shelfPosition.y - extrudedScale.y / 2f);
@@ -120,13 +122,34 @@ public partial class ShelfBuilder
 
             if (spawnItems && !roof) InitializeItemSpawner(shelfExtruded, subShelfId, i);
 
+            if (isBottomShelf && !roof)
+                BuildShelfBoot(emptyParent.transform, shelfPosition.x, shelfPosition.z, floorY, width);
+
             shelfExtruded.isStatic = true;
-            shelfPosition.y += distanceBetweenLevels + (isBottomShelf ? shelfBootHeight / 2 : roof ? shelfRoofHeight / 2 : 0);
+            shelfPosition.y += distanceBetweenLevels + (isBottomShelf ? subShelfHeight / 2 : roof ? shelfRoofHeight / 2 : 0);
             shelfExtruded.transform.SetParent(emptyParent.transform);
         }
 
         BuildRailsAndSupports(emptyParent.transform, spawnPos, width, shelfBottomYs);
         emptyParent.transform.Rotate(Vector3.up, rotY);
+    }
+
+    // The boot is the solid base cube beneath the lowest shelf profile. Its height fills whatever
+    // shelfBootHeight leaves above the profile, so the two together span exactly shelfBootHeight.
+    void BuildShelfBoot(Transform parent, float x, float z, float floorY, float width)
+    {
+        float bootHeight = shelfBootHeight - subShelfHeight;
+        if (bootHeight <= 0f) return;
+
+        GameObject boot = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        boot.layer = LayerMask.NameToLayer("SariShelf");
+        boot.tag = "Wall";
+        boot.name = "ShelfBoot";
+        boot.transform.localScale = new Vector3(width, bootHeight, subShelfDepth);
+        boot.transform.position = new Vector3(x, floorY + bootHeight / 2f, z);
+        boot.GetComponent<Renderer>().sharedMaterial = shelfBootMaterial;
+        boot.isStatic = true;
+        boot.transform.SetParent(parent);
     }
 
     void BuildRailsAndSupports(Transform parent, Vector3 spawnPos, float width, List<float> shelfBottomYs)
@@ -207,15 +230,20 @@ public partial class ShelfBuilder
         backWall.layer = LayerMask.NameToLayer("SariShelf");
         backWall.tag = "Wall";
         backWall.name = "BackWall";
+        
         backWall.transform.localScale = new Vector3(wallWidth, wallHeight, wallThickness);
 
         Vector3 backWallPos = parent.position;
         backWallPos.z = parent.position.z - (wallOffset + wallThickness) / 2;
         backWallPos.y = wallHeight / 2;
         backWall.transform.position = backWallPos;
-
+            
         backWall.isStatic = true;
-        backWall.GetComponent<Renderer>().sharedMaterial = EffectiveWallMaterial;
+
+        Renderer r = backWall.GetComponent<Renderer>();
+
+        r.sharedMaterial = EffectiveWallMaterial;
+        
         backWall.transform.SetParent(parent);
     }
 

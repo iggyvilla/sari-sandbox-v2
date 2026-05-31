@@ -49,6 +49,8 @@ public partial class ShelfBuilder : MonoBehaviour
     public GameObject shelfSideProfile;
     [Tooltip("Material used for the shelf")]
     public Material shelfMaterial;
+    [Tooltip("Material used for the boot (the solid base cube under the lowest shelf)")]
+    public Material shelfBootMaterial;
     [Tooltip("Material used for the fridge")]
     public Material metalShelfMaterial;
     [Tooltip("Prefab used for the hinge door. Handle has to be at the door's center.")]

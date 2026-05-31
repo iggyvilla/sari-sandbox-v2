@@ -268,8 +268,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &3576250933758168496
 MonoBehaviour:
@@ -409,8 +407,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &8477762695197860607
 MonoBehaviour:
@@ -586,8 +582,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &3640362002091706865
 MonoBehaviour:
@@ -727,8 +721,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &6052011409670399137
 MonoBehaviour:
@@ -904,8 +896,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &330887167083465307
 MonoBehaviour:
@@ -1045,8 +1035,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &6268193609395104074
 MonoBehaviour:
@@ -1186,8 +1174,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &7464400129505853889
 MonoBehaviour:
@@ -1327,8 +1313,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &5457597031070215615
 MonoBehaviour:
@@ -1468,8 +1452,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &4249925553240009243
 MonoBehaviour:
@@ -1717,8 +1699,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &386787892917867645
 MonoBehaviour:
@@ -1858,8 +1838,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &9145875446827502544
 MonoBehaviour:
@@ -1999,8 +1977,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &4131527191273798258
 MonoBehaviour:
@@ -2140,8 +2116,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &4882491412828873133
 MonoBehaviour:
@@ -2389,8 +2363,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &1512167532449308116
 MonoBehaviour:
@@ -2470,23 +2442,30 @@ MonoBehaviour:
     buildBackWall: 0
     buildShelfRoof: 0
   leftShelfConfig:
-    buildShelves: 1
-    buildBackWall: 1
+    buildShelves: 0
+    buildBackWall: 0
     buildShelfRoof: 0
   rightShelfConfig:
-    buildShelves: 1
-    buildBackWall: 1
+    buildShelves: 0
+    buildBackWall: 0
     buildShelfRoof: 0
-  spawnItems: 0
+  spawnItems: 1
   spawnPriceTags: 1
-  itemSpawnOption: 1
-  itemCategory: 5
-  shelfSideProfile: {fileID: 6631391007982317998, guid: 7fcc8c80075bc4173a9eccb352b8d2c2, type: 3}
+  itemSpawnOption: 0
+  debugForceItemCategory: 0
+  forcedCategory: 7
+  shelfSideProfile: {fileID: 3439308967415116867, guid: 6d40a6c0518b54b4284375ab454b22b0, type: 3}
   shelfMaterial: {fileID: 2100000, guid: 9f1200f208a524fc79e71847e7f7a499, type: 2}
+  shelfBootMaterial: {fileID: 2100000, guid: 34180f79f32724a5a83c8aba46ec696e, type: 2}
   metalShelfMaterial: {fileID: 2100000, guid: 3097648dbf3ee46049eb18f03dd20875, type: 2}
   hingeDoorPrefab: {fileID: 520072958513338024, guid: 1bf1d8a8e76cb44958dbc41575410996, type: 3}
   priceTagPrefab: {fileID: 7931005315621676498, guid: d57044680a73d4489995adfdda70a9ae, type: 3}
-  wallMaterial: {fileID: 2100000, guid: 9f1200f208a524fc79e71847e7f7a499, type: 2}
+  borderCube: {fileID: 2580651419899479545, guid: 775272fdbf4f8401a85443b034bd57d4, type: 3}
+  fridgeDoorLights: {fileID: 7504401535033963833, guid: 2d13f23a9cbd44d91b9005def7cf9a3f, type: 3}
+  fridgeBadge: {fileID: 8897958985483328215, guid: ee4e77916b6a1457e9c9a2aa0d4ad65a, type: 3}
+  shelfRail: {fileID: 8779932042298763653, guid: 0ebb4d3fa47404aaf93eaa238dce8dc1, type: 3}
+  shelfSupport: {fileID: 6173060447390014305, guid: f436b0627a9ec4efa9e6ddfb17efe0b2, type: 3}
+  wallMaterial: {fileID: 2100000, guid: cdb6814b07cf64d65948f48eed9ff0e7, type: 2}
   airMaterial: {fileID: 2100000, guid: a1e0527347dd447dca8ce9830f3e8e10, type: 2}
   floor: {fileID: 0}
   spawnHingeDoors: 0
@@ -2616,8 +2595,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &255255909215572841
 MonoBehaviour:
@@ -2757,8 +2734,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &1899598218980783431
 MonoBehaviour:
