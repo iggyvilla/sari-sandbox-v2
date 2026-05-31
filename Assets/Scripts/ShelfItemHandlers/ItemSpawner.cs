@@ -169,6 +169,14 @@ public class ItemSpawner : MonoBehaviour
         float lengthwiseOffset = Math.Max(0, (widthBudget - shelfItemData.itemsTotalWidth)/2);
         
         bool firstItem = true;
+        bool combineRows = DataHandler.Instance.combineRowMeshes;
+        if (combineRows && DataHandler.Instance.enableShelfItemPhysics)
+        {
+            Debug.LogWarning(
+                $"{nameof(ItemSpawner)} on {name}: {nameof(DataHandler.combineRowMeshes)} is " +
+                $"incompatible with shelf item physics. Falling back to per-item GPU instances.");
+            combineRows = false;
+        }
         
         foreach (var shelfItem in shelfItemData.shelfItems)
         {
@@ -196,7 +204,7 @@ public class ItemSpawner : MonoBehaviour
             // shared "row chunk" across every shelf with the same product + arrangement + facing.
             // Rows with the same key are identical relative to their pivot, so the mesh is built once
             // and reused; later rows just add an instance. See DataHandler.combineRowMeshes.
-            bool combine = DataHandler.Instance.combineRowMeshes;
+            bool combine = combineRows;
             string chunkKey = null;
             bool buildChunkMesh = false;
             Transform lod0Src = null;
@@ -213,6 +221,10 @@ public class ItemSpawner : MonoBehaviour
 
             for (int j = 0; j < numRows; j++)
             {
+                List<ItemBBoxInfo> stackMembers = numStack > 1
+                    ? new List<ItemBBoxInfo>(numStack)
+                    : null;
+
                 for (int k = 0; k < numStack; k++)
                 {
                     Vector3 spawnPosition =
@@ -254,7 +266,7 @@ public class ItemSpawner : MonoBehaviour
 
                     // Pass in spawnPosition because bounding box position
                     // calcs assumes mesh origin at bottom
-                    GenerateBoundingBoxTriggerForItem(
+                    ItemBBoxInfo bboxInfo = GenerateBoundingBoxTriggerForItem(
                         spawnPosition,
                         spawnPosition,
                         itemHeight,
@@ -264,7 +276,12 @@ public class ItemSpawner : MonoBehaviour
                         instanceData,
                         aisleRot
                     );
+
+                    stackMembers?.Add(bboxInfo);
                 }
+
+                if (stackMembers != null)
+                    new ShelfItemPhysicsStack(stackMembers);
             }
 
             if (combine && chunkPivotSet)
@@ -502,7 +519,7 @@ public class ItemSpawner : MonoBehaviour
                       (itemWidth + InterItemPadding));
     }
 
-    void GenerateBoundingBoxTriggerForItem(Vector3 drawPosition, Vector3 physicsSpawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
+    ItemBBoxInfo GenerateBoundingBoxTriggerForItem(Vector3 drawPosition, Vector3 physicsSpawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
     {
         GameObject bbox = GameObject.CreatePrimitive(PrimitiveType.Cube);
         BoxCollider b = bbox.GetComponent<BoxCollider>();
@@ -540,6 +557,7 @@ public class ItemSpawner : MonoBehaviour
         );
 
         // itemTrigger.transform.SetParent(transform);
+        return itemBBoxInfo;
     }
 
     InstanceData GenerateProductDrawData(GameObject product, Vector3 spawnPosition)

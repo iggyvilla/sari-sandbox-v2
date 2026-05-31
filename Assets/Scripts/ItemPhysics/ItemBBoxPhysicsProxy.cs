@@ -17,6 +17,11 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     private RuntimeRetailItem _runtimeItem;
     private Coroutine _settleCoroutine;
 
+    internal bool HasPhysicsPreview =>
+        _runtimeItem != null &&
+        _runtimeItem.state == RetailItemRuntimeState.PhysicsPreview &&
+        _runtimeItem.gameObject != null;
+
     void Awake()
     {
         _bBoxInfo = GetComponent<ItemBBoxInfo>();
@@ -26,35 +31,57 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     void OnTriggerEnter(Collider other)
     {
         if (!DataHandler.Instance.enableShelfItemPhysics) return;
-        if (_runtimeItem != null || _permanentlyPhysical) return;
         if (other.GetComponent<HandPhysicsSphere>() == null) return;
 
-        ActivatePhysics();
+        if (_bBoxInfo.PhysicsStack != null)
+        {
+            _bBoxInfo.PhysicsStack.OnHandEnter(this, other);
+            return;
+        }
+
+        if (_permanentlyPhysical) return;
+
+        CancelSettleEvaluation();
+        EnsurePhysicsPreview();
     }
     
     // Runs upon exiting the hand's trigger sphere
     void OnTriggerExit(Collider other)
     {
         if (other.GetComponent<HandPhysicsSphere>() == null) return;
+
+        if (_bBoxInfo.PhysicsStack != null)
+        {
+            _bBoxInfo.PhysicsStack.OnHandExit(this, other);
+            return;
+        }
+
         if (_runtimeItem == null || _permanentlyPhysical) return;
         
         // Wait a few seconds (for physics to reach steady state), then 
         // evaluate if the item should become a physics item or stay GPU
-        _settleCoroutine = StartCoroutine(WaitAndEvaluate());
+        if (_settleCoroutine == null)
+            _settleCoroutine = StartCoroutine(WaitAndEvaluate());
     }
 
     void OnDestroy()
     {
-        if (_settleCoroutine != null) StopCoroutine(_settleCoroutine);
+        CancelSettleEvaluation();
+        _bBoxInfo?.PhysicsStack?.OnMemberRemoved(this);
 
         RetailItemRuntimeService.Instance.ReleaseActivePhysicsPreview(_runtimeItem);
+        _runtimeItem = null;
     }
 
-    private void ActivatePhysics()
+    internal bool EnsurePhysicsPreview()
     {
+        if (_runtimeItem != null || _permanentlyPhysical) return true;
+
         _runtimeItem = RetailItemRuntimeService.Instance.ActivatePhysicsPreview(_bBoxInfo);
         if (_runtimeItem != null)
             _bBoxInfo.onBeforeDelete = OnBeforeItemGrabbed;
+
+        return _runtimeItem != null;
     }
 
     // Called by ItemBBoxInfo.DeleteItem() when the agent grabs the item mid-activation.
@@ -62,11 +89,8 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     {
         enabled = false; // prevent OnTriggerEnter from firing again before Destroy completes
 
-        if (_settleCoroutine != null)
-        {
-            StopCoroutine(_settleCoroutine);
-            _settleCoroutine = null;
-        }
+        CancelSettleEvaluation();
+        _bBoxInfo.PhysicsStack?.OnMemberRemoved(this);
 
         RetailItemRuntimeService.Instance.PreparePreviewForGrab(_runtimeItem);
         _runtimeItem = null;
@@ -78,8 +102,7 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
 
         float elapsed = 0f;
         const float maxWait = 2f;
-        Rigidbody physicsRb = _runtimeItem?.physicsRigidbody;
-        while (physicsRb != null && !physicsRb.IsSleeping() && elapsed < maxWait)
+        while (!IsPhysicsPreviewSleeping() && elapsed < maxWait)
         {
             yield return new WaitForSeconds(0.1f);
             elapsed += 0.1f;
@@ -91,22 +114,56 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
             yield break;
         }
 
-        float posDelta = Vector3.Distance(_runtimeItem.gameObject.transform.position, _runtimeItem.spawnedPosition);
-        float rotDelta = Quaternion.Angle(_runtimeItem.gameObject.transform.rotation, _runtimeItem.spawnedRotation);
-        
         // If the item, when settled, has moved past its threshold,
         // permanently stay as a physics item
-        if (posDelta > positionThreshold || rotDelta > rotationThreshold)
+        if (HasPhysicsPreviewMovedPastThreshold())
         {
-            _permanentlyPhysical = true;
-            RetailItemRuntimeService.Instance.MarkPhysicsPreviewAsDropped(_runtimeItem);
+            MarkPhysicsPreviewAsDropped();
         }
         else
         {
-            RetailItemRuntimeService.Instance.RestorePhysicsPreviewToShelf(_runtimeItem);
-            _runtimeItem = null;
+            RestorePhysicsPreviewToShelf();
         }
 
+        _settleCoroutine = null;
+    }
+
+    internal bool IsPhysicsPreviewSleeping()
+    {
+        Rigidbody physicsRb = _runtimeItem?.physicsRigidbody;
+        return physicsRb == null || physicsRb.IsSleeping();
+    }
+
+    internal bool HasPhysicsPreviewMovedPastThreshold()
+    {
+        if (!HasPhysicsPreview) return false;
+
+        float posDelta = Vector3.Distance(_runtimeItem.gameObject.transform.position, _runtimeItem.spawnedPosition);
+        float rotDelta = Quaternion.Angle(_runtimeItem.gameObject.transform.rotation, _runtimeItem.spawnedRotation);
+        return posDelta > positionThreshold || rotDelta > rotationThreshold;
+    }
+
+    internal void MarkPhysicsPreviewAsDropped()
+    {
+        if (!HasPhysicsPreview) return;
+
+        _permanentlyPhysical = true;
+        RetailItemRuntimeService.Instance.MarkPhysicsPreviewAsDropped(_runtimeItem);
+    }
+
+    internal void RestorePhysicsPreviewToShelf()
+    {
+        if (!HasPhysicsPreview) return;
+
+        RetailItemRuntimeService.Instance.RestorePhysicsPreviewToShelf(_runtimeItem);
+        _runtimeItem = null;
+    }
+
+    private void CancelSettleEvaluation()
+    {
+        if (_settleCoroutine == null) return;
+
+        StopCoroutine(_settleCoroutine);
         _settleCoroutine = null;
     }
 }

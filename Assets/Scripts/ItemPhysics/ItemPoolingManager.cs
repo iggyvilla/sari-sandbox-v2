@@ -46,6 +46,8 @@ public class ItemPoolingManager : MonoBehaviour
             obj = CreatePhysicsItem(itemId, position, rotation);
         }
 
+        if (obj == null) return null;
+
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
         {

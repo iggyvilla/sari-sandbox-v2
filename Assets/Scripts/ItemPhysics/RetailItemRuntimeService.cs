@@ -110,6 +110,15 @@ public class RetailItemRuntimeService : MonoBehaviour
             return null;
         }
 
+        if (bboxInfo.PhysicsStack != null &&
+            DataHandler.Instance != null &&
+            DataHandler.Instance.enableShelfItemPhysics &&
+            !bboxInfo.PhysicsStack.ActivatePhysicsPreviews(settleWhenUnoccupied: true))
+        {
+            Debug.LogError("RetailItemRuntimeService: cannot activate the item's shelf stack for pickup.");
+            return null;
+        }
+
         string itemId = bboxInfo.itemId;
         bboxInfo.DeleteItem();
 
@@ -130,9 +139,6 @@ public class RetailItemRuntimeService : MonoBehaviour
             return null;
         }
 
-        BatchInstancer bi = GPUInstanceTracker.Instance?.GetBatchInstancerFromId(bboxInfo.itemId);
-        bi?.RemoveSingleDrawData(bboxInfo.instanceData);
-
         Vector3 pos = bboxInfo.physicsSpawnPosition;
         Quaternion rot = bboxInfo.spawnRotation;
         if (ItemPoolingManager.Instance == null)
@@ -143,6 +149,9 @@ public class RetailItemRuntimeService : MonoBehaviour
 
         GameObject physicsObj = ItemPoolingManager.Instance.GetOrCreate(bboxInfo.itemId, pos, rot);
         if (physicsObj == null) return null;
+
+        BatchInstancer bi = GPUInstanceTracker.Instance?.GetBatchInstancerFromId(bboxInfo.itemId);
+        bi?.RemoveSingleDrawData(bboxInfo.instanceData);
 
         RuntimeRetailItem item = new RuntimeRetailItem(
             bboxInfo.itemId,

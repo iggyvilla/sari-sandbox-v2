@@ -12,6 +12,9 @@ public class ItemBBoxInfo : MonoBehaviour
 
     public string itemId;
     public InstanceData instanceData;
+    public ShelfItemPhysicsStack PhysicsStack { get; set; }
+    public bool IsStackable => PhysicsStack != null;
+
     // Original shelf/root spawn position before GPU-only pivot correction.
     public Vector3 physicsSpawnPosition;
     // Aisle-facing rotation for the prefab root (not baked with LOD child offsets).
