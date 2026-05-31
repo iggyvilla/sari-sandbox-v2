@@ -33,7 +33,7 @@ AppendStructuredBuffer<uint> lod1_buf;
 AppendStructuredBuffer<uint> lod2_buf;
 AppendStructuredBuffer<uint> lod3_buf;
 
-[numthreads(128,1,1)]
+[numthreads(512,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= (uint) num_to_draw) return;

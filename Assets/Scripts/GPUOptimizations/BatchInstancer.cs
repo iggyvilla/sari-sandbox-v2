@@ -102,13 +102,13 @@ public class BatchInstancer : MonoBehaviour
     private int _fNumLodsId;
     private int _fAgentPositionId;
     private int _fKernelId;
+    private uint _fThreadGroupSizeX;
 
     // Matches the 4 named AppendStructuredBuffer outputs in the compute shader
     private static readonly string[] LodBufNames = { "lod0_buf", "lod1_buf", "lod2_buf", "lod3_buf" };
     private readonly int[] _fLodBufIds = new int[LodBufNames.Length];
 
     private const int MAX_LODS = 4;
-    private const int THREAD_GROUP_SIZE = 128;
 
     private bool _ready = false;
     private bool _buffersDirty = false;
@@ -154,6 +154,7 @@ public class BatchInstancer : MonoBehaviour
             _fLodBufIds[i] = Shader.PropertyToID(LodBufNames[i]);
 
         _fKernelId = frustumCullingShader.FindKernel("CSMain");
+        frustumCullingShader.GetKernelThreadGroupSizes(_fKernelId, out _fThreadGroupSizeX, out _, out _);
         _sVisibleIndicesId   = Shader.PropertyToID("_VisibleIndices");
         _sPositionsId        = Shader.PropertyToID("_Positions");
         _sLodTransformDataId = Shader.PropertyToID("_LodTransformData");
@@ -204,7 +205,7 @@ public class BatchInstancer : MonoBehaviour
 
         frustumCullingShader.Dispatch(
             _fKernelId,
-            Mathf.CeilToInt(instances.Count / (float)THREAD_GROUP_SIZE),
+            Mathf.CeilToInt(instances.Count / (float)_fThreadGroupSizeX),
             1,
             1
         );

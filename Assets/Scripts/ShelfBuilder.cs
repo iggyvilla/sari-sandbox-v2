@@ -56,6 +56,12 @@ public class ShelfBuilder : MonoBehaviour
     public GameObject hingeDoorPrefab;
     [Tooltip("Prefab used for the price tag.")]
     public GameObject priceTagPrefab;
+    [Tooltip("Cube prefab used for the fridge door borders. Passed down to the hinge doors.")]
+    public GameObject borderCube;
+    [Tooltip("Prefab for the lit panel above the fridge doors.")]
+    public GameObject fridgeDoorLights;
+    [Tooltip("Prefab for the fridge badge/logo placed near the lights.")]
+    public GameObject fridgeBadge;
     
     [Tooltip("Material for the shelf walls")]
     public Material wallMaterial;
@@ -73,7 +79,18 @@ public class ShelfBuilder : MonoBehaviour
     public FridgeDoorStyle fridgeDoorStyle;
 
     public float sideShelfWidth;
-    
+
+    // Extra thickness the fridge door border / lights / decor stick out past the glass.
+    private const float FridgeBorderThicknessPadding = 0.02f;
+    // Fraction of the roof height the lit panel covers (flush against the top).
+    private const float DoorLightPercent = 0.8f;
+    // Small gap left under the lit panel so it doesn't butt up against the border.
+    private const float FrontDecorPadding = 0.01f;
+    // How far above the under-light border cube the badge sits.
+    private const float FridgeBadgeTopOffset = 0.05f;
+    // Padding between the badge and the right edge of the border cube.
+    private const float FridgeBadgeRightPadding = 0.1f;
+
     private float subShelfHeight;
     private float subShelfDepth;
     
@@ -228,8 +245,9 @@ public class ShelfBuilder : MonoBehaviour
         
         // Must do all rotations/translations first before spawning items
         transform.Rotate(Vector3.up, rotationY);
-        
+
         SpawnHingeDoors();
+        SpawnFridgeRoofDecor();
     }
 
     void SpawnHingeDoors()
@@ -238,27 +256,31 @@ public class ShelfBuilder : MonoBehaviour
 
         float doorDepth = 0.02f;
         float doorHeight = (shelfLevels * distanceBetweenLevels);
-        
+
+        // Doors must span the whole fridge front: the roof width plus the left and
+        // right walls (matches the roof decor width).
+        float fullDoorWidth = shelfWidth + 2f * subShelfHeight;
+
         bool isDoubleDoor = fridgeDoorStyle == FridgeDoorStyle.Double;
-        
+
         Vector3 leftDoorPos = new Vector3(
             transform.position.x,
             doorHeight/2 + shelfBootHeight,
             transform.position.z
-        ) 
-            + transform.forward * (subShelfDepth + 0.03f) 
-            + transform.right * (isDoubleDoor ? shelfWidth/4 : 0); 
-        
+        )
+            + transform.forward * (subShelfDepth + 0.03f)
+            + transform.right * (isDoubleDoor ? fullDoorWidth/4 : 0);
+
         GameObject leftDoor = Instantiate(hingeDoorPrefab, leftDoorPos, transform.rotation, transform);
         RemovePhysicsIfInStoreBuilder(leftDoor);
-        
+
         HingedDoorBuilder leftDoorBuilder = leftDoor.GetComponentInChildren<HingedDoorBuilder>();
         Vector3 lDoorDims = new Vector3(
-            shelfWidth/(isDoubleDoor ? 2 : 1),
+            fullDoorWidth/(isDoubleDoor ? 2 : 1),
             doorHeight,
             doorDepth
         );
-        leftDoorBuilder.BuildHingeDoor(lDoorDims, 0.05f, DoorDirection.Left, subShelfDepth);
+        leftDoorBuilder.BuildHingeDoor(lDoorDims, 0.05f, DoorDirection.Left, subShelfDepth, FridgeBorderThicknessPadding, borderCube);
 
         if (!isDoubleDoor) return;
         // Right door
@@ -269,19 +291,109 @@ public class ShelfBuilder : MonoBehaviour
             transform.position.z
         ) 
             + transform.forward * (subShelfDepth + 0.03f)
-            - transform.right * shelfWidth/4; 
-        
+            - transform.right * fullDoorWidth/4;
+
         GameObject rDoor = Instantiate(hingeDoorPrefab, rDoorPos, transform.rotation, transform);
         RemovePhysicsIfInStoreBuilder(rDoor);
-        
+
         HingedDoorBuilder rDoorBuilder = rDoor.GetComponentInChildren<HingedDoorBuilder>();
         Vector3 rDoorDims = new Vector3(
-            shelfWidth/2,
+            fullDoorWidth/2,
             doorHeight,
             doorDepth
         );
-        rDoorBuilder.BuildHingeDoor(rDoorDims, 0.05f, DoorDirection.Right, subShelfDepth);
-        
+        rDoorBuilder.BuildHingeDoor(rDoorDims, 0.05f, DoorDirection.Right, subShelfDepth, FridgeBorderThicknessPadding, borderCube);
+
+    }
+
+    // Spawns the lit panel, the border strip beneath it, and the badge above the front
+    // of the fridge roof. Only runs for fridge shelves.
+    void SpawnFridgeRoofDecor()
+    {
+        if (!spawnHingeDoors) return;
+
+        float wallThickness = subShelfHeight;
+        float thickness = FridgeBorderThicknessPadding * 2;
+
+        // Width spans the front roof plus the left and right walls.
+        float decorWidth = shelfWidth + 2f * wallThickness;
+
+        // Match the doors' forward offset so the decor sits flush with the door fronts.
+        // The 0.01f offset is needed for some reason
+        float forwardOffset = subShelfDepth + FridgeBorderThicknessPadding + 0.01f;
+
+        // The roof occupies the top shelfRoofHeight of the structure. Door convention
+        // (mirrored here) treats the shelf base as y = 0.
+        float doorHeight = shelfLevels * distanceBetweenLevels;
+        float roofTopY = shelfBootHeight + doorHeight + shelfRoofHeight;
+
+        // Lit panel: covers DoorLightPercent of the roof, flush with the top, with a
+        // small gap left underneath.
+        float lightsHeight = shelfRoofHeight * DoorLightPercent;
+        float lightsCenterY = roofTopY - lightsHeight / 2f;
+        float lightsBottomY = roofTopY - lightsHeight;
+
+        if (fridgeDoorLights != null)
+        {
+            GameObject lights = Instantiate(fridgeDoorLights, transform);
+            lights.name = "FridgeDoorLights";
+            lights.transform.rotation = transform.rotation;
+            lights.transform.position =
+                new Vector3(transform.position.x, lightsCenterY, transform.position.z)
+                + transform.forward * forwardOffset;
+            lights.transform.localScale = new Vector3(decorWidth, lightsHeight, thickness);
+        }
+
+        // Border cube directly under the lit panel. Keeps its own (prefab) height but
+        // matches the panel's width and thickness.
+        float borderBottomRefY = lightsBottomY;
+        if (borderCube != null)
+        {
+            GameObject border = Instantiate(borderCube, transform);
+            border.name = "FridgeRoofBorder";
+
+            float borderHeight = shelfRoofHeight * (1-DoorLightPercent) - FrontDecorPadding*2;
+            float borderCenterY = lightsBottomY - borderHeight / 2f - FrontDecorPadding;
+            borderBottomRefY = borderCenterY;
+
+            border.transform.rotation = transform.rotation;
+            border.transform.position =
+                new Vector3(transform.position.x, borderCenterY, transform.position.z)
+                + transform.forward * forwardOffset;
+            border.transform.localScale = new Vector3(decorWidth, borderHeight, thickness);
+        }
+
+        // Badge: on the right of the border cube, slightly above it, padded from the edge.
+        if (fridgeBadge != null)
+        {
+            float badgeX = decorWidth / 2f - FridgeBadgeRightPadding;
+            float badgeY = borderBottomRefY;
+
+            GameObject badge = Instantiate(fridgeBadge, transform);
+            badge.name = "FridgeBadge";
+            badge.transform.rotation = transform.rotation;
+            badge.transform.position =
+                new Vector3(transform.position.x, badgeY, transform.position.z)
+                + transform.forward * (forwardOffset + thickness / 2f)
+                - transform.right * badgeX;
+        }
+
+        // Border cube in front of the shelf boot. Same height as the boot but with a
+        // gap left on top (FrontDecorPadding) so it doesn't hit the door above it.
+        if (borderCube != null)
+        {
+            GameObject bootBorder = Instantiate(borderCube, transform);
+            bootBorder.name = "FridgeBootBorder";
+
+            float bootBorderHeight = shelfBootHeight - FrontDecorPadding;
+            float bootBorderCenterY = bootBorderHeight / 2f;
+
+            bootBorder.transform.rotation = transform.rotation;
+            bootBorder.transform.position =
+                new Vector3(transform.position.x, bootBorderCenterY, transform.position.z)
+                + transform.forward * forwardOffset;
+            bootBorder.transform.localScale = new Vector3(decorWidth, bootBorderHeight, thickness);
+        }
     }
 
     void RemovePhysicsIfInStoreBuilder(GameObject hingeDoor)

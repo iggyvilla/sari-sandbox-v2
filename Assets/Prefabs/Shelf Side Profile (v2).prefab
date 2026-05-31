@@ -124,8 +124,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemOuterPadding: 0.005
   itemBackPadding: 0.005
-  interItemPadding: 0.005
-  fillFraction: 0.5
   shelfItemData: {fileID: 0}
 --- !u!114 &-6857232297359580626
 MonoBehaviour:

@@ -5,13 +5,13 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
+  - enabled: 1
     path: Assets/Scenes/StoreBuilder.unity
     guid: ca8f1b6358ea4444ebf214282c7eec16
   - enabled: 0
     path: Assets/Scenes/AgentSandbox.unity
     guid: 9dba9d9f7e78e4ad79e5c861fe67f73e
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Dev Scene.unity
     guid: 493f24237cc5b49499457e130e139563
   m_configObjects:

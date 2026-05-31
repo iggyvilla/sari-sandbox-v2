@@ -23,11 +23,12 @@ public class HingedDoorBuilder : MonoBehaviour
 
     // How wide (along the door face) each border strip is.
     private const float FridgeBorderWidth = 0.05f;
-    // Extra thickness the border sticks out past the glass on the front and back.
-    private const float FridgeBorderThicknessPadding = 0.02f;
     // Glass is scaled down slightly so its edges don't sit exactly on the border
     // faces, which would otherwise z-fight.
     private const float FridgeGlassShrink = 0.99f;
+    // Extra thickness the border sticks out past the glass on the front and back.
+    // Supplied by ShelfBuilder so it matches the fridge door lights / border decor.
+    private float _borderThicknessPadding;
 
     private Vector3 _closedTriggerSize;
     private Vector3 _closedTriggerCenter;
@@ -42,8 +43,11 @@ public class HingedDoorBuilder : MonoBehaviour
 
     // NOTE: handlePadding is deprecated and no longer used. The handle now spawns on the
     // left/right fridge border (opposite the hinge). Kept in the signature for callers.
-    public void BuildHingeDoor(Vector3 doorDimensions, float handlePadding, DoorDirection direction, float subShelfDepth)
+    public void BuildHingeDoor(Vector3 doorDimensions, float handlePadding, DoorDirection direction, float subShelfDepth, float borderThicknessPadding, GameObject borderCubePrefab)
     {
+        _borderThicknessPadding = borderThicknessPadding;
+        borderCube = borderCubePrefab;
+
         // Shrink the glass a hair so its rim doesn't z-fight with the border faces.
         glassDoor.transform.localScale = doorDimensions * FridgeGlassShrink;
 
@@ -70,7 +74,7 @@ public class HingedDoorBuilder : MonoBehaviour
         // Centre the handle on the border strip (x), and push it forward so it rests on
         // the border's front face rather than being buried inside the thicker border (z).
         float handleX = handleSide * (doorDimensions.x / 2f - FridgeBorderWidth / 2f);
-        float borderFrontZ = (doorDimensions.z + FridgeBorderThicknessPadding) / 2f;
+        float borderFrontZ = (doorDimensions.z + _borderThicknessPadding) / 2f;
         doorHandle.transform.position += transform.right * handleX + transform.forward * borderFrontZ;
 
         // doorTrigger is parented to glassDoor whose localScale == doorDimensions,
@@ -88,7 +92,7 @@ public class HingedDoorBuilder : MonoBehaviour
     // Frames the glass door with four cube strips along its perimeter.
     private void BuildFridgeBorder(Vector3 doorDimensions)
     {
-        float thickness = doorDimensions.z + FridgeBorderThicknessPadding;
+        float thickness = doorDimensions.z + _borderThicknessPadding;
         float halfW = doorDimensions.x / 2f;
         float halfH = doorDimensions.y / 2f;
 
