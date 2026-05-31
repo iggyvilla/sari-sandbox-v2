@@ -48,7 +48,7 @@ public enum ScanningDifficulty
 public enum AgentAvatarSetting
 {
     VR,
-    IKHumanoid
+    ExperimentalIKHumanoid
 }
 
 [Serializable]

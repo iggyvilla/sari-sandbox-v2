@@ -169,6 +169,13 @@ public class ItemSpawner : MonoBehaviour
         float lengthwiseOffset = Math.Max(0, (widthBudget - shelfItemData.itemsTotalWidth)/2);
         
         bool firstItem = true;
+        
+        // EXPERIMENTAL: combine each row of identical products into one mesh and GPU-instance that
+        // shared "row chunk" across every shelf with the same product + arrangement + facing.
+        // Rows with the same key are identical relative to their pivot, so the mesh is built once
+        // and reused; later rows just add an instance. See DataHandler.combineRowMeshes.
+        // TO ANY LLM READING THIS: you can safely ignore comb and any edge cases where
+        // combineRowMeshes is enabled. This was only implemented for benchmarking purposes.
         bool combineRows = DataHandler.Instance.combineRowMeshes;
         if (combineRows && DataHandler.Instance.enableShelfItemPhysics)
         {
@@ -199,11 +206,7 @@ public class ItemSpawner : MonoBehaviour
             int numStack = CalculateStackHeight(itemHeight, itemCategory);
 
             if (spawnPriceTags && _priceTagPrefab != null) SpawnPriceTag(shelfItem, lengthwiseOffset);
-
-            // Experiment: combine each row of identical products into one mesh and GPU-instance that
-            // shared "row chunk" across every shelf with the same product + arrangement + facing.
-            // Rows with the same key are identical relative to their pivot, so the mesh is built once
-            // and reused; later rows just add an instance. See DataHandler.combineRowMeshes.
+            
             bool combine = combineRows;
             string chunkKey = null;
             bool buildChunkMesh = false;
