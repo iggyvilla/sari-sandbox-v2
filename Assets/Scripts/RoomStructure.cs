@@ -14,6 +14,13 @@ public class RoomStructure : MonoBehaviour
 
     [Header("Room")]
     public float wallHeight = 3f;
+    public float CeilingY => transform.position.y + wallHeight;
+
+    [Header("Ceiling Lights")]
+    public GameObject ceilingLightPrefab;
+    [Min(0f)] public float ceilingLightSpacingX = 1f;
+    [Min(0f)] public float ceilingLightSpacingZ = 1f;
+    public float ceilingLightYOffset = 0f;
 
     [Header("Wall Fading")]
     // Dot-product threshold at which a wall begins to fade (0 = instant, 0.3 = starts when wall begins facing camera)
@@ -24,6 +31,7 @@ public class RoomStructure : MonoBehaviour
     private bool _isStoreBuilder;
     private Camera _cam;
     private GameObject _ceiling;
+    private GameObject _ceilingLightsRoot;
 
     private struct WallEntry
     {
@@ -97,6 +105,8 @@ public class RoomStructure : MonoBehaviour
             var mr = _ceiling.GetComponent<MeshRenderer>();
             mr.sharedMaterial = ceilingMaterial;
             mr.shadowCastingMode = ShadowCastingMode.Off;
+
+            SpawnCeilingLights(center, halfW * 2f, halfD * 2f);
         }
     }
 
@@ -116,6 +126,12 @@ public class RoomStructure : MonoBehaviour
         {
             Destroy(_ceiling);
             _ceiling = null;
+        }
+
+        if (_ceilingLightsRoot != null)
+        {
+            Destroy(_ceilingLightsRoot);
+            _ceilingLightsRoot = null;
         }
     }
 
@@ -150,6 +166,86 @@ public class RoomStructure : MonoBehaviour
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    void SpawnCeilingLights(Vector3 roomCenter, float ceilingWidth, float ceilingDepth)
+    {
+        if (ceilingLightPrefab == null) return;
+
+        _ceilingLightsRoot = new GameObject("Ceiling Lights");
+        _ceilingLightsRoot.transform.SetParent(transform.parent, worldPositionStays: true);
+
+        float lightY = roomCenter.y + wallHeight + ceilingLightYOffset;
+        Quaternion lightRotation = ceilingLightPrefab.transform.rotation;
+        GameObject firstLight = Instantiate(
+            ceilingLightPrefab,
+            new Vector3(roomCenter.x, lightY, roomCenter.z),
+            lightRotation,
+            _ceilingLightsRoot.transform);
+
+        if (!TryGetCombinedRendererBounds(firstLight, out Bounds lightBounds))
+        {
+            Destroy(_ceilingLightsRoot);
+            _ceilingLightsRoot = null;
+            return;
+        }
+
+        float gapX = Mathf.Max(0f, ceilingLightSpacingX);
+        float gapZ = Mathf.Max(0f, ceilingLightSpacingZ);
+        int countX = GetFixtureCount(ceilingWidth, lightBounds.size.x, gapX);
+        int countZ = GetFixtureCount(ceilingDepth, lightBounds.size.z, gapZ);
+        if (countX == 0 || countZ == 0)
+        {
+            Destroy(_ceilingLightsRoot);
+            _ceilingLightsRoot = null;
+            return;
+        }
+
+        float occupiedWidth = countX * lightBounds.size.x + (countX - 1) * gapX;
+        float occupiedDepth = countZ * lightBounds.size.z + (countZ - 1) * gapZ;
+        float firstCenterX = roomCenter.x - occupiedWidth * 0.5f + lightBounds.size.x * 0.5f;
+        float firstCenterZ = roomCenter.z - occupiedDepth * 0.5f + lightBounds.size.z * 0.5f;
+        Vector3 boundsCenterOffset = lightBounds.center - firstLight.transform.position;
+
+        bool useFirstLight = true;
+        for (int x = 0; x < countX; x++)
+        {
+            float boundsCenterX = firstCenterX + x * (lightBounds.size.x + gapX);
+            for (int z = 0; z < countZ; z++)
+            {
+                GameObject light = useFirstLight
+                    ? firstLight
+                    : Instantiate(ceilingLightPrefab, Vector3.zero, lightRotation, _ceilingLightsRoot.transform);
+                useFirstLight = false;
+
+                float boundsCenterZ = firstCenterZ + z * (lightBounds.size.z + gapZ);
+                light.transform.position = new Vector3(
+                    boundsCenterX - boundsCenterOffset.x,
+                    lightY,
+                    boundsCenterZ - boundsCenterOffset.z);
+            }
+        }
+    }
+
+    static int GetFixtureCount(float ceilingLength, float fixtureLength, float gap)
+    {
+        if (ceilingLength <= 0f || fixtureLength <= 0f) return 0;
+        return Mathf.Max(0, Mathf.FloorToInt((ceilingLength + gap) / (fixtureLength + gap)));
+    }
+
+    static bool TryGetCombinedRendererBounds(GameObject root, out Bounds bounds)
+    {
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0)
+        {
+            bounds = default;
+            return false;
+        }
+
+        bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++)
+            bounds.Encapsulate(renderers[i].bounds);
+        return true;
+    }
 
     static GameObject SpawnPlane(string planeName, Vector3 pos, Quaternion rot, Vector3 scale, Transform floorTransform)
     {

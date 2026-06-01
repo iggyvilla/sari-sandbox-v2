@@ -204,6 +204,22 @@ public class DataHandler : MonoBehaviour
     public bool readSave = false;
     public GameObject shelfPrefab;
     public GameObject floor;
+    public float CeilingY
+    {
+        get
+        {
+            if (floor != null)
+            {
+                RoomStructure roomStructure = floor.GetComponent<RoomStructure>();
+                if (roomStructure != null)
+                    return roomStructure.CeilingY;
+
+                return floor.transform.position.y + currentStoreData.wallHeight;
+            }
+
+            return currentStoreData.wallHeight;
+        }
+    }
     
     [Header("Store Builder")]
     public SB_UIHandler uiHandler;
