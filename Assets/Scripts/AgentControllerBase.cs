@@ -194,6 +194,8 @@ public abstract class AgentControllerBase : MonoBehaviour
                 else if (Input.GetKey(KeyCode.S)) TranslateAgent(-fwd * m, Vector3.zero);
                 else if (Input.GetKey(KeyCode.D)) TranslateAgent(right * m, Vector3.zero);
 
+                if (Input.GetKey(KeyCode.I)) ResetHandPosition();
+
                 if (Input.GetKey(KeyCode.RightArrow)) transform.Rotate(Vector3.up, r);
                 else if (Input.GetKey(KeyCode.LeftArrow)) transform.Rotate(Vector3.up, -r);
                 else ApplyVerticalRotation(r);

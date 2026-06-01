@@ -155,6 +155,8 @@ public class RoomStructure : MonoBehaviour
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Plane);
         go.name = planeName;
+        go.AddComponent<Rigidbody>().isKinematic = true;
+        go.AddComponent<BoxCollider>();
         // Parent to the floor's parent so floor scale doesn't skew the walls
         go.transform.SetParent(floorTransform.parent, worldPositionStays: true);
         go.transform.SetPositionAndRotation(pos, rot);
