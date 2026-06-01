@@ -296,18 +296,21 @@ public class SariMultiplayerBehavior : WebSocketBehavior
     {
         switch (cmd.command)
         {
+            // Semantically, transform is very different from translate,
+            // but Sari Sandbox v1 used TransformAgent as the command even if
+            // it translates. This is only here for compatability.
             case "TransformAgent":
-                agent.TransformAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
-                Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
-                break;
+                // agent.TransformAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
+                // Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
+                // break;
             case "TranslateAgent":
                 agent.TranslateAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
                 Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
                 break;
             case "TransformHand":
-                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
-                Send("Hand transformed");
-                break;
+                // agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
+                // Send("Hand transformed");
+                // break;
             case "TranslateHand":
                 agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
                 Send("Hand translated");

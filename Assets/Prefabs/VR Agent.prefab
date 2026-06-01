@@ -339,7 +339,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   isMultiplayerAgent: 0
-  movementSpeed: 15
+  movementSpeed: 2
   rotateSpeed: 50
   throwStrength: 0.1
   agentHand: {fileID: 1878172777069750429}
@@ -1215,6 +1215,6 @@ MeshCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 5
-  m_Convex: 0
+  m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: 4300000, guid: d0c255d07fd68f14b94e55d388e7e6bb, type: 3}
