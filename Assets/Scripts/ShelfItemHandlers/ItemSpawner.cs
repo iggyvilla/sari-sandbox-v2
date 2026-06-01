@@ -454,6 +454,7 @@ public class ItemSpawner : MonoBehaviour
         spriteRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         spriteRenderer.receiveShadows = false;
         spriteRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+        spriteRenderer.sortingOrder = -1;
 
         priceTag.AddComponent<BakedPriceTag>();
 
