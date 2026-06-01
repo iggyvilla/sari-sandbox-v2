@@ -3760,6 +3760,10 @@ PrefabInstance:
       propertyPath: m_Convex
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 5662738085861563573, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
+      propertyPath: movementSpeed
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 6611886716877899110, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
       propertyPath: m_Antialiasing
       value: 0

@@ -50,6 +50,11 @@ public abstract class AgentControllerBase : MonoBehaviour
     private bool _hasDesiredHandPose;
     private bool _hasPendingHandPose;
 
+    // Body translation requested this physics step via MovePosition (a deferred move that
+    // hasn't been applied to the transform yet). ApplyDesiredHandPose adds this so the hand
+    // is pinned to where the body WILL be, not where it currently is.
+    private Vector3 _pendingBodyTranslation;
+
     private bool _basketInView;
     private Vector3 _basketStoredPosition;
     private Quaternion _basketStoredRotation;
@@ -100,21 +105,24 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     void FixedUpdate()
     {
+        _pendingBodyTranslation = Vector3.zero;
         UpdateHandControlMode();
         HandleMovement();
         ApplyDesiredHandPose();
         if (isMultiplayerAgent) return;
 
-        RaycastHit hit;
         Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.forward) * 10f, Color.yellow);
 
         if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual) return;
+        
+        // Gaze Mode 
 
         if (Input.GetKey(KeyCode.Q) && _rightHandItem?.gameObject != null)
         {
             ThrowItem();
         }
-
+        
+        RaycastHit hit;
         if (Physics.Raycast(
                 transform.position,
                 transform.TransformDirection(Vector3.forward),
@@ -181,10 +189,10 @@ public abstract class AgentControllerBase : MonoBehaviour
 
             if (!ctrl)
             {
-                if (Input.GetKey(KeyCode.W)) rigidbody.AddForce(fwd * m, ForceMode.Impulse);
-                else if (Input.GetKey(KeyCode.A)) rigidbody.AddForce(-right * m, ForceMode.Impulse);
-                else if (Input.GetKey(KeyCode.S)) rigidbody.AddForce(-fwd * m, ForceMode.Impulse);
-                else if (Input.GetKey(KeyCode.D)) rigidbody.AddForce(right * m, ForceMode.Impulse);
+                if (Input.GetKey(KeyCode.W)) TranslateAgent(fwd * m, Vector3.zero);
+                else if (Input.GetKey(KeyCode.A)) TranslateAgent(-right * m, Vector3.zero);
+                else if (Input.GetKey(KeyCode.S)) TranslateAgent(-fwd * m, Vector3.zero);
+                else if (Input.GetKey(KeyCode.D)) TranslateAgent(right * m, Vector3.zero);
 
                 if (Input.GetKey(KeyCode.RightArrow)) transform.Rotate(Vector3.up, r);
                 else if (Input.GetKey(KeyCode.LeftArrow)) transform.Rotate(Vector3.up, -r);
@@ -243,12 +251,16 @@ public abstract class AgentControllerBase : MonoBehaviour
     private void ApplyDesiredHandPose()
     {
         if (_handRigidbody == null || !_hasDesiredHandPose) return;
-        if (_handRigidbody.isKinematic && !_hasPendingHandPose) return;
+        // Re-pin the hand to its parent-local pose every step (even while kinematic) so a
+        // nested Rigidbody isn't left behind when the body moves. The body's translation is
+        // applied via a deferred MovePosition, so add _pendingBodyTranslation to target where
+        // the body WILL be this step; rotation is written to the transform immediately, so
+        // handParent.rotation is already current and needs no prediction.
 
         Transform handParent = agentHand.transform.parent;
         Vector3 worldPosition = handParent != null
-            ? handParent.TransformPoint(_desiredHandLocalPosition)
-            : _desiredHandLocalPosition;
+            ? handParent.TransformPoint(_desiredHandLocalPosition) + _pendingBodyTranslation
+            : _desiredHandLocalPosition + _pendingBodyTranslation;
         Quaternion worldRotation = handParent != null
             ? handParent.rotation * _desiredHandLocalRotation
             : _desiredHandLocalRotation;
@@ -440,7 +452,11 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         rigidbody.linearVelocity = Vector3.zero;
         rigidbody.angularVelocity = Vector3.zero;
-        rigidbody.transform.position += deltaTranslation;
+        // MovePosition (instead of writing transform.position) so the body sweeps against
+        // colliders. The move is deferred to the physics step, so record the accumulated
+        // delta for ApplyDesiredHandPose to keep the hand in sync this same step.
+        _pendingBodyTranslation += deltaTranslation;
+        rigidbody.MovePosition(rigidbody.position + _pendingBodyTranslation);
         Vector3 euler = transform.eulerAngles + deltaRotation;
         euler.z = 0;
         transform.rotation = Quaternion.Euler(euler);
