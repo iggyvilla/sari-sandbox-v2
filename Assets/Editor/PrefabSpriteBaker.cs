@@ -27,6 +27,7 @@ public static class PrefabSpriteBaker
         public string AtlasPath;
         public string SourceObjectName;
         public Quaternion SourceRotation = Quaternion.identity;
+        public int MaxTextureDimension;
     }
 
     public struct BakeSetup
@@ -77,7 +78,7 @@ public static class PrefabSpriteBaker
 
                     string assetName = SanitizeAssetFileName(getAssetName(value));
                     string outputPath = $"{settings.OutputDirectory}/{assetName}.png";
-                    RenderPng(setup.Camera, ref renderTexture, bounds, outputPath);
+                    RenderPng(setup.Camera, ref renderTexture, bounds, outputPath, settings.MaxTextureDimension);
                     ConfigureSpriteImport(outputPath);
                     bakedCount++;
                 }
@@ -199,14 +200,15 @@ public static class PrefabSpriteBaker
         Camera camera,
         ref RenderTexture renderTexture,
         Bounds bounds,
-        string outputPath
+        string outputPath,
+        int maxTextureDimension = 0
     )
     {
-        int textureWidth = CalculateTextureWidth(bounds);
-        if (renderTexture == null || renderTexture.width != textureWidth)
+        Vector2Int textureSize = CalculateTextureSize(bounds, maxTextureDimension);
+        if (renderTexture == null || renderTexture.width != textureSize.x || renderTexture.height != textureSize.y)
         {
             ReleaseRenderTexture(ref renderTexture);
-            renderTexture = new RenderTexture(textureWidth, TextureHeight, 24, RenderTextureFormat.ARGB32)
+            renderTexture = new RenderTexture(textureSize.x, textureSize.y, 24, RenderTextureFormat.ARGB32)
             {
                 antiAliasing = 4
             };
@@ -222,8 +224,8 @@ public static class PrefabSpriteBaker
             GL.Clear(true, true, new Color(0f, 0f, 0f, 0f));
             camera.Render();
 
-            Texture2D texture = new(textureWidth, TextureHeight, TextureFormat.RGBA32, false);
-            texture.ReadPixels(new Rect(0, 0, textureWidth, TextureHeight), 0, 0);
+            Texture2D texture = new(textureSize.x, textureSize.y, TextureFormat.RGBA32, false);
+            texture.ReadPixels(new Rect(0, 0, textureSize.x, textureSize.y), 0, 0);
             texture.Apply();
 
             File.WriteAllBytes(outputPath, texture.EncodeToPNG());
@@ -314,6 +316,8 @@ public static class PrefabSpriteBaker
             throw new ArgumentException("An atlas path is required.", nameof(settings));
         if (string.IsNullOrWhiteSpace(settings.SourceObjectName))
             throw new ArgumentException("A source object name is required.", nameof(settings));
+        if (settings.MaxTextureDimension < 0)
+            throw new ArgumentException("The maximum texture dimension cannot be negative.", nameof(settings));
     }
 
     private static void RemoveGeneratedPngs(string outputDirectory)
@@ -344,7 +348,7 @@ public static class PrefabSpriteBaker
         }
     }
 
-    private static int CalculateTextureWidth(Bounds bounds)
+    private static Vector2Int CalculateTextureSize(Bounds bounds, int maxTextureDimension)
     {
         if (bounds.size.y <= Mathf.Epsilon)
         {
@@ -356,17 +360,22 @@ public static class PrefabSpriteBaker
 
         double textureWidth = Math.Ceiling(TextureHeight * (double)bounds.size.x / bounds.size.y);
         int maxTextureSize = SystemInfo.maxTextureSize;
-        if (textureWidth > maxTextureSize)
+        int effectiveMaxDimension = maxTextureDimension > 0
+            ? Math.Min(maxTextureDimension, maxTextureSize)
+            : maxTextureSize;
+        double largestDimension = Math.Max(textureWidth, TextureHeight);
+        if (largestDimension > effectiveMaxDimension)
         {
-            throw new InvalidOperationException(
-                $"Cannot bake sprite because its calculated width is {textureWidth:0} pixels, " +
-                $"which exceeds this device's {maxTextureSize}-pixel limit. " +
-                $"Framing bounds were {bounds.size.x:0.######} x {bounds.size.y:0.######}. " +
-                "Check the prefab orientation and bake source rotation."
+            double scale = effectiveMaxDimension / largestDimension;
+            textureWidth *= scale;
+
+            return new Vector2Int(
+                Math.Max(1, (int)Math.Round(textureWidth)),
+                Math.Max(1, (int)Math.Round(TextureHeight * scale))
             );
         }
 
-        return Math.Max(1, (int)textureWidth);
+        return new Vector2Int(Math.Max(1, (int)textureWidth), TextureHeight);
     }
 
     private static string SanitizeAssetFileName(string fileName)

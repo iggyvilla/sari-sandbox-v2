@@ -10,6 +10,7 @@ public sealed class ExpirationDateDecalBakerWindow : EditorWindow
     private const string AtlasPath = "Assets/Resources/Generated/ExpirationDateDecals.spriteatlas";
     private const string PrefabPathEditorPref = "Sari.ExpirationDateDecalBaker.PrefabPath";
     private const string ReferenceDateFormat = "yyyy-MM-dd";
+    private const int MaxTextureDimension = 1024;
 
     private GameObject decalPrefab;
     private string referenceDateText;
@@ -119,7 +120,8 @@ public sealed class ExpirationDateDecalBakerWindow : EditorWindow
             PrefabPath = prefabPath,
             OutputDirectory = OutputDirectory,
             AtlasPath = AtlasPath,
-            SourceObjectName = "Expiration Date Decal"
+            SourceObjectName = "Expiration Date Decal",
+            MaxTextureDimension = MaxTextureDimension
         };
 
         int bakedCount;
