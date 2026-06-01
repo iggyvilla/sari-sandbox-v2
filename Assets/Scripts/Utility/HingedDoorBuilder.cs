@@ -75,7 +75,7 @@ public class HingedDoorBuilder : MonoBehaviour
         // the border's front face rather than being buried inside the thicker border (z).
         float handleX = handleSide * (doorDimensions.x / 2f - FridgeBorderWidth / 2f);
         float borderFrontZ = (doorDimensions.z + _borderThicknessPadding) / 2f;
-        doorHandle.transform.position += transform.right * handleX + transform.forward * borderFrontZ;
+        doorHandle.transform.position += transform.right * handleX + transform.forward * borderFrontZ/2;
 
         // doorTrigger is parented to glassDoor whose localScale == doorDimensions,
         // so divide world-space extents by that scale to get local collider values.

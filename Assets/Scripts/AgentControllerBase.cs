@@ -29,6 +29,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     public float doorHandleForce = 5f;
 
     protected Rigidbody rigidbody;
+    protected Rigidbody handRigidbody;
     protected Animator handAnimator;
     protected HandCollisionDetector _handCollisionDetector;
     protected BoxCollider _handCollider;
@@ -50,6 +51,18 @@ public abstract class AgentControllerBase : MonoBehaviour
     private Quaternion _basketStoredRotation;
     private Transform _basketStoredParent;
 
+    private bool _hasPendingAgentPosition;
+    private Vector3 _pendingAgentPosition;
+    private bool _hasPendingAgentRotation;
+    private Quaternion _pendingAgentRotation;
+    private bool _resetAgentVelocity;
+
+    // The hand's pose is always described relative to its parent (the body). Every
+    // FixedUpdate the hand Rigidbody is re-driven to this target, so it stays attached
+    // to the body and pushes items/doors with a finite swept velocity.
+    private Vector3 _handTargetLocalPosition;
+    private Quaternion _handTargetLocalRotation;
+
     protected virtual void Start()
     {
         rigidbody = GetComponentInParent<Rigidbody>() ?? GetComponent<Rigidbody>() ?? GetComponentInChildren<Rigidbody>();
@@ -64,6 +77,8 @@ public abstract class AgentControllerBase : MonoBehaviour
         _handCollisionDetector = agentHand.GetComponent<HandCollisionDetector>();
         _initialHandLocalPosition = agentHand.transform.localPosition;
         _initialHandLocalRotation = agentHand.transform.localRotation;
+        handRigidbody = agentHand.GetComponent<Rigidbody>();
+        SetHandPoseTargetFromTransform();
         _handCollider = agentHand.GetComponent<BoxCollider>();
         if (_handCollider != null)
         {
@@ -92,6 +107,10 @@ public abstract class AgentControllerBase : MonoBehaviour
     void FixedUpdate()
     {
         HandleMovement();
+        ApplyPendingAgentPose();
+        // Drive the hand AFTER the body pose is applied this step, so it reads the
+        // body's current transform and never lags a frame behind it.
+        DriveHandToTarget();
         if (isMultiplayerAgent) return;
 
         RaycastHit hit;
@@ -175,8 +194,8 @@ public abstract class AgentControllerBase : MonoBehaviour
                 else if (Input.GetKey(KeyCode.S)) rigidbody.AddForce(-fwd * m, ForceMode.Impulse);
                 else if (Input.GetKey(KeyCode.D)) rigidbody.AddForce(right * m, ForceMode.Impulse);
 
-                if (Input.GetKey(KeyCode.RightArrow)) transform.Rotate(Vector3.up, r);
-                else if (Input.GetKey(KeyCode.LeftArrow)) transform.Rotate(Vector3.up, -r);
+                if (Input.GetKey(KeyCode.RightArrow)) RotateAgent(Vector3.up, r);
+                else if (Input.GetKey(KeyCode.LeftArrow)) RotateAgent(Vector3.up, -r);
                 else ApplyVerticalRotation(r);
             }
             else
@@ -189,9 +208,18 @@ public abstract class AgentControllerBase : MonoBehaviour
         AnimateHand();
         AnimateBody();
 
-        Vector3 e = transform.eulerAngles;
-        e.z = 0;
-        transform.rotation = Quaternion.Euler(e);
+        if (transform == rigidbody.transform)
+        {
+            Vector3 e = GetPendingAgentRotation().eulerAngles;
+            e.z = 0;
+            QueueAgentRotation(Quaternion.Euler(e));
+        }
+        else
+        {
+            Vector3 e = transform.eulerAngles;
+            e.z = 0;
+            transform.rotation = Quaternion.Euler(e);
+        }
     }
 
     // Override in IKAgentController to route up/down into the head joint only.
@@ -225,13 +253,13 @@ public abstract class AgentControllerBase : MonoBehaviour
 
         if (_grabbedDoor != null)
         {
-            agentHand.transform.position = _grabbedDoor.transform.position;
+            MoveHandToWorldPose(_grabbedDoor.transform.position, agentHand.transform.rotation);
             DriveDoorFromInput();
             return;
         }
 
         float speed = handMoveSpeed * Time.fixedDeltaTime;
-        Vector3 localPos = agentHand.transform.localPosition;
+        Vector3 localPos = _handTargetLocalPosition;
 
         if (Input.GetKey(KeyCode.E)) localPos += Vector3.up * speed;
         if (Input.GetKey(KeyCode.Q)) localPos -= Vector3.up * speed;
@@ -243,7 +271,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         // if (localPos.magnitude > handMoveRange)
         //     localPos = localPos.normalized * handMoveRange;
 
-        agentHand.transform.localPosition = localPos;
+        MoveHandToLocalPose(localPos, _handTargetLocalRotation);
     }
 
     private void DriveDoorFromInput()
@@ -301,45 +329,39 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     public void TransformAgent(Vector3 worldPosition, Vector3 eulerRotation)
     {
-        rigidbody.linearVelocity = Vector3.zero;
-        rigidbody.angularVelocity = Vector3.zero;
-        rigidbody.transform.position = worldPosition;
-        transform.rotation = Quaternion.Euler(eulerRotation);
+        QueueAgentPose(worldPosition, Quaternion.Euler(eulerRotation), resetVelocity: true);
     }
 
     public void TranslateAgent(Vector3 deltaTranslation, Vector3 deltaRotation)
     {
-        rigidbody.linearVelocity = Vector3.zero;
-        rigidbody.angularVelocity = Vector3.zero;
-        rigidbody.transform.position += deltaTranslation;
-        Vector3 euler = transform.eulerAngles + deltaRotation;
+        Vector3 position = GetPendingAgentPosition() + deltaTranslation;
+        Vector3 euler = GetPendingAgentRotation().eulerAngles + deltaRotation;
         euler.z = 0;
-        transform.rotation = Quaternion.Euler(euler);
+        QueueAgentPose(position, Quaternion.Euler(euler), resetVelocity: true);
     }
 
     public void TransformHand(Vector3 localPosition, Vector3 eulerRotation)
     {
         if (agentHand == null) return;
         if (localPosition.magnitude > handMoveRange) return;
-        agentHand.transform.position = transform.TransformPoint(localPosition);
-        agentHand.transform.rotation = transform.rotation * Quaternion.Euler(eulerRotation);
+        MoveHandToWorldPose(
+            transform.TransformPoint(localPosition),
+            transform.rotation * Quaternion.Euler(eulerRotation));
     }
 
     public void TranslateHand(Vector3 deltaLocalPosition, Vector3 deltaRotation)
     {
         if (agentHand == null) return;
-        Vector3 localPos = agentHand.transform.localPosition + deltaLocalPosition;
+        Vector3 localPos = _handTargetLocalPosition + deltaLocalPosition;
         if (localPos.magnitude > handMoveRange)
             localPos = localPos.normalized * handMoveRange;
-        agentHand.transform.localPosition = localPos;
-        agentHand.transform.localRotation *= Quaternion.Euler(deltaRotation);
+        MoveHandToLocalPose(localPos, _handTargetLocalRotation * Quaternion.Euler(deltaRotation));
     }
 
     public void ResetHandPosition()
     {
         if (agentHand == null) return;
-        agentHand.transform.localPosition = _initialHandLocalPosition;
-        agentHand.transform.localRotation = _initialHandLocalRotation;
+        MoveHandToLocalPose(_initialHandLocalPosition, _initialHandLocalRotation);
     }
 
     public bool IsHoldingItem() => _rightHandItem?.gameObject != null;
@@ -402,8 +424,7 @@ public abstract class AgentControllerBase : MonoBehaviour
             // If we're currently grabbing a door, un-grab it
             if (_grabbedDoor != null)
             {
-                agentHand.transform.localPosition = _initialHandLocalPosition;
-                agentHand.transform.localRotation = _initialHandLocalRotation;
+                MoveHandToLocalPose(_initialHandLocalPosition, _initialHandLocalRotation);
                 _grabbedDoor.DoorRigidbody.linearVelocity = Vector3.zero;
                 _grabbedDoor.DoorRigidbody.angularVelocity = Vector3.zero;
                 _grabbedDoor = null;
@@ -441,5 +462,135 @@ public abstract class AgentControllerBase : MonoBehaviour
             _itemBBoxMaterial,
             transform.forward * throwStrength);
         _rightHandItem = null;
+    }
+
+    private Vector3 GetPendingAgentPosition()
+    {
+        return _hasPendingAgentPosition ? _pendingAgentPosition : rigidbody.position;
+    }
+
+    private Quaternion GetPendingAgentRotation()
+    {
+        return _hasPendingAgentRotation ? _pendingAgentRotation : rigidbody.rotation;
+    }
+
+    private void QueueAgentPose(Vector3 position, Quaternion rotation, bool resetVelocity)
+    {
+        _pendingAgentPosition = position;
+        _hasPendingAgentPosition = true;
+        _pendingAgentRotation = NormalizeRotation(rotation, rigidbody.rotation);
+        _hasPendingAgentRotation = true;
+        _resetAgentVelocity |= resetVelocity;
+    }
+
+    private void QueueAgentRotation(Quaternion rotation)
+    {
+        _pendingAgentRotation = NormalizeRotation(rotation, rigidbody.rotation);
+        _hasPendingAgentRotation = true;
+    }
+
+    private void RotateAgent(Vector3 axis, float degrees)
+    {
+        QueueAgentRotation(Quaternion.AngleAxis(degrees, axis) * GetPendingAgentRotation());
+    }
+
+    private void ApplyPendingAgentPose()
+    {
+        if (rigidbody == null) return;
+
+        if (_resetAgentVelocity)
+        {
+            rigidbody.linearVelocity = Vector3.zero;
+            rigidbody.angularVelocity = Vector3.zero;
+        }
+
+        if (_hasPendingAgentPosition)
+            rigidbody.MovePosition(_pendingAgentPosition);
+        if (_hasPendingAgentRotation)
+            rigidbody.MoveRotation(_pendingAgentRotation);
+
+        _hasPendingAgentPosition = false;
+        _hasPendingAgentRotation = false;
+        _resetAgentVelocity = false;
+    }
+
+    private void SetHandPoseTargetFromTransform()
+    {
+        _handTargetLocalPosition = agentHand.transform.localPosition;
+        _handTargetLocalRotation = NormalizeRotation(agentHand.transform.localRotation, Quaternion.identity);
+    }
+
+    // The Move* methods only record where the hand should sit relative to the body.
+    // The actual move happens in DriveHandToTarget every FixedUpdate.
+    private void MoveHandToLocalPose(Vector3 localPosition, Quaternion localRotation)
+    {
+        _handTargetLocalPosition = localPosition;
+        _handTargetLocalRotation = NormalizeRotation(localRotation, _handTargetLocalRotation);
+    }
+
+    private void MoveHandToWorldPose(Vector3 worldPosition, Quaternion worldRotation)
+    {
+        Transform parent = agentHand.transform.parent;
+        worldRotation = NormalizeRotation(worldRotation, agentHand.transform.rotation);
+        _handTargetLocalPosition = parent != null ? parent.InverseTransformPoint(worldPosition) : worldPosition;
+        _handTargetLocalRotation = NormalizeRotation(
+            parent != null ? Quaternion.Inverse(parent.rotation) * worldRotation : worldRotation,
+            _handTargetLocalRotation);
+    }
+
+    // Re-pin the hand to its parent-relative target every physics step. Because this
+    // reads the parent's live transform, the hand stays rigidly attached to the body
+    // through any body motion, while MovePosition still sweeps it for collisions so it
+    // can push items and doors instead of teleporting through them.
+    private void DriveHandToTarget()
+    {
+        if (agentHand == null) return;
+
+        Transform parent = agentHand.transform.parent;
+        Vector3 worldPosition = parent != null
+            ? parent.TransformPoint(_handTargetLocalPosition)
+            : _handTargetLocalPosition;
+        Quaternion worldRotation = NormalizeRotation(
+            parent != null ? parent.rotation * _handTargetLocalRotation : _handTargetLocalRotation,
+            agentHand.transform.rotation);
+
+        // IK targets have no Rigidbody and intentionally keep their transform-based behavior.
+        if (handRigidbody == null)
+        {
+            agentHand.transform.SetPositionAndRotation(worldPosition, worldRotation);
+            return;
+        }
+
+        handRigidbody.MovePosition(worldPosition);
+        handRigidbody.MoveRotation(worldRotation);
+    }
+
+    private static Quaternion NormalizeRotation(Quaternion rotation, Quaternion fallback)
+    {
+        float sqrMagnitude =
+            rotation.x * rotation.x +
+            rotation.y * rotation.y +
+            rotation.z * rotation.z +
+            rotation.w * rotation.w;
+
+        if (float.IsNaN(sqrMagnitude) || float.IsInfinity(sqrMagnitude) || sqrMagnitude < 0.000001f)
+        {
+            rotation = fallback;
+            sqrMagnitude =
+                rotation.x * rotation.x +
+                rotation.y * rotation.y +
+                rotation.z * rotation.z +
+                rotation.w * rotation.w;
+
+            if (float.IsNaN(sqrMagnitude) || float.IsInfinity(sqrMagnitude) || sqrMagnitude < 0.000001f)
+                return Quaternion.identity;
+        }
+
+        float inverseMagnitude = 1f / Mathf.Sqrt(sqrMagnitude);
+        return new Quaternion(
+            rotation.x * inverseMagnitude,
+            rotation.y * inverseMagnitude,
+            rotation.z * inverseMagnitude,
+            rotation.w * inverseMagnitude);
     }
 }

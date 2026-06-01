@@ -27,12 +27,14 @@ public class SocketIOServer : MonoBehaviour
     private int currentCorner = 0;
     private List<List<float>> pathCorners = new();
     private NavMeshAgent agent;
+    private AgentControllerBase agentController;
     
     void Start()
     {
         Debug.Log("Connecting to SocketIO server...");
         
         agent = agentGameObject.GetComponent<NavMeshAgent>();
+        agentController = agentGameObject.GetComponentInChildren<AgentControllerBase>();
         
         var uri = new Uri($"http://{serverIP}:{serverPort}");
         socket = new SocketIOUnity(uri, new SocketIOOptions
@@ -57,7 +59,10 @@ public class SocketIOServer : MonoBehaviour
         {
             float amount = data.GetValue<float>();
             ServerLog($"recv MOVE_FWD({amount})");
-            agentGameObject.transform.position += agentGameObject.transform.forward * amount;
+            if (agentController != null)
+                agentController.TranslateAgent(agentGameObject.transform.forward * amount, Vector3.zero);
+            else
+                Debug.LogWarning("MOVE_FWD ignored: AgentControllerBase was not found.");
             StartCoroutine(ScreenshotUtility.GetScreenshotBase64((base64) =>
                 {
                     socket.Emit("UNITY_RESPONSE", base64);

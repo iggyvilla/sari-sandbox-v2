@@ -296,18 +296,20 @@ public class SariMultiplayerBehavior : WebSocketBehavior
     {
         switch (cmd.command)
         {
+            // TransformAgent/Hand is only a compatability layer with old API:
+            // in reality, it also just translates the agent
             case "TransformAgent":
-                agent.TransformAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
-                Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
-                break;
+                // agent.TransformAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
+                // Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
+                // break;
             case "TranslateAgent":
                 agent.TranslateAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
                 Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
                 break;
             case "TransformHand":
-                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
-                Send("Hand transformed");
-                break;
+                // agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
+                // Send("Hand transformed");
+                // break;
             case "TranslateHand":
                 agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
                 Send("Hand translated");
