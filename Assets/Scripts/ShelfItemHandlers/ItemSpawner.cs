@@ -542,6 +542,7 @@ public class ItemSpawner : MonoBehaviour
         bbox.GetComponent<Renderer>().material = _airMaterial;
 
         itemBBoxInfo.itemId = productName;
+        itemBBoxInfo.expirationDateDecalId = ExpirationDateDecalCatalog.GetRandomDecalId();
         itemBBoxInfo.instanceData = instanceData;
         itemBBoxInfo.physicsSpawnPosition = physicsSpawnPosition;
         itemBBoxInfo.spawnRotation = aisleRot;

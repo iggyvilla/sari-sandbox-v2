@@ -1263,6 +1263,7 @@ MonoBehaviour:
   selfCheckoutCounter: {fileID: 0}
   agentSpawnMarkerPrefab: {fileID: 0}
   enableShelfItemPhysics: 1
+  expirationDateDecalMaterial: {fileID: 2100000, guid: ce6210b2f20c74cb3955ab02a924676c, type: 2}
   storeName: DefaultStore
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}

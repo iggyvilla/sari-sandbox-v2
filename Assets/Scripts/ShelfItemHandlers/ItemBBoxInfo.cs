@@ -11,6 +11,7 @@ public class ItemBBoxInfo : MonoBehaviour
     public bool returnToPoolOnDelete;
 
     public string itemId;
+    public string expirationDateDecalId;
     public InstanceData instanceData;
     public ShelfItemPhysicsStack PhysicsStack { get; set; }
     public bool IsStackable => PhysicsStack != null;

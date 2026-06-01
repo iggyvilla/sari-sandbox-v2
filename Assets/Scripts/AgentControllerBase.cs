@@ -436,7 +436,10 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     private void ThrowItem()
     {
-        RetailItemRuntimeService.Instance.ThrowHeldItem(_rightHandItem, transform.forward * throwStrength);
+        RetailItemRuntimeService.Instance.ThrowHeldItem(
+            _rightHandItem,
+            _itemBBoxMaterial,
+            transform.forward * throwStrength);
         _rightHandItem = null;
     }
 }

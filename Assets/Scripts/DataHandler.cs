@@ -189,6 +189,9 @@ public class DataHandler : MonoBehaviour
     [Header("Item Physics")]
     public bool enableShelfItemPhysics;
 
+    [Header("Expiration Date Decals")]
+    public Material expirationDateDecalMaterial;
+
     [Header("Experimental")]
     [Tooltip("If true, ItemSpawner combines each row of identical products into one mesh and " +
              "registers that single combined chunk with the GPU instancer instead of adding each " +
@@ -226,6 +229,7 @@ public class DataHandler : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
+        ExpirationDateDecalCatalog.Initialize(expirationDateDecalMaterial);
 
         Debug.Log("Loading item categories...");
         TextAsset categoriesJson = Resources.Load<TextAsset>("Data/Categories");

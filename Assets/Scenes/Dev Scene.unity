@@ -1931,6 +1931,7 @@ MonoBehaviour:
   selfCheckoutCounter: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
   agentSpawnMarkerPrefab: {fileID: 1761823292887612564, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
   enableShelfItemPhysics: 1
+  expirationDateDecalMaterial: {fileID: 2100000, guid: ce6210b2f20c74cb3955ab02a924676c, type: 2}
   combineRowMeshes: 0
   storeName: TestStore
   readSave: 0
@@ -3956,7 +3957,7 @@ PrefabInstance:
       objectReference: {fileID: 593330296}
     - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: forcedCategory
-      value: 6
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 5819405705655776731, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
       propertyPath: debugForceItemCategory

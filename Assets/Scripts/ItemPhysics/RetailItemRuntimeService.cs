@@ -45,6 +45,7 @@ public enum RetailItemRuntimeState
 public sealed class RuntimeRetailItem
 {
     public string itemId;
+    public string expirationDateDecalId;
     public GameObject gameObject;
     public RetailItemRuntimeState state;
     public ItemBBoxInfo shelfBBoxInfo;
@@ -120,15 +121,19 @@ public class RetailItemRuntimeService : MonoBehaviour
         }
 
         string itemId = bboxInfo.itemId;
+        string expirationDateDecalId = bboxInfo.expirationDateDecalId;
         bboxInfo.DeleteItem();
 
-        GameObject item = CreateItemInstance(itemId, position, rotation, parent);
+        GameObject item = CreateItemInstance(itemId, expirationDateDecalId, position, rotation, parent);
         if (item == null) return null;
 
         DisablePhysicsForHeldItem(item);
         item.transform.Rotate(localEulerOffset);
 
-        return new RuntimeRetailItem(itemId, item, RetailItemRuntimeState.Held);
+        return new RuntimeRetailItem(itemId, item, RetailItemRuntimeState.Held)
+        {
+            expirationDateDecalId = expirationDateDecalId
+        };
     }
 
     public RuntimeRetailItem ActivatePhysicsPreview(ItemBBoxInfo bboxInfo)
@@ -149,6 +154,7 @@ public class RetailItemRuntimeService : MonoBehaviour
 
         GameObject physicsObj = ItemPoolingManager.Instance.GetOrCreate(bboxInfo.itemId, pos, rot);
         if (physicsObj == null) return null;
+        ExpirationDateDecalCatalog.ApplyTo(physicsObj, bboxInfo.expirationDateDecalId);
 
         BatchInstancer bi = GPUInstanceTracker.Instance?.GetBatchInstancerFromId(bboxInfo.itemId);
         bi?.RemoveSingleDrawData(bboxInfo.instanceData);
@@ -158,6 +164,7 @@ public class RetailItemRuntimeService : MonoBehaviour
             physicsObj,
             RetailItemRuntimeState.PhysicsPreview)
         {
+            expirationDateDecalId = bboxInfo.expirationDateDecalId,
             shelfBBoxInfo = bboxInfo,
             originalBBoxWorldPosition = bboxInfo.transform.position,
             originalBBoxWorldRotation = bboxInfo.transform.rotation,
@@ -248,15 +255,16 @@ public class RetailItemRuntimeService : MonoBehaviour
         if (item == null || item.gameObject == null) return;
 
         EnablePhysics(item.gameObject);
-        CreatePhysicsItemBBox(item.gameObject, item.itemId, bboxMaterial);
+        CreatePhysicsItemBBox(item.gameObject, item.itemId, item.expirationDateDecalId, bboxMaterial);
         item.state = RetailItemRuntimeState.Dropped;
     }
 
-    public void ThrowHeldItem(RuntimeRetailItem item, Vector3 impulse)
+    public void ThrowHeldItem(RuntimeRetailItem item, Material bboxMaterial, Vector3 impulse)
     {
         if (item == null || item.gameObject == null) return;
 
         Rigidbody rb = EnablePhysics(item.gameObject);
+        CreatePhysicsItemBBox(item.gameObject, item.itemId, item.expirationDateDecalId, bboxMaterial);
         if (rb != null)
             rb.AddForce(impulse, ForceMode.Impulse);
 
@@ -296,7 +304,12 @@ public class RetailItemRuntimeService : MonoBehaviour
         itemBatchInstancer?.RemoveSingleDrawData(bboxInfo.instanceData);
     }
 
-    private GameObject CreateItemInstance(string itemId, Vector3 position, Quaternion rotation, Transform parent)
+    private GameObject CreateItemInstance(
+        string itemId,
+        string expirationDateDecalId,
+        Vector3 position,
+        Quaternion rotation,
+        Transform parent)
     {
         GameObject prefab = Resources.Load<GameObject>("Prefabs/Products/" + itemId);
         if (prefab == null)
@@ -308,6 +321,7 @@ public class RetailItemRuntimeService : MonoBehaviour
         GameObject item = Instantiate(prefab, position, rotation, parent);
         item.name = itemId;
         item.tag = "RetailItem";
+        ExpirationDateDecalCatalog.ApplyTo(item, expirationDateDecalId);
         return item;
     }
 
@@ -367,7 +381,11 @@ public class RetailItemRuntimeService : MonoBehaviour
             c.isTrigger = true;
     }
 
-    private static GameObject CreatePhysicsItemBBox(GameObject itemRoot, string itemId, Material bboxMaterial)
+    private static GameObject CreatePhysicsItemBBox(
+        GameObject itemRoot,
+        string itemId,
+        string expirationDateDecalId,
+        Material bboxMaterial)
     {
         Transform lod0 = FindLOD0(itemRoot);
         MeshFilter mf = lod0.GetComponent<MeshFilter>();
@@ -392,6 +410,7 @@ public class RetailItemRuntimeService : MonoBehaviour
         ItemBBoxInfo itemBBoxInfo = cube.AddComponent<ItemBBoxInfo>();
         itemBBoxInfo.isPhysicsObject = true;
         itemBBoxInfo.itemId = itemId;
+        itemBBoxInfo.expirationDateDecalId = expirationDateDecalId;
 
         return cube;
     }
