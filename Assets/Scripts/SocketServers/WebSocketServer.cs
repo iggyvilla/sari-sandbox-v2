@@ -13,6 +13,7 @@ public class WebSocketHandler : MonoBehaviour
     [SerializeField] int port = 8080;
     [SerializeField] AgentController agentController;
     [SerializeField] GameObject ikHumanoidGhostPrefab;
+    public ChatUIManager chatUIManager;
 
     private WebSocketServer _wss;
     private readonly ConcurrentQueue<Action> _mainThreadActions = new();
@@ -290,6 +291,12 @@ public class SariMultiplayerBehavior : WebSocketBehavior
         public string message;
     }
 
+    [Serializable] class ChatLogMsg
+    {
+        public string type = "ChatLog";
+        public string log;
+    }
+
     private string _agentId;
 
     protected override void OnMessage(MessageEventArgs e)
@@ -360,6 +367,14 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 string chatLine = $"{_agentId}: {cmd.message}";
                 ChatUIManager.Instance.Log(chatLine);
                 Sessions.Broadcast(JsonUtility.ToJson(new ChatMsg { agentId = _agentId, message = cmd.message }));
+                break;
+            }
+
+            case "RequestChatLog":
+            {
+                ChatUIManager chatUIManager = WebSocketHandler.Instance.chatUIManager;
+                if (chatUIManager == null) { Send("Error: ChatUIManager not assigned"); return; }
+                Send(JsonUtility.ToJson(new ChatLogMsg { log = chatUIManager.ChatLog }));
                 break;
             }
 
