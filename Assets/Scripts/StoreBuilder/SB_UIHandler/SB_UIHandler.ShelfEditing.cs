@@ -224,7 +224,6 @@ public partial class SB_UIHandler
             if (!shelf.spawnItems) continue;
             shelf.DespawnShelfItems();
             shelf.Rebuild();
-            shelf.SpawnItemsOnAllShelves();
         }
     }
 
@@ -236,10 +235,6 @@ public partial class SB_UIHandler
         if (!selectedShelf.spawnPriceTags)
         {
             ShelfBuilder.DeleteAllPriceTags();
-        }
-        else
-        {
-            SafeRebuildShelf();
         }
     }
 

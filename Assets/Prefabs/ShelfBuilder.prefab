@@ -2449,8 +2449,8 @@ MonoBehaviour:
     buildShelves: 0
     buildBackWall: 0
     buildShelfRoof: 0
-  spawnItems: 1
-  spawnPriceTags: 1
+  spawnItems: 0
+  spawnPriceTags: 0
   itemSpawnOption: 0
   debugForceItemCategory: 0
   forcedCategory: 7
@@ -2468,7 +2468,7 @@ MonoBehaviour:
   wallMaterial: {fileID: 2100000, guid: cdb6814b07cf64d65948f48eed9ff0e7, type: 2}
   airMaterial: {fileID: 2100000, guid: a1e0527347dd447dca8ce9830f3e8e10, type: 2}
   floor: {fileID: 0}
-  spawnHingeDoors: 0
+  isFridge: 0
   fridgeDoorStyle: 0
   sideShelfWidth: 0
 --- !u!1 &8927459905981315304

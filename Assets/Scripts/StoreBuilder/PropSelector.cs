@@ -25,6 +25,7 @@ public class PropSelector : MonoBehaviour
     void Update()
     {
         if (interactionController != null && interactionController.IsInPlacementMode) return;
+        if (!uiHandler.interactionControlsEnabled) return;
 
         if (IsSelected() && Input.GetKeyDown(KeyCode.R))
         {

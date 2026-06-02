@@ -27,6 +27,7 @@ public class ShelfSelector : MonoBehaviour
     void Update()
     {
         if (interactionController != null && interactionController.IsInPlacementMode) return;
+        if (!uiHandler.interactionControlsEnabled) return;
 
         if (IsShelfSelected() && Input.GetKeyDown(KeyCode.R))
         {

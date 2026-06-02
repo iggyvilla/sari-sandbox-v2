@@ -9,11 +9,14 @@ EditorBuildSettings:
     path: Assets/Scenes/StoreBuilder.unity
     guid: ca8f1b6358ea4444ebf214282c7eec16
   - enabled: 0
-    path: Assets/Scenes/AgentSandbox.unity
+    path: Assets/Scenes/AgentSandbox_Old.unity
     guid: 9dba9d9f7e78e4ad79e5c861fe67f73e
   - enabled: 0
     path: Assets/Scenes/Dev Scene.unity
     guid: 493f24237cc5b49499457e130e139563
+  - enabled: 1
+    path: Assets/Scenes/AgentSandbox.unity
+    guid: dc52665796d5e4745afabb8c210cb804
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 11f66772e152e44c3acafa3d892fb04f, type: 2}

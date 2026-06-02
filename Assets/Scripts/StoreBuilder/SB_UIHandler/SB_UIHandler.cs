@@ -5,6 +5,9 @@ using UnityEngine.UI;
 
 public partial class SB_UIHandler : MonoBehaviour
 {
+    [Header("References")]
+    public SB_InteractionController interactionController;
+
     [Header("Selection UI")]
     public GameObject shelfEditCanvas;
     public GameObject tooltipText;
@@ -82,6 +85,8 @@ public partial class SB_UIHandler : MonoBehaviour
 
     private List<string> _validStoreFiles = new();
 
+    public bool interactionControlsEnabled = true;
+
     void Start()
     {
         // spawnItemsToggle.isOn = false;
@@ -89,4 +94,17 @@ public partial class SB_UIHandler : MonoBehaviour
         PopulateShelfCategoryDropdown();
         PopulateAgentSettingsDropdowns();
     }
+
+    // Enables/disables the SB_InteractionController's input handling (Input.GetKeyDown,
+    // camera rotation, shelf/prop placement, etc.). Hook this up to the OnSelect/OnDeselect
+    // (or OnFocus/OnBlur) events of text input fields so the interaction controller doesn't
+    // capture keystrokes while the user is typing.
+    public void SetInteractionControlsEnabled(bool isEnabled)
+    {
+        interactionControlsEnabled = isEnabled;
+    }
+
+    // Convenience wrappers for wiring up to UI events that don't pass a bool argument.
+    public void DisableInteractionControls() => SetInteractionControlsEnabled(false);
+    public void EnableInteractionControls() => SetInteractionControlsEnabled(true);
 }

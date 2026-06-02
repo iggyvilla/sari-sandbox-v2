@@ -67,8 +67,8 @@ MonoBehaviour:
     buildShelves: 0
     buildBackWall: 1
     buildShelfRoof: 0
-  spawnItems: 1
-  spawnPriceTags: 1
+  spawnItems: 0
+  spawnPriceTags: 0
   itemSpawnOption: 1
   debugForceItemCategory: 0
   forcedCategory: 3

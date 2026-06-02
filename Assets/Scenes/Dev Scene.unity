@@ -2304,6 +2304,7 @@ MonoBehaviour:
   scanningDifficulty: 0
   selfCheckoutCounter: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
   agentSpawnMarkerPrefab: {fileID: 1761823292887612564, guid: bb0a418e8267a41e29dd44381a57ffcf, type: 3}
+  aisleMarkerPrefab: {fileID: 2706244311596606648, guid: f18df4288a3654df0868d870ce0759ce, type: 3}
   enableShelfItemPhysics: 1
   expirationDateDecalMaterial: {fileID: 2100000, guid: ce6210b2f20c74cb3955ab02a924676c, type: 2}
   combineRowMeshes: 0
@@ -4973,14 +4974,6 @@ PrefabInstance:
       propertyPath: floor
       value: 
       objectReference: {fileID: 593330296}
-    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
-      propertyPath: forcedCategory
-      value: 3
-      objectReference: {fileID: 0}
-    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
-      propertyPath: debugForceItemCategory
-      value: 1
-      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

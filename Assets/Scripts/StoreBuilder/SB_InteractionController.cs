@@ -51,6 +51,8 @@ public class SB_InteractionController : MonoBehaviour
 
     void Update()
     {
+        if (uiHandler != null && !uiHandler.interactionControlsEnabled) return;
+
         HandleCameraRotation();
 
         if (_placementMode)
@@ -388,6 +390,10 @@ public class SB_InteractionController : MonoBehaviour
         {
             if (_movingPropSelector != null)
             {
+                AisleMarker marker = _previewShelf.GetComponent<AisleMarker>();
+                if (marker != null)
+                    marker.RefreshHeight();
+
                 _movingPropSelector.EncapsulateProp(_previewShelf);
                 _movingPropSelector = null;
             }
@@ -403,8 +409,13 @@ public class SB_InteractionController : MonoBehaviour
                         AisleMarker marker = _previewShelf.GetComponent<AisleMarker>();
                         // For a fresh placement apply the current UI field values; for a
                         // duplicate keep the clone's own values intact.
-                        if (marker != null && !_isDuplicatePlacement)
-                            uiHandler.ApplyAisleMarkerSettings(marker);
+                        if (marker != null)
+                        {
+                            if (_isDuplicatePlacement)
+                                marker.RefreshHeight();
+                            else
+                                uiHandler.ApplyAisleMarkerSettings(marker);
+                        }
                         break;
                     default:
                         if (_previewShelf.GetComponent<SelfCheckoutMarker>() == null)

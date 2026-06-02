@@ -147,6 +147,16 @@ public class AgentSpawnSaveData
 }
 
 [Serializable]
+public class AisleMarkerSaveData
+{
+    public float posX, posY, posZ;
+    public float rotationY;
+    public string category1, category2, category3;
+    public int aisleNumber;
+    public float cableLength;
+}
+
+[Serializable]
 public class StoreData
 {
     public int version = 1;
@@ -157,6 +167,7 @@ public class StoreData
     public Dictionary<string, SaveDataWrapper> shelfItems = new();
     public List<SelfCheckoutSaveData> selfCheckoutLocations = new();
     public AgentSpawnSaveData agentSpawnLocation = null;
+    public List<AisleMarkerSaveData> aisleMarkerLocations = new();
 }
 
 public class DataHandler : MonoBehaviour
@@ -186,6 +197,9 @@ public class DataHandler : MonoBehaviour
 
     [Header("Agent Spawn Marker")]
     public GameObject agentSpawnMarkerPrefab;
+
+    [Header("Aisle Marker")]
+    public GameObject aisleMarkerPrefab;
 
     [Header("Item Physics")]
     public bool enableShelfItemPhysics;
@@ -342,6 +356,16 @@ public class DataHandler : MonoBehaviour
 
     public void LoadStore()
     {
+        // Selection boxes are separate scene objects, so clear them along with the
+        // store objects they wrap before rebuilding the scene.
+        foreach (ShelfSelector existing in
+                 FindObjectsByType<ShelfSelector>(FindObjectsSortMode.None))
+            Destroy(existing.gameObject);
+
+        foreach (PropSelector existing in
+                 FindObjectsByType<PropSelector>(FindObjectsSortMode.None))
+            Destroy(existing.gameObject);
+
         // Clear all shelves in the scene
         foreach (ShelfBuilder existing in
                  FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
@@ -357,6 +381,11 @@ public class DataHandler : MonoBehaviour
                  FindObjectsByType<AgentSpawnMarker>(FindObjectsSortMode.None))
             Destroy(existing.gameObject);
 
+        // Clear all aisle markers
+        foreach (AisleMarker existing in
+                 FindObjectsByType<AisleMarker>(FindObjectsSortMode.None))
+            Destroy(existing.gameObject);
+
         string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
         if (!File.Exists(path))
         {
@@ -365,6 +394,7 @@ public class DataHandler : MonoBehaviour
         }
 
         StoreData storeData = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(path));
+        storeData.aisleMarkerLocations ??= new List<AisleMarkerSaveData>();
         currentStoreData = storeData;
         Debug.Log($"Loading store '{storeName}' — {storeData.shelves.Count} shelf(ves).");
 
@@ -440,6 +470,31 @@ public class DataHandler : MonoBehaviour
                 GameObject go = Instantiate(agentSpawnMarkerPrefab, pos, rot);
                 go.AddComponent<AgentSpawnMarker>();
                 interactionController.SummonPropSelectorBox(go);
+            }
+        }
+
+        if (aisleMarkerPrefab != null)
+        {
+            foreach (AisleMarkerSaveData markerData in storeData.aisleMarkerLocations)
+            {
+                Vector3 pos = new Vector3(markerData.posX, markerData.posY, markerData.posZ);
+                Quaternion rot = Quaternion.Euler(0f, markerData.rotationY, 0f);
+                GameObject go = Instantiate(aisleMarkerPrefab, pos, rot);
+
+                AisleMarker marker = go.GetComponent<AisleMarker>();
+                if (marker != null)
+                {
+                    marker.BuildAisleMarker(
+                        markerData.category1,
+                        markerData.category2,
+                        markerData.category3,
+                        markerData.aisleNumber,
+                        markerData.cableLength
+                    );
+                }
+
+                if (sceneName == "StoreBuilder")
+                    interactionController.SummonPropSelectorBox(go);
             }
         }
     }
@@ -523,6 +578,23 @@ public class DataHandler : MonoBehaviour
                 rotationY = spawnMarker.transform.eulerAngles.y
             };
             agentSpawnPosition = pos;
+        }
+
+        foreach (AisleMarker marker in FindObjectsByType<AisleMarker>(FindObjectsSortMode.None))
+        {
+            Vector3 pos = marker.transform.position;
+            storeData.aisleMarkerLocations.Add(new AisleMarkerSaveData
+            {
+                posX        = pos.x,
+                posY        = pos.y,
+                posZ        = pos.z,
+                rotationY   = marker.transform.eulerAngles.y,
+                category1   = marker.Category1,
+                category2   = marker.Category2,
+                category3   = marker.Category3,
+                aisleNumber = marker.AisleNumber,
+                cableLength = marker.CableLength
+            });
         }
 
         currentStoreData = storeData;
