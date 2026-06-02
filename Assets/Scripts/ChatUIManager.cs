@@ -115,5 +115,6 @@ public class ChatUIManager : MonoBehaviour
 
         chatInput.text = string.Empty;
         Log($"User: {message}");
+        GetAgentController()?.ShowChat(message);
     }
 }

@@ -1,3 +1,5 @@
+using DG.Tweening;
+using TMPro;
 using UnityEngine;
 
 public abstract class AgentControllerBase : MonoBehaviour
@@ -15,6 +17,9 @@ public abstract class AgentControllerBase : MonoBehaviour
     [Header("Basket")]
     public GameObject agentBasket;
     public Vector3 basketOffset = new Vector3(0f, -0.3f, 0.6f);
+
+    [Header("Chat")]
+    [SerializeField] private TextMeshPro overheadChatText;
 
     [Header("Item Drop Settings")]
     [SerializeField] private Material _itemBBoxMaterial;
@@ -59,12 +64,35 @@ public abstract class AgentControllerBase : MonoBehaviour
     private Vector3 _basketStoredPosition;
     private Quaternion _basketStoredRotation;
     private Transform _basketStoredParent;
+    private Sequence _overheadChatSequence;
 
     protected virtual void Start()
     {
         rigidbody = GetComponentInParent<Rigidbody>() ?? GetComponent<Rigidbody>() ?? GetComponentInChildren<Rigidbody>();
         interactableLayerMask = LayerMask.GetMask("SariInteractable");
         InitializeHandComponents();
+    }
+
+    protected virtual void OnDestroy()
+    {
+        _overheadChatSequence?.Kill();
+    }
+
+    public void ShowChat(string chatText)
+    {
+        if (string.IsNullOrEmpty(chatText) || overheadChatText == null) return;
+
+        _overheadChatSequence?.Kill();
+        overheadChatText.text = chatText;
+        overheadChatText.alpha = 1f;
+
+        _overheadChatSequence = DOTween.Sequence()
+            .AppendInterval(4f)
+            .Append(DOTween.To(
+                () => overheadChatText.alpha,
+                alpha => overheadChatText.alpha = alpha,
+                0f,
+                1f));
     }
 
     protected virtual void InitializeHandComponents()

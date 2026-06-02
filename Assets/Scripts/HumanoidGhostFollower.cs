@@ -82,7 +82,7 @@ public class HumanoidGhostFollower : MonoBehaviour
         Vector3 viewEuler = view.eulerAngles;
 
         transform.SetPositionAndRotation(
-            movementRoot.position,
+            movementRoot.position + Vector3.up * 0.1f,
             Quaternion.Euler(0f, viewEuler.y, 0f));
 
         if (_headJoint != null)

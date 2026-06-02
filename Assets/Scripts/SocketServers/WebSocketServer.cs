@@ -364,8 +364,9 @@ public class SariMultiplayerBehavior : WebSocketBehavior
             {
                 if (_agentId == null) { Send("Error: not joined"); return; }
                 if (string.IsNullOrEmpty(cmd.message)) { Send("Error: empty message"); return; }
-                string chatLine = $"{_agentId}: {cmd.message}";
+                string chatLine = $"<{_agentId}> {cmd.message}";
                 ChatUIManager.Instance.Log(chatLine);
+                MultiplayerAgentManager.Instance.GetAgent(_agentId)?.ShowChat(cmd.message);
                 Sessions.Broadcast(JsonUtility.ToJson(new ChatMsg { agentId = _agentId, message = cmd.message }));
                 break;
             }

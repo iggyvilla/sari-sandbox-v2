@@ -4873,6 +4873,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: VR Agent
       objectReference: {fileID: 0}
+    - target: {fileID: 5734381874053940350, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7336986568657124163, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
       propertyPath: m_LocalPosition.x
       value: -5.81
@@ -4916,7 +4920,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 2279378853811526547, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 0}
   m_SourcePrefab: {fileID: 100100000, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
 --- !u!1001 &1106187033066088107
 PrefabInstance:
@@ -4974,6 +4981,10 @@ PrefabInstance:
       propertyPath: floor
       value: 
       objectReference: {fileID: 593330296}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: debugForceItemCategory
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
