@@ -1479,8 +1479,16 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 593330296}
     - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: spawnItems
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
       propertyPath: forcedCategory
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: spawnPriceTags
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
       propertyPath: debugForceItemCategory
@@ -2187,8 +2195,16 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 593330296}
     - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: spawnItems
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
       propertyPath: forcedCategory
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: spawnPriceTags
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
       propertyPath: debugForceItemCategory
@@ -2308,8 +2324,8 @@ MonoBehaviour:
   enableShelfItemPhysics: 1
   expirationDateDecalMaterial: {fileID: 2100000, guid: ce6210b2f20c74cb3955ab02a924676c, type: 2}
   combineRowMeshes: 0
-  storeName: TestStore
-  readSave: 0
+  storeName: Store 2
+  readSave: 1
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
   floor: {fileID: 593330296}
   uiHandler: {fileID: 0}
@@ -2596,8 +2612,16 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 593330296}
     - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: spawnItems
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
       propertyPath: forcedCategory
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: spawnPriceTags
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
       propertyPath: debugForceItemCategory
@@ -4879,7 +4903,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7336986568657124163, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -5.81
+      value: -7.51
       objectReference: {fileID: 0}
     - target: {fileID: 7336986568657124163, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
       propertyPath: m_LocalPosition.y
@@ -4887,7 +4911,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7336986568657124163, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 5.02
+      value: 0.56
       objectReference: {fileID: 0}
     - target: {fileID: 7336986568657124163, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
       propertyPath: m_LocalRotation.w
@@ -4981,6 +5005,14 @@ PrefabInstance:
       propertyPath: floor
       value: 
       objectReference: {fileID: 593330296}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: spawnItems
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
+      propertyPath: spawnPriceTags
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 6742853922064598431, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
       propertyPath: debugForceItemCategory
       value: 1
