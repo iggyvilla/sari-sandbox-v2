@@ -25,10 +25,16 @@ public class ChatUIManager : MonoBehaviour
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.Slash))
-            chatMenu.SetActive(!chatMenu.activeSelf);
+            EnableChatUI();
 
         if (listeningForEnter && Input.GetKeyDown(KeyCode.Return))
             SubmitChat();
+    }
+
+    void EnableChatUI()
+    {
+        chatMenu.SetActive(!chatMenu.activeSelf);
+        chatText.text = string.Empty;
     }
 
     public void Log(string message)

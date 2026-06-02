@@ -3411,6 +3411,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   port: 8080
   agentController: {fileID: 2075032117}
+  ikHumanoidGhostPrefab: {fileID: 7456162950078149447, guid: 91147938a35b74fbdb1356d28a996d49, type: 3}
 --- !u!114 &1456967139
 MonoBehaviour:
   m_ObjectHideFlags: 0

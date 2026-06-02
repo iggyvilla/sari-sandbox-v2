@@ -283,6 +283,7 @@ public class DataHandler : MonoBehaviour
                 // agentObject.transform.position = agentSpawnPosition;
                 GameObject go = Instantiate(agentObject, agentSpawnPosition, Quaternion.identity);
                 _activeAgentObject = go;
+                WebSocketHandler.Instance?.SetAgent(go.GetComponentInChildren<AgentController>(true));
                 Camera cam = go != null ? go.GetComponentInChildren<Camera>() : null;
                 if (cam != null)
                 {

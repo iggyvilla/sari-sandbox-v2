@@ -12,10 +12,12 @@ public class WebSocketHandler : MonoBehaviour
 
     [SerializeField] int port = 8080;
     [SerializeField] AgentController agentController;
+    [SerializeField] GameObject ikHumanoidGhostPrefab;
 
     private WebSocketServer _wss;
     private readonly ConcurrentQueue<Action> _mainThreadActions = new();
     private readonly Queue<IEnumerator> _queuedCoroutines = new();
+    private HumanoidGhostFollower _agentGhost;
     private bool _isRunningQueuedCoroutines;
 
     void Awake()
@@ -25,6 +27,8 @@ public class WebSocketHandler : MonoBehaviour
 
     void Start()
     {
+        SetAgent(agentController);
+
         _wss = new WebSocketServer($"ws://localhost:{port}");
         _wss.AddWebSocketService<SariAgentCommandBehavior>("/commands");
         _wss.AddWebSocketService<SariMultiplayerBehavior>("/multiplayer");
@@ -51,9 +55,35 @@ public class WebSocketHandler : MonoBehaviour
 
     public AgentController Agent => agentController;
 
+    public Camera AgentCamera =>
+        agentController != null
+            ? agentController.GetComponentInChildren<Camera>(true)
+            : null;
+
+    public HumanoidGhostFollower AgentGhost => _agentGhost;
+
+    public void SetAgent(AgentController controller)
+    {
+        if (agentController == controller && _agentGhost != null) return;
+
+        if (_agentGhost != null) Destroy(_agentGhost.gameObject);
+
+        agentController = controller;
+        _agentGhost = HumanoidGhostFactory.Spawn(ikHumanoidGhostPrefab, agentController);
+    }
+
+    public void EnqueueScreenshot(
+        Camera camera,
+        HumanoidGhostFollower hiddenGhost,
+        Action<string> callback)
+    {
+        EnqueueCoroutine(ScreenshotRoutine(camera, hiddenGhost, callback));
+    }
+
     void OnDestroy()
     {
         _wss?.Stop();
+        if (_agentGhost != null) Destroy(_agentGhost.gameObject);
     }
 
     private IEnumerator RunQueuedCoroutines()
@@ -66,6 +96,38 @@ public class WebSocketHandler : MonoBehaviour
         finally
         {
             _isRunningQueuedCoroutines = false;
+        }
+    }
+
+    private static IEnumerator ScreenshotRoutine(
+        Camera camera,
+        HumanoidGhostFollower hiddenGhost,
+        Action<string> callback)
+    {
+        if (camera == null) yield break;
+
+        GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+        Camera originalCamera = tracker != null ? tracker.MainCamera : null;
+
+        try
+        {
+            tracker?.SetCamera(camera);
+            yield return null; // let instancer dispatch with the requested frustum
+            yield return ScreenshotUtility.GetScreenshotBase64(
+                camera,
+                callback,
+                () =>
+                {
+                    if (hiddenGhost != null) hiddenGhost.SetRenderersVisible(false);
+                },
+                () =>
+                {
+                    if (hiddenGhost != null) hiddenGhost.SetRenderersVisible(true);
+                });
+        }
+        finally
+        {
+            if (tracker != null) tracker.SetCamera(originalCamera);
         }
     }
 }
@@ -151,10 +213,13 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                 break;
 
             case "RequestScreenshot":
-                WebSocketHandler.Instance.StartCoroutine(
-                    ScreenshotUtility.GetScreenshotBase64(base64 => session.Send(base64))
-                );
+            {
+                WebSocketHandler handler = WebSocketHandler.Instance;
+                Camera camera = handler.AgentCamera;
+                if (camera == null) { session.Send("Error: no camera found for agent"); return; }
+                handler.EnqueueScreenshot(camera, handler.AgentGhost, base64 => session.Send(base64));
                 break;
+            }
 
             case "ResetEnvironment":
                 DataHandler.Instance.ResetEnvironment();
@@ -281,7 +346,10 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 if (_agentId == null) { Send("Error: not joined"); return; }
                 Camera mpCamera = MultiplayerAgentManager.Instance.GetAgentCamera(_agentId);
                 if (mpCamera == null) { Send("Error: no camera found for agent"); return; }
-                WebSocketHandler.Instance.EnqueueCoroutine(ScreenshotRoutine(this, _agentId, mpCamera));
+                WebSocketHandler.Instance.EnqueueScreenshot(
+                    mpCamera,
+                    MultiplayerAgentManager.Instance.GetGhostFollower(_agentId),
+                    base64 => Send(base64));
                 break;
             }
 
@@ -355,29 +423,6 @@ public class SariMultiplayerBehavior : WebSocketBehavior
             default:
                 Send($"Unknown command: {cmd.command}");
                 break;
-        }
-    }
-
-    private static IEnumerator ScreenshotRoutine(SariMultiplayerBehavior session, string agentId, Camera mpCamera)
-    {
-        if (mpCamera == null) yield break;
-
-        GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
-        Camera originalCamera = tracker.MainCamera;
-
-        try
-        {
-            tracker.SetCamera(mpCamera);
-            yield return null; // let instancer dispatch with new frustum
-            yield return ScreenshotUtility.GetScreenshotBase64(
-                mpCamera,
-                base64 => session.Send(base64),
-                () => MultiplayerAgentManager.Instance.SetGhostVisibleForCapture(agentId, false),
-                () => MultiplayerAgentManager.Instance.SetGhostVisibleForCapture(agentId, true));
-        }
-        finally
-        {
-            tracker.SetCamera(originalCamera);
         }
     }
 

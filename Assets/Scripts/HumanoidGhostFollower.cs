@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class MultiplayerHumanoidGhost : MonoBehaviour
+public class HumanoidGhostFollower : MonoBehaviour
 {
     private AgentControllerBase _authority;
     private Animator _bodyAnimator;
@@ -31,7 +31,7 @@ public class MultiplayerHumanoidGhost : MonoBehaviour
         _lastPosition = transform.position;
     }
 
-    public void SetVisibleForCapture(bool visible)
+    public void SetRenderersVisible(bool visible)
     {
         if (_renderers == null) return;
 

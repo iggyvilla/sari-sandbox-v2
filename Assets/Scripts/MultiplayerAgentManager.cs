@@ -22,7 +22,7 @@ public class MultiplayerAgentManager : MonoBehaviour
         public AgentController controller;
         public Camera camera;
         public GameObject humanoidGhost;
-        public MultiplayerHumanoidGhost ghostFollower;
+        public HumanoidGhostFollower ghostFollower;
     }
 
     private readonly Dictionary<string, MultiplayerAgentRecord> _agents = new();
@@ -54,25 +54,20 @@ public class MultiplayerAgentManager : MonoBehaviour
         controller.isMultiplayerAgent = true;
         PrepareMultiplayerAuthority(vrAvatar, controller);
 
-        GameObject humanoidGhost = Instantiate(ikHumanoidGhostPrefab, pos, rot);
-        IKAgentController humanoidController = humanoidGhost.GetComponentInChildren<IKAgentController>(true);
-        if (humanoidController == null)
+        HumanoidGhostFollower ghostFollower =
+            HumanoidGhostFactory.Spawn(ikHumanoidGhostPrefab, controller);
+        if (ghostFollower == null)
         {
-            Debug.LogError("The multiplayer IK humanoid prefab is missing an IKAgentController.");
             Destroy(vrAvatar);
-            Destroy(humanoidGhost);
             return null;
         }
-
-        MultiplayerHumanoidGhost ghostFollower = humanoidGhost.AddComponent<MultiplayerHumanoidGhost>();
-        ghostFollower.Bind(controller, humanoidController);
 
         _agents[agentId] = new MultiplayerAgentRecord
         {
             vrAvatar = vrAvatar,
             controller = controller,
             camera = vrAvatar.GetComponentInChildren<Camera>(true),
-            humanoidGhost = humanoidGhost,
+            humanoidGhost = ghostFollower.gameObject,
             ghostFollower = ghostFollower
         };
 
@@ -102,13 +97,11 @@ public class MultiplayerAgentManager : MonoBehaviour
         return null;
     }
 
-    public void SetGhostVisibleForCapture(string agentId, bool visible)
+    public HumanoidGhostFollower GetGhostFollower(string agentId)
     {
-        if (_agents.TryGetValue(agentId, out MultiplayerAgentRecord record) &&
-            record.ghostFollower != null)
-        {
-            record.ghostFollower.SetVisibleForCapture(visible);
-        }
+        return _agents.TryGetValue(agentId, out MultiplayerAgentRecord record)
+            ? record.ghostFollower
+            : null;
     }
 
     public List<AgentState> GetSnapshot(string excludeId = null)
