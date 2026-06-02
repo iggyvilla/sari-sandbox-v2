@@ -3423,7 +3423,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c5c3245f1f1f54bd9a80064e7809b079, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ikHumanoidPrefab: {fileID: 7456162950078149447, guid: 4bf2d2d779b914bc4891d9b3eb354c9f, type: 3}
+  vrAgentPrefab: {fileID: 2830791060549007296, guid: cb081d64bdab34792a4eaf1c05bdb352, type: 3}
+  ikHumanoidGhostPrefab: {fileID: 7456162950078149447, guid: 91147938a35b74fbdb1356d28a996d49, type: 3}
   spawnPoint: {fileID: 0}
 --- !u!1 &1483052497
 GameObject:

@@ -1,13 +1,17 @@
 """
 Emulates a multiplayer client joining /multiplayer and moving around.
 Requires: pip install websocket-client
-Usage:    python test_multiplayer_client.py [--host localhost] [--port 8080]
+Usage:    python test_multiplayer_client.py [--host localhost] [--port 8080] [--screenshot-dir PATH]
 """
 
 import json
 import time
 import argparse
+import base64
+import binascii
 import threading
+from datetime import datetime
+from pathlib import Path
 import websocket
 
 HOST = "localhost"
@@ -15,20 +19,32 @@ PORT = 8080
 
 agent_id = None
 received_events = []
+screenshot_count = 0
+screenshot_dir = Path(__file__).resolve().parent / "screenshots"
+connected_event = threading.Event()
+screenshot_condition = threading.Condition()
 
 
 def on_message(ws, message):
+    global agent_id, screenshot_count
+
     try:
         data = json.loads(message)
     except json.JSONDecodeError:
-        # Could be a raw screenshot base64 string
-        print(f"[recv] <binary/base64 data, length={len(message)}>")
+        if is_png_screenshot(message):
+            png_bytes = base64.b64decode(message, validate=True)
+            with screenshot_condition:
+                screenshot_count += 1
+                screenshot_path = save_screenshot(png_bytes, screenshot_count)
+                screenshot_condition.notify_all()
+            print(f"[recv] <PNG screenshot #{screenshot_count}, saved to {screenshot_path}>")
+        else:
+            # Command acknowledgements are plain text rather than JSON.
+            print(f"[recv] {message}")
         return
 
-    msg_type = data.get("type") or data.get("command", "?")
     received_events.append(data)
 
-    global agent_id
     if data.get("type") == "Joined":
         agent_id = data["agentId"]
         print(f"[recv] Joined as agentId={agent_id}")
@@ -57,12 +73,29 @@ def on_close(ws, close_status_code, close_msg):
 
 def on_open(ws):
     print("[open] Connected to /multiplayer")
+    connected_event.set()
 
 
 def send(ws, payload: dict):
     msg = json.dumps(payload)
     print(f"[send] {msg}")
     ws.send(msg)
+
+
+def is_png_screenshot(message):
+    try:
+        png_bytes = base64.b64decode(message, validate=True)
+    except (binascii.Error, ValueError):
+        return False
+    return png_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def save_screenshot(png_bytes, sequence_number):
+    screenshot_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    screenshot_path = screenshot_dir / f"multiplayer-screenshot-{timestamp}-{sequence_number}.png"
+    screenshot_path.write_bytes(png_bytes)
+    return screenshot_path.resolve()
 
 
 def wait_for_join(timeout=5.0):
@@ -74,7 +107,26 @@ def wait_for_join(timeout=5.0):
     return False
 
 
-def run(host, port):
+def wait_for_screenshots(expected_count, timeout=5.0):
+    deadline = time.time() + timeout
+    with screenshot_condition:
+        while screenshot_count < expected_count:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                return False
+            screenshot_condition.wait(timeout=remaining)
+    return True
+
+
+def run(host, port, output_dir):
+    global agent_id, screenshot_count, screenshot_dir
+
+    agent_id = None
+    screenshot_count = 0
+    screenshot_dir = Path(output_dir).expanduser()
+    received_events.clear()
+    connected_event.clear()
+
     url = f"ws://{host}:{port}/multiplayer"
     print(f"Connecting to {url} ...")
 
@@ -88,7 +140,10 @@ def run(host, port):
 
     thread = threading.Thread(target=ws.run_forever, daemon=True)
     thread.start()
-    time.sleep(0.5)  # let the connection establish
+    if not connected_event.wait(timeout=5.0):
+        print("[error] Timed out connecting to the multiplayer endpoint")
+        ws.close()
+        return
 
     # --- Join ---
     send(ws, {"command": "Join"})
@@ -103,7 +158,7 @@ def run(host, port):
     time.sleep(0.2)
 
     # --- Walk forward in steps ---
-    print("Walking forward (10 steps)...")
+    print("Moving along world +Z (10 steps)...")
     for i in range(10):
         send(ws, {
             "command": "TranslateAgent",
@@ -123,7 +178,7 @@ def run(host, port):
         time.sleep(0.2)
 
     # --- Walk forward again ---
-    print("Walking forward again (5 steps)...")
+    print("Moving along world +Z again after yaw rotation (5 steps)...")
     for i in range(5):
         send(ws, {
             "command": "TranslateAgent",
@@ -134,7 +189,7 @@ def run(host, port):
 
     # --- Move hand around ---
     print("Moving hand forward...")
-    send(ws, {"command": "TransformHand", "handPosition": [0, 0, 0.3], "handRotation": [0, 0, 0]})
+    send(ws, {"command": "TranslateHand", "handPosition": [0, 0, 0.3], "handRotation": [0, 0, 0]})
     time.sleep(0.5)
 
     print("Toggling grip...")
@@ -145,21 +200,25 @@ def run(host, port):
     send(ws, {"command": "ResetHandPosition"})
     time.sleep(0.5)
 
-    # --- Teleport to origin ---
-    print("Teleporting to origin...")
-    send(ws, {"command": "Chat", "message": "Teleporting back to origin."})
+    # --- Reverse the movement sequence ---
+    print("Returning to the spawn pose with inverse deltas...")
+    send(ws, {"command": "Chat", "message": "Returning to my spawn pose."})
     time.sleep(0.2)
     send(ws, {
-        "command": "TransformAgent",
-        "translation": [0, 0, 0],
-        "rotation": [0, 0, 0],
+        "command": "TranslateAgent",
+        "translation": [0, 0, -3.3],
+        "rotation": [0, -90, 0],
     })
     time.sleep(0.5)
 
-    # --- Request screenshot ---
-    print("Requesting egocentric screenshot...")
+    # --- Request screenshots ---
+    print("Requesting two queued egocentric screenshots...")
+    expected_screenshot_count = screenshot_count + 2
     send(ws, {"command": "RequestScreenshot"})
-    time.sleep(2.0)  # screenshot takes ~0.5s + processing
+    send(ws, {"command": "RequestScreenshot"})
+    if not wait_for_screenshots(expected_screenshot_count, timeout=5.0):
+        print(f"[error] Timed out waiting for queued screenshots "
+              f"({screenshot_count}/{expected_screenshot_count} received)")
 
     send(ws, {"command": "Chat", "message": "Done! Disconnecting."})
     time.sleep(0.2)
@@ -173,5 +232,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Sari multiplayer test client")
     parser.add_argument("--host", default=HOST)
     parser.add_argument("--port", type=int, default=PORT)
+    parser.add_argument("--screenshot-dir", default=screenshot_dir)
     args = parser.parse_args()
-    run(args.host, args.port)
+    run(args.host, args.port, args.screenshot_dir)

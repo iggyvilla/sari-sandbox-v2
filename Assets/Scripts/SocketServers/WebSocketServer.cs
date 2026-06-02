@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using UnityEngine;
 using WebSocketSharp;
 using WebSocketSharp.Server;
@@ -14,6 +15,8 @@ public class WebSocketHandler : MonoBehaviour
 
     private WebSocketServer _wss;
     private readonly ConcurrentQueue<Action> _mainThreadActions = new();
+    private readonly Queue<IEnumerator> _queuedCoroutines = new();
+    private bool _isRunningQueuedCoroutines;
 
     void Awake()
     {
@@ -37,11 +40,33 @@ public class WebSocketHandler : MonoBehaviour
 
     public void Enqueue(Action action) => _mainThreadActions.Enqueue(action);
 
+    public void EnqueueCoroutine(IEnumerator routine)
+    {
+        _queuedCoroutines.Enqueue(routine);
+        if (_isRunningQueuedCoroutines) return;
+
+        _isRunningQueuedCoroutines = true;
+        StartCoroutine(RunQueuedCoroutines());
+    }
+
     public AgentController Agent => agentController;
 
     void OnDestroy()
     {
         _wss?.Stop();
+    }
+
+    private IEnumerator RunQueuedCoroutines()
+    {
+        try
+        {
+            while (_queuedCoroutines.Count > 0)
+                yield return StartCoroutine(_queuedCoroutines.Dequeue());
+        }
+        finally
+        {
+            _isRunningQueuedCoroutines = false;
+        }
     }
 }
 
@@ -224,6 +249,7 @@ public class SariMultiplayerBehavior : WebSocketBehavior
             case "Join":
             {
                 string agentId = MultiplayerAgentManager.Instance.SpawnAgent();
+                if (agentId == null) { Send("Error: failed to spawn multiplayer agent"); return; }
                 _agentId = agentId;
 
                 Send(JsonUtility.ToJson(new JoinedMsg { agentId = agentId }));
@@ -238,8 +264,8 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                     }));
 
                 AgentControllerBase newAgent = MultiplayerAgentManager.Instance.GetAgent(agentId);
-                Vector3 spawnPos = newAgent != null ? newAgent.transform.position : Vector3.zero;
-                Vector3 spawnRot = newAgent != null ? newAgent.transform.eulerAngles : Vector3.zero;
+                Vector3 spawnPos = newAgent != null ? newAgent.MovementRoot.position : Vector3.zero;
+                Vector3 spawnRot = newAgent != null ? newAgent.ViewTransform.eulerAngles : Vector3.zero;
                 Sessions.Broadcast(JsonUtility.ToJson(new AgentStateMsg
                 {
                     type = "AgentSpawned",
@@ -255,8 +281,7 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 if (_agentId == null) { Send("Error: not joined"); return; }
                 Camera mpCamera = MultiplayerAgentManager.Instance.GetAgentCamera(_agentId);
                 if (mpCamera == null) { Send("Error: no camera found for agent"); return; }
-                Camera originalCamera = GPUInstanceTracker.Instance.MainCamera;
-                WebSocketHandler.Instance.StartCoroutine(ScreenshotRoutine(this, mpCamera, originalCamera));
+                WebSocketHandler.Instance.EnqueueCoroutine(ScreenshotRoutine(this, _agentId, mpCamera));
                 break;
             }
 
@@ -333,15 +358,27 @@ public class SariMultiplayerBehavior : WebSocketBehavior
         }
     }
 
-    private static IEnumerator ScreenshotRoutine(SariMultiplayerBehavior session, Camera mpCamera, Camera originalCamera)
+    private static IEnumerator ScreenshotRoutine(SariMultiplayerBehavior session, string agentId, Camera mpCamera)
     {
-        GPUInstanceTracker.Instance.SetCamera(mpCamera);
-        yield return null; // let instancer dispatch with new frustum
-        yield return ScreenshotUtility.GetScreenshotBase64(mpCamera, base64 =>
+        if (mpCamera == null) yield break;
+
+        GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+        Camera originalCamera = tracker.MainCamera;
+
+        try
         {
-            GPUInstanceTracker.Instance.SetCamera(originalCamera);
-            session.Send(base64);
-        });
+            tracker.SetCamera(mpCamera);
+            yield return null; // let instancer dispatch with new frustum
+            yield return ScreenshotUtility.GetScreenshotBase64(
+                mpCamera,
+                base64 => session.Send(base64),
+                () => MultiplayerAgentManager.Instance.SetGhostVisibleForCapture(agentId, false),
+                () => MultiplayerAgentManager.Instance.SetGhostVisibleForCapture(agentId, true));
+        }
+        finally
+        {
+            tracker.SetCamera(originalCamera);
+        }
     }
 
     private static float[] Vec3ToArr(Vector3 v) => new float[] { v.x, v.y, v.z };

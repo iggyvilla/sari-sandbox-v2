@@ -10,6 +10,11 @@ public class IKAgentController : AgentControllerBase
 
     private float _fixedY;
 
+    public Animator BodyAnimator => bodyAnimator;
+    public Transform HeadJoint => ikHeadJoint;
+    public Transform HandTarget => agentHand != null ? agentHand.transform : null;
+    public Transform LookAtTarget => lookAtTarget;
+
     protected override void Start()
     {
         base.Start();

@@ -489,6 +489,19 @@ public abstract class AgentControllerBase : MonoBehaviour
         SetHandLocalPose(_initialHandLocalPosition, _initialHandLocalRotation);
     }
 
+    public Transform MovementRoot =>
+        rigidbody != null
+            ? rigidbody.transform
+            : GetComponentInParent<Rigidbody>()?.transform ?? transform;
+
+    public Transform ViewTransform => transform;
+
+    public Transform HandTransform => agentHand != null ? agentHand.transform : null;
+
+    public float GripAmount => currentGrip;
+
+    public float TriggerAmount => currentTrigger;
+
     public bool IsHoldingItem() => _rightHandItem?.gameObject != null;
 
     public void TogglePoint()
