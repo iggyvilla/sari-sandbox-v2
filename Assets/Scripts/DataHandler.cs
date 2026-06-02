@@ -168,7 +168,7 @@ public class DataHandler : MonoBehaviour
 
     public StoreData currentStoreData { get; private set; } = new StoreData();
 
-    [Header("Agent")]
+    [Header("Agent Prefabs")]
     public GameObject agentObject;
     public GameObject ikHumanoidObject;
     public Vector3 AgentPosition => _activeAgentObject != null
@@ -178,6 +178,7 @@ public class DataHandler : MonoBehaviour
     public AgentAvatarSetting agentAvatarSetting;
     public AgentInteractionStyle agentInteractionStyle;
     public AgentBasketStyle agentBasketStyle;
+    public AgentController mainAgentController;
 
     [Header("Self Checkout")]
     public ScanningDifficulty scanningDifficulty;
@@ -283,6 +284,9 @@ public class DataHandler : MonoBehaviour
                 // agentObject.transform.position = agentSpawnPosition;
                 GameObject go = Instantiate(agentObject, agentSpawnPosition, Quaternion.identity);
                 _activeAgentObject = go;
+                
+                // AgentController to be accessed by ChatUIManager
+                mainAgentController = go.GetComponentInChildren<AgentController>();
                 WebSocketHandler.Instance?.SetAgent(go.GetComponentInChildren<AgentController>(true));
                 Camera cam = go != null ? go.GetComponentInChildren<Camera>() : null;
                 if (cam != null)

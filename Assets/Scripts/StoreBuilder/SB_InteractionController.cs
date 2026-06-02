@@ -13,6 +13,7 @@ public class SB_InteractionController : MonoBehaviour
     public GameObject fridgePrefab;
     public GameObject selfCheckoutPrefab;
     public GameObject agentSpawnPrefab;
+    public GameObject aisleMarkerPrefab;
     public float builderGridSize = 1f;
 
     [Header("References")]
@@ -20,11 +21,14 @@ public class SB_InteractionController : MonoBehaviour
     public DataHandler dataHandler;
     public Material airMaterial;
 
+    private enum PropKind { SelfCheckout, AgentSpawn, AisleMarker }
+
     private GameObject shelfPrefab;
     private bool _placementMode = false;
     public bool IsInPlacementMode => _placementMode;
     private bool _isPropPlacement = false;
-    private bool _isAgentSpawnPlacement = false;
+    private PropKind _propKind = PropKind.SelfCheckout;
+    private GameObject _activePropPrefab = null;
     private GameObject _previewShelf = null;
     private ShelfSelector _movingSelector = null;
     private PropSelector _movingPropSelector = null;
@@ -139,8 +143,18 @@ public class SB_InteractionController : MonoBehaviour
     // Called by the "Spawn Self Checkout" UI button
     public void OnSpawnSelfCheckout()
     {
-        _isAgentSpawnPlacement = false;
         _isPropPlacement = true;
+        _propKind = PropKind.SelfCheckout;
+        _activePropPrefab = selfCheckoutPrefab;
+        _placementMode = true;
+    }
+
+    // Called by the "Spawn Aisle Marker" UI button
+    public void OnSpawnAisleMarker()
+    {
+        _isPropPlacement = true;
+        _propKind = PropKind.AisleMarker;
+        _activePropPrefab = aisleMarkerPrefab;
         _placementMode = true;
     }
 
@@ -162,8 +176,9 @@ public class SB_InteractionController : MonoBehaviour
             Destroy(existing.gameObject);
         }
 
-        _isAgentSpawnPlacement = true;
         _isPropPlacement = true;
+        _propKind = PropKind.AgentSpawn;
+        _activePropPrefab = agentSpawnPrefab;
         _placementMode = true;
     }
 
@@ -212,10 +227,20 @@ public class SB_InteractionController : MonoBehaviour
     {
         _isPropPlacement = true;
         _isDuplicatePlacement = true;
+        // Keep _propKind consistent with the prop being duplicated so the placement
+        // logic doesn't add a mismatched marker component to the clone.
+        _propKind = InferPropKind(source);
         _previewShelf = Instantiate(source, source.transform.position, source.transform.rotation);
         _movingPropSelector = null;
         _placementMode = true;
         uiHandler.DeselectProp();
+    }
+
+    static PropKind InferPropKind(GameObject prop)
+    {
+        if (prop.GetComponent<AgentSpawnMarker>() != null) return PropKind.AgentSpawn;
+        if (prop.GetComponent<AisleMarker>() != null)      return PropKind.AisleMarker;
+        return PropKind.SelfCheckout;
     }
 
     void UndoSpawnedItems()
@@ -353,9 +378,7 @@ public class SB_InteractionController : MonoBehaviour
 
     void SpawnPreview(Vector3 position)
     {
-        GameObject prefab = _isAgentSpawnPlacement ? agentSpawnPrefab
-            : _isPropPlacement ? selfCheckoutPrefab
-            : shelfPrefab;
+        GameObject prefab = _isPropPlacement ? _activePropPrefab : shelfPrefab;
         _previewShelf = Instantiate(prefab, position, Quaternion.identity);
     }
 
@@ -370,15 +393,23 @@ public class SB_InteractionController : MonoBehaviour
             }
             else if (_previewShelf != null)
             {
-                if (_isAgentSpawnPlacement)
+                switch (_propKind)
                 {
-                    if (_previewShelf.GetComponent<AgentSpawnMarker>() == null)
-                        _previewShelf.AddComponent<AgentSpawnMarker>();
-                }
-                else
-                {
-                    if (_previewShelf.GetComponent<SelfCheckoutMarker>() == null)
-                        _previewShelf.AddComponent<SelfCheckoutMarker>();
+                    case PropKind.AgentSpawn:
+                        if (_previewShelf.GetComponent<AgentSpawnMarker>() == null)
+                            _previewShelf.AddComponent<AgentSpawnMarker>();
+                        break;
+                    case PropKind.AisleMarker:
+                        AisleMarker marker = _previewShelf.GetComponent<AisleMarker>();
+                        // For a fresh placement apply the current UI field values; for a
+                        // duplicate keep the clone's own values intact.
+                        if (marker != null && !_isDuplicatePlacement)
+                            uiHandler.ApplyAisleMarkerSettings(marker);
+                        break;
+                    default:
+                        if (_previewShelf.GetComponent<SelfCheckoutMarker>() == null)
+                            _previewShelf.AddComponent<SelfCheckoutMarker>();
+                        break;
                 }
                 SummonPropSelectorBox(_previewShelf);
             }
@@ -431,7 +462,6 @@ public class SB_InteractionController : MonoBehaviour
     void ExitPlacementMode()
     {
         _placementMode = false;
-        _isAgentSpawnPlacement = false;
         _isDuplicatePlacement = false;
     }
 }

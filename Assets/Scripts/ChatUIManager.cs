@@ -37,15 +37,27 @@ public class ChatUIManager : MonoBehaviour
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.Slash))
-            EnableChatUI();
+            ToggleChatUI();
 
         if (listeningForEnter && Input.GetKeyDown(KeyCode.Return))
             SubmitChat();
     }
 
-    void EnableChatUI()
+    void ToggleChatUI()
     {
-        chatMenu.SetActive(!chatMenu.activeSelf);
+        bool newState = !chatMenu.activeSelf;
+        chatMenu.SetActive(newState);
+        
+        // If the user hid the chat again, enable PC controls
+        if (newState) return;
+        AgentController a = GetAgentController();
+        Debug.Log(a is null);
+        if (a != null) a.enabled = true;
+    }
+
+    AgentController GetAgentController()
+    {
+        return DataHandler.Instance.mainAgentController;
     }
 
     public void Log(string message)
@@ -87,6 +99,13 @@ public class ChatUIManager : MonoBehaviour
     public void UserSelectedEnterField()
     {
         listeningForEnter = true;
+        AgentController a = GetAgentController();
+        if (a != null) a.enabled = false;
+    }
+    
+    public void UserDeselectedEnterField()
+    {
+        listeningForEnter = false;
     }
 
     private void SubmitChat()
@@ -95,7 +114,6 @@ public class ChatUIManager : MonoBehaviour
         if (string.IsNullOrEmpty(message)) return;
 
         chatInput.text = string.Empty;
-        listeningForEnter = false;
         Log($"User: {message}");
     }
 }

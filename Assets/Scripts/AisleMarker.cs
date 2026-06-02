@@ -28,6 +28,14 @@ public class AisleMarker : MonoBehaviour
 
     private bool _hasWarnedAboutScale;
 
+    // Read-only accessors so the Store Builder UI can populate its fields when a
+    // marker is selected for editing.
+    public string Category1   => category1;
+    public string Category2   => category2;
+    public string Category3   => category3;
+    public int    AisleNumber => aisleNumber;
+    public float  CableLength => cableLength;
+
     void Start()
     {
         BuildAisleMarker(category1, category2, category3, aisleNumber,
