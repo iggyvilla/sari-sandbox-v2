@@ -1,9 +1,12 @@
+using System.Collections.Generic;
 using DG.Tweening;
 using TMPro;
 using UnityEngine;
 
 public abstract class AgentControllerBase : MonoBehaviour
 {
+    private const float MaximumHeightMargin = 0.2f;
+
     public bool isMultiplayerAgent = false;
 
     [Header("Agent Properties")]
@@ -47,6 +50,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     protected float currentTrigger;
 
     private LayerMask interactableLayerMask;
+    private AgentBodyCollisionDetector _bodyCollisionDetector;
     private RuntimeRetailItem _rightHandItem;
     private DoorHandle _grabbedDoor;
     private Rigidbody _handRigidbody;
@@ -65,10 +69,21 @@ public abstract class AgentControllerBase : MonoBehaviour
     private Quaternion _basketStoredRotation;
     private Transform _basketStoredParent;
     private Sequence _overheadChatSequence;
+    private float _standingViewHeight;
+    private float _standingMovementRootHeight;
+    private bool _isCrouching;
 
     protected virtual void Start()
     {
         rigidbody = GetComponentInParent<Rigidbody>() ?? GetComponent<Rigidbody>() ?? GetComponentInChildren<Rigidbody>();
+        if (rigidbody != null)
+        {
+            _bodyCollisionDetector = rigidbody.GetComponent<AgentBodyCollisionDetector>();
+            if (_bodyCollisionDetector == null)
+                _bodyCollisionDetector = rigidbody.gameObject.AddComponent<AgentBodyCollisionDetector>();
+        }
+        _standingViewHeight = ViewTransform.position.y;
+        _standingMovementRootHeight = MovementRoot.position.y;
         interactableLayerMask = LayerMask.GetMask("SariInteractable");
         InitializeHandComponents();
     }
@@ -197,6 +212,8 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     void Update()
     {
+        HandleCrouchInput();
+
         if (!isMultiplayerAgent && DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
         {
             if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
@@ -492,6 +509,14 @@ public abstract class AgentControllerBase : MonoBehaviour
         transform.rotation = Quaternion.Euler(euler);
     }
 
+    public Vector3 ClampTranslationToMaximumHeight(Vector3 deltaTranslation)
+    {
+        float targetHeight = MovementRoot.position.y + _pendingBodyTranslation.y + deltaTranslation.y;
+        if (targetHeight > MaximumMovementRootHeight)
+            deltaTranslation.y -= targetHeight - MaximumMovementRootHeight;
+        return deltaTranslation;
+    }
+
     public void TransformHand(Vector3 localPosition, Vector3 eulerRotation)
     {
         if (agentHand == null) return;
@@ -526,11 +551,40 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     public Transform HandTransform => agentHand != null ? agentHand.transform : null;
 
+    public float StandingViewHeight => _standingViewHeight;
+
+    public float MaximumViewHeight => _standingViewHeight + MaximumHeightMargin;
+
+    public float MaximumMovementRootHeight => _standingMovementRootHeight + MaximumHeightMargin;
+
+    public bool IsAgentColliding => _bodyCollisionDetector != null && _bodyCollisionDetector.IsColliding;
+
+    public bool IsGripped => isGripped;
+
+    public bool IsPointing => isPointing;
+
+    public string RightHandHoveredItemId => _handCollisionDetector?.DetectedItemBBoxInfo?.itemId;
+
     public float GripAmount => currentGrip;
 
     public float TriggerAmount => currentTrigger;
 
     public bool IsHoldingItem() => _rightHandItem?.gameObject != null;
+
+    protected float CurrentLocalViewHeight => _isCrouching ? _standingViewHeight * 0.5f : _standingViewHeight;
+
+    protected void HandleCrouchInput()
+    {
+        if (isMultiplayerAgent) return;
+
+        bool shouldCrouch = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+        if (_isCrouching == shouldCrouch) return;
+
+        _isCrouching = shouldCrouch;
+        Vector3 position = transform.position;
+        position.y = CurrentLocalViewHeight;
+        transform.position = position;
+    }
 
     public void TogglePoint()
     {
@@ -628,5 +682,61 @@ public abstract class AgentControllerBase : MonoBehaviour
             _itemBBoxMaterial,
             transform.forward * throwStrength);
         _rightHandItem = null;
+    }
+}
+
+public class AgentBodyCollisionDetector : MonoBehaviour
+{
+    private readonly HashSet<Collider> _blockingColliders = new();
+
+    public bool IsColliding
+    {
+        get
+        {
+            _blockingColliders.RemoveWhere(collider => collider == null);
+            return _blockingColliders.Count > 0;
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        RefreshCollision(collision);
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        RefreshCollision(collision);
+    }
+
+    private void OnCollisionExit(Collision collision)
+    {
+        if (collision.collider != null)
+            _blockingColliders.Remove(collision.collider);
+    }
+
+    private void RefreshCollision(Collision collision)
+    {
+        Collider otherCollider = collision.collider;
+        if (otherCollider == null) return;
+
+        if (HasBlockingContact(collision))
+            _blockingColliders.Add(otherCollider);
+        else
+            _blockingColliders.Remove(otherCollider);
+    }
+
+    private static bool HasBlockingContact(Collision collision)
+    {
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            Vector3 normal = collision.GetContact(i).normal;
+            float horizontalSqrMagnitude = normal.x * normal.x + normal.z * normal.z;
+
+            // Ignore floor- and ceiling-like contacts; keep steep contacts that can block travel.
+            if (horizontalSqrMagnitude >= normal.y * normal.y)
+                return true;
+        }
+
+        return false;
     }
 }

@@ -22,7 +22,8 @@ public class ItemSpawner : MonoBehaviour
     
     public float itemOuterPadding;
     public float itemBackPadding;
-    private const float InterItemPadding = 0.03f;
+    // Adjust these constants if you'd like the items to be less dense
+    private const float InterItemPadding = 0.035f;
     private const float CanFillFraction = 0.5f;
     private Material _airMaterial;
     private ItemCategory itemCategory;

@@ -8,8 +8,6 @@ public class IKAgentController : AgentControllerBase
     [SerializeField] Transform ikHandColliderSource;
     [SerializeField] Transform lookAtTarget;
 
-    private float _fixedY;
-
     public Animator BodyAnimator => bodyAnimator;
     public Transform HeadJoint => ikHeadJoint;
     public Transform HandTarget => agentHand != null ? agentHand.transform : null;
@@ -18,14 +16,15 @@ public class IKAgentController : AgentControllerBase
     protected override void Start()
     {
         base.Start();
-        _fixedY = transform.position.y;
         handAnimator = bodyAnimator;
     }
 
     private void Update()
     {
+        HandleCrouchInput();
+
         Vector3 pos = transform.position;
-        pos.y = _fixedY;
+        pos.y = CurrentLocalViewHeight;
         transform.position = pos;
         
         if (!isMultiplayerAgent && DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)

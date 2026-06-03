@@ -469,11 +469,11 @@
     <Reference Include="System.Runtime.CompilerServices.Unsafe">
       <HintPath>/Users/enriquevilla/unity_tutorials/Sari Sandbox V2/Library/PackageCache/com.unity.collections@aea9d3bd5e19/Unity.Collections.Tests/System.Runtime.CompilerServices.Unsafe/System.Runtime.CompilerServices.Unsafe.dll</HintPath>
     </Reference>
-    <Reference Include="DOTween">
-      <HintPath>/Users/enriquevilla/unity_tutorials/Sari Sandbox V2/Assets/DOTween/DOTween.dll</HintPath>
-    </Reference>
     <Reference Include="DOTweenEditor">
       <HintPath>/Users/enriquevilla/unity_tutorials/Sari Sandbox V2/Assets/DOTween/Editor/DOTweenEditor.dll</HintPath>
+    </Reference>
+    <Reference Include="DOTween">
+      <HintPath>/Users/enriquevilla/unity_tutorials/Sari Sandbox V2/Assets/DOTween/DOTween.dll</HintPath>
     </Reference>
     <Reference Include="UnityEditor.iOS.Extensions.Xcode">
       <HintPath>/Applications/Unity/Hub/Editor/6000.0.60f1/Unity.app/Contents/PlaybackEngines/MacStandaloneSupport/UnityEditor.iOS.Extensions.Xcode.dll</HintPath>
