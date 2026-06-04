@@ -147,7 +147,7 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 AgentControllerBase agent = MultiplayerAgentManager.Instance.GetAgent(_agentId);
                 if (agent == null) { Send("Error: agent not found"); return; }
 
-                ExecuteAgentCommand(cmd, agent);
+                ExecuteMultiplayerAgentCommand(cmd, agent);
 
                 Sessions.Broadcast(JsonUtility.ToJson(new AgentUpdateMsg
                 {
@@ -163,7 +163,7 @@ public class SariMultiplayerBehavior : WebSocketBehavior
         }
     }
 
-    private void ExecuteAgentCommand(MultiplayerCommandData cmd, AgentControllerBase agent)
+    private void ExecuteMultiplayerAgentCommand(MultiplayerCommandData cmd, AgentControllerBase agent)
     {
         switch (cmd.command)
         {

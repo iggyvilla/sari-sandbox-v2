@@ -114,7 +114,7 @@ MonoBehaviour:
   m_Name: OutlineFxFeature
   m_EditorClassIdentifier: 
   m_Active: 1
-  _event: 1000
+  _event: 600
   _solid: 0
   _thickness: 0.166
   _alphaCutout: 0.209
