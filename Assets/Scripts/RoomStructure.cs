@@ -116,12 +116,15 @@ public class RoomStructure : MonoBehaviour
         // Rotation logic: Unity plane normal is local +Y. Negated to face inward (into the room):
         //   Euler(0,0, 90)  → normal = +X   Euler(0,0,-90) → normal = -X
         //   Euler(-90,0,0)  → normal = +Z   Euler(90,0,0)  → normal = -Z
-        var defs = new (Vector3 pos, Vector3 euler, Vector3 scale, Vector3 normal)[]
+        float wallTilingHeight = Mathf.Max(wallHeight, 0.0001f);
+        float roomWidth = halfW * 2f;
+        float roomDepth = halfD * 2f;
+        var defs = new (Vector3 pos, Vector3 euler, Vector3 scale, Vector3 normal, Vector2 textureScale)[]
         {
-            (center + new Vector3( halfW, midY, 0), new Vector3(  0,  0,  90), new Vector3(wallHeight / 10f, 1f, halfD * 2f / 10f), Vector3.right),
-            (center + new Vector3(-halfW, midY, 0), new Vector3(  0,  0, -90), new Vector3(wallHeight / 10f, 1f, halfD * 2f / 10f), Vector3.left),
-            (center + new Vector3(0, midY,  halfD), new Vector3(-90,  0,   0), new Vector3(halfW * 2f / 10f, 1f, wallHeight / 10f),  Vector3.forward),
-            (center + new Vector3(0, midY, -halfD), new Vector3( 90,  0,   0), new Vector3(halfW * 2f / 10f, 1f, wallHeight / 10f),  Vector3.back),
+            (center + new Vector3( halfW, midY, 0), new Vector3(  0,  0,  90), new Vector3(wallHeight / 10f, 1f, roomDepth / 10f), Vector3.right,   new Vector2(1f, roomDepth / wallTilingHeight)),
+            (center + new Vector3(-halfW, midY, 0), new Vector3(  0,  0, -90), new Vector3(wallHeight / 10f, 1f, roomDepth / 10f), Vector3.left,    new Vector2(1f, roomDepth / wallTilingHeight)),
+            (center + new Vector3(0, midY,  halfD), new Vector3(-90,  0,   0), new Vector3(roomWidth / 10f, 1f, wallHeight / 10f), Vector3.forward, new Vector2(roomWidth / wallTilingHeight, 1f)),
+            (center + new Vector3(0, midY, -halfD), new Vector3( 90,  0,   0), new Vector3(roomWidth / 10f, 1f, wallHeight / 10f), Vector3.back,    new Vector2(roomWidth / wallTilingHeight, 1f)),
         };
 
         Material wallMaterialSource = _isStoreBuilder ? wallMaterialTransparent : wallMaterialOpaque;
@@ -132,6 +135,7 @@ public class RoomStructure : MonoBehaviour
             var go = SpawnPlane($"Wall_{d.normal}", d.pos, Quaternion.Euler(d.euler), d.scale, transform);
             var mat = new Material(wallMaterialSource);
             if (_isStoreBuilder) EnsureTransparent(mat);
+            ApplyWallTextureScale(mat, d.textureScale);
             go.GetComponent<MeshRenderer>().material = mat;
             _walls[i] = new WallEntry { go = go, outwardNormal = d.normal, mat = mat };
         }
@@ -487,6 +491,23 @@ public class RoomStructure : MonoBehaviour
         go.transform.localScale = scale;
         Destroy(go.GetComponent<Collider>());
         return go;
+    }
+
+    static void ApplyWallTextureScale(Material mat, Vector2 textureScale)
+    {
+        if (mat == null) return;
+
+        SetTextureScaleIfPresent(mat, "_BaseMap", textureScale);
+        SetTextureScaleIfPresent(mat, "_MainTex", textureScale);
+        SetTextureScaleIfPresent(mat, "_BumpMap", textureScale);
+        SetTextureScaleIfPresent(mat, "_MetallicGlossMap", textureScale);
+        SetTextureScaleIfPresent(mat, "_OcclusionMap", textureScale);
+    }
+
+    static void SetTextureScaleIfPresent(Material mat, string propertyName, Vector2 textureScale)
+    {
+        if (mat.HasProperty(propertyName))
+            mat.SetTextureScale(propertyName, textureScale);
     }
 
     // Sets transparency blend mode on Standard or URP Lit shaders.

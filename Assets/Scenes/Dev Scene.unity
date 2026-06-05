@@ -1658,7 +1658,7 @@ MonoBehaviour:
   floorMaterialPlay: {fileID: 2100000, guid: 33010ca0c709c412fb356a1f2568e461, type: 2}
   floorMaterialBuilder: {fileID: 0}
   wallMaterialTransparent: {fileID: 2100000, guid: 6cf58b3bedcfb4183ac05ea800b7a1a1, type: 2}
-  wallMaterialOpaque: {fileID: 2100000, guid: 67e66463b28a54c20b978acd632cd568, type: 2}
+  wallMaterialOpaque: {fileID: 2100000, guid: 04ecd95e5b0a644c0b82c2baa8071b39, type: 2}
   wallHeight: 4.5
   ceilingLightPrefab: {fileID: 8427317289143796911, guid: 6b446f65fffd545068995dad05c7c39d, type: 3}
   ceilingLightSpacingX: 1.5
