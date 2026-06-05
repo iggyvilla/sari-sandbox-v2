@@ -3,6 +3,12 @@ using DG.Tweening;
 using TMPro;
 using UnityEngine;
 
+public enum AgentHandSide
+{
+    Left,
+    Right
+}
+
 public abstract class AgentControllerBase : MonoBehaviour
 {
     private const float MaximumHeightMargin = 0.2f;
@@ -16,6 +22,7 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     [Header("Agent Hand Object")]
     [SerializeField] protected GameObject agentHand;
+    [SerializeField] protected GameObject leftAgentHand;
 
     [Header("Basket")]
     public GameObject agentBasket;
@@ -51,13 +58,8 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     private LayerMask interactableLayerMask;
     private AgentBodyCollisionDetector _bodyCollisionDetector;
-    private RuntimeRetailItem _rightHandItem;
-    private DoorHandle _grabbedDoor;
-    private Rigidbody _handRigidbody;
-    private Vector3 _desiredHandLocalPosition;
-    private Quaternion _desiredHandLocalRotation;
-    private bool _hasDesiredHandPose;
-    private bool _hasPendingHandPose;
+    private readonly AgentHandRuntime _leftHand = new AgentHandRuntime(AgentHandSide.Left);
+    private readonly AgentHandRuntime _rightHand = new AgentHandRuntime(AgentHandSide.Right);
 
     // Body translation requested this physics step via MovePosition (a deferred move that
     // hasn't been applied to the transform yet). ApplyDesiredHandPose adds this so the hand
@@ -72,6 +74,36 @@ public abstract class AgentControllerBase : MonoBehaviour
     private float _standingViewHeight;
     private float _standingMovementRootHeight;
     private bool _isCrouching;
+    private AgentHandSide _lastManualHandSide = AgentHandSide.Left;
+
+    private sealed class AgentHandRuntime
+    {
+        public AgentHandRuntime(AgentHandSide side)
+        {
+            Side = side;
+        }
+
+        public readonly AgentHandSide Side;
+        public GameObject HandObject;
+        public Animator Animator;
+        public HandCollisionDetector CollisionDetector;
+        public BoxCollider Collider;
+        public Vector3 DefaultColliderSize;
+        public Vector3 DefaultColliderCenter;
+        public Vector3 InitialLocalPosition;
+        public Quaternion InitialLocalRotation;
+        public Rigidbody Rigidbody;
+        public Vector3 DesiredLocalPosition;
+        public Quaternion DesiredLocalRotation;
+        public bool HasDesiredPose;
+        public bool HasPendingPose;
+        public bool IsGripped;
+        public bool IsPointing;
+        public float CurrentGrip;
+        public float CurrentTrigger;
+        public RuntimeRetailItem HeldItem;
+        public DoorHandle GrabbedDoor;
+    }
 
     protected virtual void Start()
     {
@@ -112,29 +144,76 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     protected virtual void InitializeHandComponents()
     {
-        if (agentHand == null) return;
-        handAnimator = agentHand.GetComponentInChildren<Animator>();
-        _handCollisionDetector = agentHand.GetComponent<HandCollisionDetector>();
-        _initialHandLocalPosition = agentHand.transform.localPosition;
-        _initialHandLocalRotation = agentHand.transform.localRotation;
-        _handRigidbody = agentHand.GetComponent<Rigidbody>();
-        _desiredHandLocalPosition = _initialHandLocalPosition;
-        _desiredHandLocalRotation = _initialHandLocalRotation;
-        _hasDesiredHandPose = _handRigidbody != null;
-        _handCollider = agentHand.GetComponent<BoxCollider>();
-        if (_handCollider != null)
-        {
-            _defaultColliderSize = _handCollider.size;
-            _defaultColliderCenter = _handCollider.center;
-        }
-
-        SetupPhysicsActivationSphere();
+        InitializeHandRuntime(_rightHand, agentHand);
+        InitializeHandRuntime(_leftHand, leftAgentHand);
+        SyncRightHandCompatibilityFields();
     }
 
-    private void SetupPhysicsActivationSphere()
+    protected void InitializeHandRuntime(
+        AgentHandSide side,
+        GameObject handObject,
+        Animator animator,
+        HandCollisionDetector collisionDetector,
+        BoxCollider handCollider)
     {
+        AgentHandRuntime hand = GetHand(side);
+        InitializeHandRuntime(hand, handObject, animator, collisionDetector, handCollider);
+        SyncRightHandCompatibilityFields();
+    }
+
+    private void InitializeHandRuntime(AgentHandRuntime hand, GameObject handObject)
+    {
+        if (handObject == null) return;
+
+        InitializeHandRuntime(
+            hand,
+            handObject,
+            handObject.GetComponentInChildren<Animator>(),
+            handObject.GetComponent<HandCollisionDetector>(),
+            handObject.GetComponent<BoxCollider>());
+    }
+
+    private void InitializeHandRuntime(
+        AgentHandRuntime hand,
+        GameObject handObject,
+        Animator animator,
+        HandCollisionDetector collisionDetector,
+        BoxCollider handCollider)
+    {
+        if (handObject == null) return;
+
+        hand.HandObject = handObject;
+        hand.Animator = animator;
+        hand.CollisionDetector = collisionDetector;
+        hand.InitialLocalPosition = handObject.transform.localPosition;
+        hand.InitialLocalRotation = handObject.transform.localRotation;
+        hand.Rigidbody = handObject.GetComponent<Rigidbody>();
+        hand.DesiredLocalPosition = hand.InitialLocalPosition;
+        hand.DesiredLocalRotation = hand.InitialLocalRotation;
+        hand.HasDesiredPose = hand.Rigidbody != null;
+        if (hand.Rigidbody != null)
+        {
+            hand.Rigidbody.useGravity = false;
+            hand.Rigidbody.isKinematic = true;
+            hand.Rigidbody.linearVelocity = Vector3.zero;
+            hand.Rigidbody.angularVelocity = Vector3.zero;
+        }
+        hand.Collider = handCollider;
+        if (hand.Collider != null)
+        {
+            hand.DefaultColliderSize = hand.Collider.size;
+            hand.DefaultColliderCenter = hand.Collider.center;
+        }
+
+        SetupPhysicsActivationSphere(hand);
+    }
+
+    private void SetupPhysicsActivationSphere(AgentHandRuntime hand)
+    {
+        if (hand.HandObject == null) return;
+
         GameObject sphereObj = new GameObject("PhysicsActivationSphere");
-        sphereObj.transform.SetParent(agentHand.transform, worldPositionStays: false);
+        sphereObj.transform.SetParent(hand.HandObject.transform, worldPositionStays: false);
         sphereObj.layer = LayerMask.NameToLayer("PhysicsActivator");
         
         Rigidbody rb =  sphereObj.AddComponent<Rigidbody>();
@@ -160,7 +239,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         
         // Gaze Mode 
 
-        if (Input.GetKey(KeyCode.Q) && _rightHandItem?.gameObject != null)
+        if (Input.GetKey(KeyCode.Q) && _rightHand.HeldItem?.gameObject != null)
         {
             ThrowItem();
         }
@@ -190,7 +269,7 @@ public abstract class AgentControllerBase : MonoBehaviour
                     return;
                 }
 
-                if (_rightHandItem == null)
+                if (_rightHand.HeldItem == null)
                 {
                     Vector3 handLocation = transform.position
                                            + transform.forward * 0.2f
@@ -198,7 +277,7 @@ public abstract class AgentControllerBase : MonoBehaviour
                                            + transform.up * -0.1f;
 
                     ItemBBoxInfo itemBBoxInfo = hit.collider.GetComponent<ItemBBoxInfo>();
-                    _rightHandItem = RetailItemRuntimeService.Instance.PickUpFromBBox(
+                    _rightHand.HeldItem = RetailItemRuntimeService.Instance.PickUpFromBBox(
                         itemBBoxInfo,
                         transform,
                         handLocation,
@@ -216,7 +295,9 @@ public abstract class AgentControllerBase : MonoBehaviour
 
         if (!isMultiplayerAgent && DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
         {
-            if (Input.GetKeyDown(KeyCode.Return)) ToggleGrip();
+            AgentHandSide? manualHandSide = GetManualHandControlSide();
+            if (Input.GetKeyDown(KeyCode.Return) && manualHandSide.HasValue)
+                ToggleGrip(manualHandSide.Value);
             if (Input.GetKeyDown(KeyCode.P)) TogglePoint();
             if (Input.GetKeyDown(KeyCode.X)) ToggleBasketInView();
         }
@@ -226,13 +307,13 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         if (!isMultiplayerAgent)
         {
-            Vector3 fwd = transform.forward;
-            Vector3 right = transform.right;
+            Vector3 fwd = GetPlanarDirection(transform.forward, Vector3.forward);
+            Vector3 right = GetPlanarDirection(transform.right, Vector3.right);
             float m = movementSpeed * Time.deltaTime;
             float r = rotateSpeed * Time.deltaTime;
-            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            AgentHandSide? manualHandSide = GetManualHandControlSide();
 
-            if (!ctrl)
+            if (!manualHandSide.HasValue)
             {
                 if (Input.GetKey(KeyCode.W)) TranslateAgent(fwd * m, Vector3.zero);
                 else if (Input.GetKey(KeyCode.A)) TranslateAgent(-right * m, Vector3.zero);
@@ -248,7 +329,7 @@ public abstract class AgentControllerBase : MonoBehaviour
             else
             {
                 if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
-                    HandleManualHandControls();
+                    HandleManualHandControls(manualHandSide.Value);
             }
         }
 
@@ -262,124 +343,156 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     private void UpdateHandControlMode()
     {
-        if (_handRigidbody == null) return;
-
-        bool shouldBeKinematic = !IsManualHandControlActive();
-        if (_handRigidbody.isKinematic == shouldBeKinematic) return;
-
-        if (shouldBeKinematic)
-        {
-            _handRigidbody.linearVelocity = Vector3.zero;
-            _handRigidbody.angularVelocity = Vector3.zero;
-            _handRigidbody.isKinematic = true;
-        }
-        else
-        {
-            // Start manual control from the live pose in case tracking drove the kinematic hand.
-            _desiredHandLocalPosition = agentHand.transform.localPosition;
-            _desiredHandLocalRotation = agentHand.transform.localRotation;
-            _hasDesiredHandPose = true;
-            _handRigidbody.isKinematic = false;
-            _handRigidbody.linearVelocity = Vector3.zero;
-            _handRigidbody.angularVelocity = Vector3.zero;
-        }
-
-        _hasPendingHandPose = true;
+        UpdateHandControlMode(_leftHand);
+        UpdateHandControlMode(_rightHand);
     }
 
-    private bool IsManualHandControlActive()
+    private void UpdateHandControlMode(AgentHandRuntime hand)
     {
-        return !isMultiplayerAgent
-               && DataHandler.Instance != null
-               && DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual
-               && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl));
+        if (hand.Rigidbody == null) return;
+
+        bool isManualHand = IsManualHandControlActive(hand.Side);
+        if (isManualHand)
+        {
+            // Start manual control from the live pose in case tracking drove the hand.
+            hand.DesiredLocalPosition = hand.HandObject.transform.localPosition;
+            hand.DesiredLocalRotation = hand.HandObject.transform.localRotation;
+            hand.HasDesiredPose = true;
+            hand.HasPendingPose = true;
+        }
+
+        if (!hand.Rigidbody.isKinematic)
+        {
+            hand.Rigidbody.linearVelocity = Vector3.zero;
+            hand.Rigidbody.angularVelocity = Vector3.zero;
+            hand.Rigidbody.useGravity = false;
+            hand.Rigidbody.isKinematic = true;
+        }
+    }
+
+    protected bool IsManualHandControlActive()
+    {
+        return GetManualHandControlSide().HasValue;
+    }
+
+    private bool IsManualHandControlActive(AgentHandSide side)
+    {
+        AgentHandSide? manualHandSide = GetManualHandControlSide();
+        return manualHandSide.HasValue && manualHandSide.Value == side;
+    }
+
+    private AgentHandSide? GetManualHandControlSide()
+    {
+        bool leftPressed = Input.GetKeyDown(KeyCode.LeftShift);
+        bool rightPressed = Input.GetKeyDown(KeyCode.RightShift);
+        if (leftPressed) _lastManualHandSide = AgentHandSide.Left;
+        if (rightPressed) _lastManualHandSide = AgentHandSide.Right;
+
+        if (isMultiplayerAgent ||
+            DataHandler.Instance == null ||
+            DataHandler.Instance.agentInteractionStyle != AgentInteractionStyle.Manual)
+            return null;
+
+        bool leftHeld = Input.GetKey(KeyCode.LeftShift);
+        bool rightHeld = Input.GetKey(KeyCode.RightShift);
+
+        if (leftHeld && rightHeld) return _lastManualHandSide;
+        if (leftHeld) return AgentHandSide.Left;
+        if (rightHeld) return AgentHandSide.Right;
+        return null;
     }
 
     private void ApplyDesiredHandPose()
     {
-        if (_handRigidbody == null || !_hasDesiredHandPose) return;
+        ApplyDesiredHandPose(_leftHand);
+        ApplyDesiredHandPose(_rightHand);
+    }
+
+    private void ApplyDesiredHandPose(AgentHandRuntime hand)
+    {
+        if (hand.Rigidbody == null || !hand.HasDesiredPose) return;
         // Re-pin the hand to its parent-local pose every step (even while kinematic) so a
         // nested Rigidbody isn't left behind when the body moves. The body's translation is
         // applied via a deferred MovePosition, so add _pendingBodyTranslation to target where
         // the body WILL be this step; rotation is written to the transform immediately, so
         // handParent.rotation is already current and needs no prediction.
 
-        Transform handParent = agentHand.transform.parent;
+        Transform handParent = hand.HandObject.transform.parent;
         Vector3 worldPosition = handParent != null
-            ? handParent.TransformPoint(_desiredHandLocalPosition) + _pendingBodyTranslation
-            : _desiredHandLocalPosition + _pendingBodyTranslation;
+            ? handParent.TransformPoint(hand.DesiredLocalPosition) + _pendingBodyTranslation
+            : hand.DesiredLocalPosition + _pendingBodyTranslation;
         Quaternion worldRotation = handParent != null
-            ? handParent.rotation * _desiredHandLocalRotation
-            : _desiredHandLocalRotation;
+            ? handParent.rotation * hand.DesiredLocalRotation
+            : hand.DesiredLocalRotation;
 
-        _handRigidbody.MovePosition(worldPosition);
-        _handRigidbody.MoveRotation(worldRotation);
-        _hasPendingHandPose = false;
+        hand.Rigidbody.MovePosition(worldPosition);
+        hand.Rigidbody.MoveRotation(worldRotation);
+        hand.HasPendingPose = false;
     }
 
-    private Vector3 GetHandLocalPosition()
+    private Vector3 GetHandLocalPosition(AgentHandRuntime hand)
     {
-        return _handRigidbody != null && _hasDesiredHandPose
-            ? _desiredHandLocalPosition
-            : agentHand.transform.localPosition;
+        return hand.Rigidbody != null && hand.HasDesiredPose
+            ? hand.DesiredLocalPosition
+            : hand.HandObject.transform.localPosition;
     }
 
-    private Quaternion GetHandLocalRotation()
+    private Quaternion GetHandLocalRotation(AgentHandRuntime hand)
     {
-        return _handRigidbody != null && _hasDesiredHandPose
-            ? _desiredHandLocalRotation
-            : agentHand.transform.localRotation;
+        return hand.Rigidbody != null && hand.HasDesiredPose
+            ? hand.DesiredLocalRotation
+            : hand.HandObject.transform.localRotation;
     }
 
-    private void SetHandLocalPose(Vector3 localPosition, Quaternion localRotation)
+    private void SetHandLocalPose(AgentHandRuntime hand, Vector3 localPosition, Quaternion localRotation)
     {
-        if (_handRigidbody == null)
+        if (hand.Rigidbody == null)
         {
-            agentHand.transform.localPosition = localPosition;
-            agentHand.transform.localRotation = localRotation;
+            hand.HandObject.transform.localPosition = localPosition;
+            hand.HandObject.transform.localRotation = localRotation;
             return;
         }
 
-        _desiredHandLocalPosition = localPosition;
-        _desiredHandLocalRotation = localRotation;
-        _hasDesiredHandPose = true;
-        _hasPendingHandPose = true;
+        hand.DesiredLocalPosition = localPosition;
+        hand.DesiredLocalRotation = localRotation;
+        hand.HasDesiredPose = true;
+        hand.HasPendingPose = true;
     }
 
-    private void SetHandWorldPosition(Vector3 worldPosition)
+    private void SetHandWorldPosition(AgentHandRuntime hand, Vector3 worldPosition)
     {
-        if (_handRigidbody == null)
+        if (hand.Rigidbody == null)
         {
-            agentHand.transform.position = worldPosition;
+            hand.HandObject.transform.position = worldPosition;
             return;
         }
 
-        Transform handParent = agentHand.transform.parent;
-        _desiredHandLocalPosition = handParent != null
+        Transform handParent = hand.HandObject.transform.parent;
+        hand.DesiredLocalPosition = handParent != null
             ? handParent.InverseTransformPoint(worldPosition)
             : worldPosition;
-        _hasDesiredHandPose = true;
-        _hasPendingHandPose = true;
+        hand.HasDesiredPose = true;
+        hand.HasPendingPose = true;
     }
 
-    private void SetHandWorldPose(Vector3 worldPosition, Quaternion worldRotation)
+    private void SetHandWorldPose(AgentHandRuntime hand, Vector3 worldPosition, Quaternion worldRotation)
     {
-        if (_handRigidbody == null)
+        if (hand.Rigidbody == null)
         {
-            agentHand.transform.position = worldPosition;
-            agentHand.transform.rotation = worldRotation;
+            hand.HandObject.transform.position = worldPosition;
+            hand.HandObject.transform.rotation = worldRotation;
             return;
         }
 
-        Transform handParent = agentHand.transform.parent;
-        _desiredHandLocalPosition = handParent != null
+        Transform handParent = hand.HandObject.transform.parent;
+        hand.DesiredLocalPosition = handParent != null
             ? handParent.InverseTransformPoint(worldPosition)
             : worldPosition;
-        _desiredHandLocalRotation = handParent != null
+        hand.DesiredLocalRotation = handParent != null
             ? Quaternion.Inverse(handParent.rotation) * worldRotation
             : worldRotation;
-        _hasDesiredHandPose = true;
-        _hasPendingHandPose = true;
+        hand.HasDesiredPose = true;
+        hand.HasPendingPose = true;
     }
 
     // Override in IKAgentController to route up/down into the head joint only.
@@ -394,32 +507,40 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     private void AnimateHand()
     {
-        if (handAnimator == null) return;
-
-        float gripTarget = isGripped || isPointing ? 1f : 0f;
-        float triggerTarget = isPointing ? 1f : 0f;
-        if (isGripped) triggerTarget = 0f;
-
-        currentGrip = Mathf.MoveTowards(currentGrip, gripTarget, gripSpeed * Time.fixedDeltaTime);
-        currentTrigger = Mathf.MoveTowards(currentTrigger, triggerTarget, gripSpeed * Time.fixedDeltaTime);
-
-        handAnimator.SetFloat("Grip", currentGrip);
-        handAnimator.SetFloat("Trigger", currentTrigger);
+        AnimateHand(_leftHand);
+        AnimateHand(_rightHand);
+        SyncRightHandCompatibilityFields();
     }
 
-    private void HandleManualHandControls()
+    private void AnimateHand(AgentHandRuntime hand)
     {
-        if (agentHand == null) return;
+        if (hand.Animator == null) return;
 
-        if (_grabbedDoor != null)
+        float gripTarget = hand.IsGripped || hand.IsPointing ? 1f : 0f;
+        float triggerTarget = hand.IsPointing ? 1f : 0f;
+        if (hand.IsGripped) triggerTarget = 0f;
+
+        hand.CurrentGrip = Mathf.MoveTowards(hand.CurrentGrip, gripTarget, gripSpeed * Time.fixedDeltaTime);
+        hand.CurrentTrigger = Mathf.MoveTowards(hand.CurrentTrigger, triggerTarget, gripSpeed * Time.fixedDeltaTime);
+
+        hand.Animator.SetFloat("Grip", hand.CurrentGrip);
+        hand.Animator.SetFloat("Trigger", hand.CurrentTrigger);
+    }
+
+    private void HandleManualHandControls(AgentHandSide side)
+    {
+        AgentHandRuntime hand = GetHand(side);
+        if (hand.HandObject == null) return;
+
+        if (hand.GrabbedDoor != null)
         {
-            SetHandWorldPosition(_grabbedDoor.transform.position);
-            DriveDoorFromInput();
+            SetHandWorldPosition(hand, hand.GrabbedDoor.transform.position);
+            DriveDoorFromInput(hand);
             return;
         }
 
         float speed = handMoveSpeed * Time.fixedDeltaTime;
-        Vector3 localPos = GetHandLocalPosition();
+        Vector3 localPos = GetHandLocalPosition(hand);
 
         if (Input.GetKey(KeyCode.E)) localPos += Vector3.up * speed;
         if (Input.GetKey(KeyCode.Q)) localPos -= Vector3.up * speed;
@@ -431,10 +552,10 @@ public abstract class AgentControllerBase : MonoBehaviour
         // if (localPos.magnitude > handMoveRange)
         //     localPos = localPos.normalized * handMoveRange;
 
-        SetHandLocalPose(localPos, GetHandLocalRotation());
+        SetHandLocalPose(hand, localPos, GetHandLocalRotation(hand));
     }
 
-    private void DriveDoorFromInput()
+    private void DriveDoorFromInput(AgentHandRuntime hand)
     {
         Vector3 inputLocal = Vector3.zero;
         if (Input.GetKey(KeyCode.W)) inputLocal += Vector3.forward;
@@ -448,19 +569,19 @@ public abstract class AgentControllerBase : MonoBehaviour
 
         Vector3 inputWorld = transform.TransformDirection(inputLocal.normalized);
 
-        HingeJoint hinge = _grabbedDoor.Hinge;
-        Rigidbody doorRb = _grabbedDoor.DoorRigidbody;
+        HingeJoint hinge = hand.GrabbedDoor.Hinge;
+        Rigidbody doorRb = hand.GrabbedDoor.DoorRigidbody;
 
         Vector3 axisWorld = doorRb.transform.TransformDirection(hinge.axis);
         Vector3 anchorWorld = doorRb.transform.TransformPoint(hinge.anchor);
-        Vector3 toHandle = _grabbedDoor.transform.position - anchorWorld;
+        Vector3 toHandle = hand.GrabbedDoor.transform.position - anchorWorld;
         float radius = toHandle.magnitude;
         if (radius < 0.001f) return;
 
         Vector3 tangent = Vector3.Cross(axisWorld, toHandle.normalized);
         float tangentialAmount = Vector3.Dot(inputWorld, tangent);
 
-        _grabbedDoor.DoorBuilder.ApplyHandForce(tangent * (tangentialAmount * doorHandleForce));
+        hand.GrabbedDoor.DoorBuilder.ApplyHandForce(tangent * (tangentialAmount * doorHandleForce));
     }
 
     public void ToggleBasketInView()
@@ -517,29 +638,33 @@ public abstract class AgentControllerBase : MonoBehaviour
         return deltaTranslation;
     }
 
-    public void TransformHand(Vector3 localPosition, Vector3 eulerRotation)
+    public void TransformHand(Vector3 localPosition, Vector3 eulerRotation, AgentHandSide side = AgentHandSide.Right)
     {
-        if (agentHand == null) return;
+        AgentHandRuntime hand = GetHand(side);
+        if (hand.HandObject == null) return;
         if (localPosition.magnitude > handMoveRange) return;
         SetHandWorldPose(
+            hand,
             transform.TransformPoint(localPosition),
             transform.rotation * Quaternion.Euler(eulerRotation));
     }
 
-    public void TranslateHand(Vector3 deltaLocalPosition, Vector3 deltaRotation)
+    public void TranslateHand(Vector3 deltaLocalPosition, Vector3 deltaRotation, AgentHandSide side = AgentHandSide.Right)
     {
-        if (agentHand == null) return;
-        Vector3 localPos = GetHandLocalPosition() + deltaLocalPosition;
+        AgentHandRuntime hand = GetHand(side);
+        if (hand.HandObject == null) return;
+        Vector3 localPos = GetHandLocalPosition(hand) + deltaLocalPosition;
         if (localPos.magnitude > handMoveRange)
             localPos = localPos.normalized * handMoveRange;
-        Quaternion localRotation = GetHandLocalRotation() * Quaternion.Euler(deltaRotation);
-        SetHandLocalPose(localPos, localRotation);
+        Quaternion localRotation = GetHandLocalRotation(hand) * Quaternion.Euler(deltaRotation);
+        SetHandLocalPose(hand, localPos, localRotation);
     }
 
-    public void ResetHandPosition()
+    public void ResetHandPosition(AgentHandSide side = AgentHandSide.Right)
     {
-        if (agentHand == null) return;
-        SetHandLocalPose(_initialHandLocalPosition, _initialHandLocalRotation);
+        AgentHandRuntime hand = GetHand(side);
+        if (hand.HandObject == null) return;
+        SetHandLocalPose(hand, hand.InitialLocalPosition, hand.InitialLocalRotation);
     }
 
     public Transform MovementRoot =>
@@ -549,7 +674,11 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     public Transform ViewTransform => transform;
 
-    public Transform HandTransform => agentHand != null ? agentHand.transform : null;
+    public Transform HandTransform => RightHandTransform;
+
+    public Transform RightHandTransform => _rightHand.HandObject != null ? _rightHand.HandObject.transform : null;
+
+    public Transform LeftHandTransform => _leftHand.HandObject != null ? _leftHand.HandObject.transform : null;
 
     public float StandingViewHeight => _standingViewHeight;
 
@@ -559,17 +688,29 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     public bool IsAgentColliding => _bodyCollisionDetector != null && _bodyCollisionDetector.IsColliding;
 
-    public bool IsGripped => isGripped;
+    public bool IsGripped => _rightHand.IsGripped;
 
-    public bool IsPointing => isPointing;
+    public bool IsLeftGripped => _leftHand.IsGripped;
 
-    public string RightHandHoveredItemId => _handCollisionDetector?.DetectedItemBBoxInfo?.itemId;
+    public bool IsPointing => _rightHand.IsPointing;
 
-    public float GripAmount => currentGrip;
+    public bool IsLeftPointing => _leftHand.IsPointing;
 
-    public float TriggerAmount => currentTrigger;
+    public string RightHandHoveredItemId => _rightHand.CollisionDetector?.DetectedItemBBoxInfo?.itemId;
 
-    public bool IsHoldingItem() => _rightHandItem?.gameObject != null;
+    public string LeftHandHoveredItemId => _leftHand.CollisionDetector?.DetectedItemBBoxInfo?.itemId;
+
+    public float GripAmount => _rightHand.CurrentGrip;
+
+    public float TriggerAmount => _rightHand.CurrentTrigger;
+
+    public float LeftGripAmount => _leftHand.CurrentGrip;
+
+    public float LeftTriggerAmount => _leftHand.CurrentTrigger;
+
+    public bool IsHoldingItem() => _rightHand.HeldItem?.gameObject != null;
+
+    public bool IsHoldingItem(AgentHandSide side) => GetHand(side).HeldItem?.gameObject != null;
 
     protected float CurrentLocalViewHeight => _isCrouching ? _standingViewHeight * 0.5f : _standingViewHeight;
 
@@ -577,7 +718,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         if (isMultiplayerAgent) return;
 
-        bool shouldCrouch = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+        bool shouldCrouch = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
         if (_isCrouching == shouldCrouch) return;
 
         _isCrouching = shouldCrouch;
@@ -586,90 +727,96 @@ public abstract class AgentControllerBase : MonoBehaviour
         transform.position = position;
     }
 
-    public void TogglePoint()
+    public void TogglePoint(AgentHandSide side = AgentHandSide.Right)
     {
-        isPointing = !isPointing;
-        isGripped = false;
-        if (_handCollisionDetector != null) _handCollisionDetector.IsPointing = isPointing;
-        if (_handCollider != null)
+        AgentHandRuntime hand = GetHand(side);
+        hand.IsPointing = !hand.IsPointing;
+        hand.IsGripped = false;
+        if (hand.CollisionDetector != null) hand.CollisionDetector.IsPointing = hand.IsPointing;
+        if (hand.Collider != null)
         {
-            if (isPointing)
+            if (hand.IsPointing)
             {
-                _handCollider.center = new Vector3(0.06f, -0.01f, 0.04f);
-                Vector3 s = _handCollider.size;
+                hand.Collider.center = new Vector3(0.06f, -0.01f, 0.04f);
+                Vector3 s = hand.Collider.size;
                 s.y = 0.02f;
                 s.z = 0.13f;
-                _handCollider.size = s;
+                hand.Collider.size = s;
             }
             else
             {
-                _handCollider.center = _defaultColliderCenter;
-                _handCollider.size = _defaultColliderSize;
+                hand.Collider.center = hand.DefaultColliderCenter;
+                hand.Collider.size = hand.DefaultColliderSize;
             }
         }
+
+        SyncRightHandCompatibilityFields();
     }
 
-    public void ToggleGrip()
+    public void ToggleGrip(AgentHandSide side = AgentHandSide.Right)
     {
-        if (!isGripped)
+        AgentHandRuntime hand = GetHand(side);
+        if (!hand.IsGripped)
         {
             // Turn off pointing mode (ensures bounding box is at palm)
-            isPointing = false;
+            hand.IsPointing = false;
             
-            if (_handCollisionDetector != null) _handCollisionDetector.IsPointing = false;
+            if (hand.CollisionDetector != null) hand.CollisionDetector.IsPointing = false;
             
             // Reset our box collider to the "grip" collider
-            if (_handCollider != null)
+            if (hand.Collider != null)
             {
-                _handCollider.center = _defaultColliderCenter;
-                _handCollider.size = _defaultColliderSize;
+                hand.Collider.center = hand.DefaultColliderCenter;
+                hand.Collider.size = hand.DefaultColliderSize;
             }
             
-            if (_handCollisionDetector != null && _handCollisionDetector.DetectedDoorHandle != null)
+            if (hand.CollisionDetector != null && hand.CollisionDetector.DetectedDoorHandle != null)
             {
-                _grabbedDoor = _handCollisionDetector.DetectedDoorHandle;
-                Physics.IgnoreLayerCollision(9, 12, true);
+                hand.GrabbedDoor = hand.CollisionDetector.DetectedDoorHandle;
+                UpdateDoorCollisionIgnore();
             }
-            else if (agentHand != null &&
-                     _handCollisionDetector != null &&
-                     _handCollisionDetector.DetectedItem != null &&
-                     _handCollisionDetector.DetectedItemBBoxInfo != null)
+            else if (hand.HandObject != null &&
+                     hand.CollisionDetector != null &&
+                     hand.CollisionDetector.DetectedItem != null &&
+                     hand.CollisionDetector.DetectedItemBBoxInfo != null)
             {
-                InstantiateItemFromBBox();
+                InstantiateItemFromBBox(hand);
             }
-            isGripped = true;
+            hand.IsGripped = true;
         }
         else
         {
             // If we're currently grabbing a door, un-grab it
-            if (_grabbedDoor != null)
+            if (hand.GrabbedDoor != null)
             {
-                ResetHandPosition();
-                _grabbedDoor.DoorRigidbody.linearVelocity = Vector3.zero;
-                _grabbedDoor.DoorRigidbody.angularVelocity = Vector3.zero;
-                _grabbedDoor = null;
-                Physics.IgnoreLayerCollision(9, 12, false);
+                ResetHandPosition(side);
+                hand.GrabbedDoor.DoorRigidbody.linearVelocity = Vector3.zero;
+                hand.GrabbedDoor.DoorRigidbody.angularVelocity = Vector3.zero;
+                hand.GrabbedDoor = null;
+                UpdateDoorCollisionIgnore();
             }
-            isGripped = false;
+            hand.IsGripped = false;
         }
 
-        if (!isGripped && _rightHandItem?.gameObject != null)
-            DropCurrentlyHeldItem();
+        if (!hand.IsGripped && hand.HeldItem?.gameObject != null)
+            DropCurrentlyHeldItem(hand);
+
+        SyncRightHandCompatibilityFields();
     }
 
-    private void DropCurrentlyHeldItem()
+    private void DropCurrentlyHeldItem(AgentHandRuntime hand)
     {
-        RetailItemRuntimeService.Instance.DropHeldItem(_rightHandItem, _itemBBoxMaterial);
-        _rightHandItem = null;
+        RetailItemRuntimeService.Instance.DropHeldItem(hand.HeldItem, _itemBBoxMaterial);
+        hand.HeldItem = null;
     }
 
-    private void InstantiateItemFromBBox()
+    private void InstantiateItemFromBBox(AgentHandRuntime hand)
     {
-        ItemBBoxInfo itemBBoxInfo = _handCollisionDetector.DetectedItemBBoxInfo;
-        _rightHandItem = RetailItemRuntimeService.Instance.PickUpFromBBox(
+        ItemBBoxInfo itemBBoxInfo = hand.CollisionDetector.DetectedItemBBoxInfo;
+        hand.HeldItem = RetailItemRuntimeService.Instance.PickUpFromBBox(
             itemBBoxInfo,
-            agentHand.transform,
-            agentHand.transform.position - new Vector3(0, 0.1f, 0),
+            hand.HandObject.transform,
+            hand.HandObject.transform.position - new Vector3(0, 0.1f, 0),
             transform.rotation,
             new Vector3(0f, -60f, 0f)
         );
@@ -678,10 +825,47 @@ public abstract class AgentControllerBase : MonoBehaviour
     private void ThrowItem()
     {
         RetailItemRuntimeService.Instance.ThrowHeldItem(
-            _rightHandItem,
+            _rightHand.HeldItem,
             _itemBBoxMaterial,
             transform.forward * throwStrength);
-        _rightHandItem = null;
+        _rightHand.HeldItem = null;
+    }
+
+    private Vector3 GetPlanarDirection(Vector3 direction, Vector3 fallback)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude > 0.0001f) return direction.normalized;
+
+        fallback.y = 0f;
+        return fallback.sqrMagnitude > 0.0001f ? fallback.normalized : Vector3.forward;
+    }
+
+    private AgentHandRuntime GetHand(AgentHandSide side)
+    {
+        return side == AgentHandSide.Left ? _leftHand : _rightHand;
+    }
+
+    private void UpdateDoorCollisionIgnore()
+    {
+        Physics.IgnoreLayerCollision(
+            9,
+            12,
+            _leftHand.GrabbedDoor != null || _rightHand.GrabbedDoor != null);
+    }
+
+    private void SyncRightHandCompatibilityFields()
+    {
+        handAnimator = _rightHand.Animator;
+        _handCollisionDetector = _rightHand.CollisionDetector;
+        _handCollider = _rightHand.Collider;
+        _defaultColliderSize = _rightHand.DefaultColliderSize;
+        _defaultColliderCenter = _rightHand.DefaultColliderCenter;
+        _initialHandLocalPosition = _rightHand.InitialLocalPosition;
+        _initialHandLocalRotation = _rightHand.InitialLocalRotation;
+        isGripped = _rightHand.IsGripped;
+        isPointing = _rightHand.IsPointing;
+        currentGrip = _rightHand.CurrentGrip;
+        currentTrigger = _rightHand.CurrentTrigger;
     }
 }
 

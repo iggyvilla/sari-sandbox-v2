@@ -85,7 +85,25 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             case "TransformHand":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 if (!sariSandboxV1CompatibilityLayer) goto case "TranslateHand";
-                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
+                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
+                break;
+
+            case "TransformRightHand":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
+                break;
+
+            case "TransformLeftHand":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Left);
                 handler.EnqueueCoroutine(SendHandStateAfterPhysics(
                     agent,
                     session,
@@ -94,7 +112,25 @@ public class SariAgentCommandBehavior : WebSocketBehavior
 
             case "TranslateHand":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TranslateHand(ToVec3(cmd.translation), ToVec3(cmd.rotation));
+                agent.TranslateHand(ToVec3(cmd.translation), ToVec3(cmd.rotation), AgentHandSide.Right);
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
+                break;
+
+            case "TranslateRightHand":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.TranslateHand(ToVec3(cmd.translation), ToVec3(cmd.rotation), AgentHandSide.Right);
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
+                break;
+
+            case "TranslateLeftHand":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.TranslateHand(ToVec3(cmd.translation), ToVec3(cmd.rotation), AgentHandSide.Left);
                 handler.EnqueueCoroutine(SendHandStateAfterPhysics(
                     agent,
                     session,
@@ -103,8 +139,20 @@ public class SariAgentCommandBehavior : WebSocketBehavior
 
             case "ResetHandPosition":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.ResetHandPosition();
+                agent.ResetHandPosition(AgentHandSide.Right);
                 session.Send("Hand position reset");
+                break;
+
+            case "ResetRightHandPosition":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.ResetHandPosition(AgentHandSide.Right);
+                session.Send("Right hand position reset");
+                break;
+
+            case "ResetLeftHandPosition":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.ResetHandPosition(AgentHandSide.Left);
+                session.Send("Left hand position reset");
                 break;
 
             case "IsHoldingItem":
@@ -115,16 +163,30 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             case "ToggleRightGrip":
             case "ToggleGrip":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.ToggleGrip();
+                agent.ToggleGrip(AgentHandSide.Right);
                 session.Send("Right Grip: " + agent.IsGripped);
                 break;
 
+            case "ToggleLeftGrip":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.ToggleGrip(AgentHandSide.Left);
+                session.Send("Left Grip: " + agent.IsLeftGripped);
+                break;
+
             case "ToggleRightPoke":
+            case "ToggleRightPoint":
             case "TogglePoke":
             case "TogglePoint":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TogglePoint();
+                agent.TogglePoint(AgentHandSide.Right);
                 session.Send("Right Poke: " + agent.IsPointing);
+                break;
+
+            case "ToggleLeftPoke":
+            case "ToggleLeftPoint":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.TogglePoint(AgentHandSide.Left);
+                session.Send("Left Poke: " + agent.IsLeftPointing);
                 break;
 
             case "RequestScreenshot":
@@ -185,7 +247,12 @@ public class SariAgentCommandBehavior : WebSocketBehavior
 
         if (agent == null) yield break;
 
-        Transform rightHand = agent.HandTransform;
+        Transform leftHand = agent.LeftHandTransform;
+        Vector3 leftHandPosition = leftHand != null ? leftHand.position : Vector3.zero;
+        Vector3 leftHandRotation = leftHand != null ? leftHand.rotation.eulerAngles : Vector3.zero;
+        string leftHandHoveredItemId = agent.LeftHandHoveredItemId;
+
+        Transform rightHand = agent.RightHandTransform;
         Vector3 rightHandPosition = rightHand != null ? rightHand.position : Vector3.zero;
         Vector3 rightHandRotation = rightHand != null ? rightHand.rotation.eulerAngles : Vector3.zero;
         string rightHandHoveredItemId = agent.RightHandHoveredItemId;
@@ -194,10 +261,10 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         {
             session.Send(SerializeHandStateResponse(new HandStateResponse
             {
-                current_left_hand_position = Vec3ToArr(Vector3.zero),
-                current_left_hand_rotation = Vec3ToArr(Vector3.zero),
-                left_hand_hovering = null,
-                left_hand_gripping = false,
+                current_left_hand_position = Vec3ToArr(leftHandPosition),
+                current_left_hand_rotation = Vec3ToArr(leftHandRotation),
+                left_hand_hovering = leftHandHoveredItemId,
+                left_hand_gripping = agent.IsLeftGripped,
                 current_right_hand_position = Vec3ToArr(rightHandPosition),
                 current_right_hand_rotation = Vec3ToArr(rightHandRotation),
                 right_hand_hovering = rightHandHoveredItemId,
@@ -207,10 +274,10 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         }
 
         session.Send(
-            "Current left hand position: " + Vector3.zero +
-            "\nCurrent left hand rotation: " + Vector3.zero +
-            "\nLeft hand hovering: null" +
-            "\nLeft hand gripping: False" +
+            "Current left hand position: " + leftHandPosition +
+            "\nCurrent left hand rotation: " + leftHandRotation +
+            "\nLeft hand hovering: " + (leftHandHoveredItemId ?? "null") +
+            "\nLeft hand gripping: " + agent.IsLeftGripped +
             "\nCurrent right hand position: " + rightHandPosition +
             "\nCurrent right hand rotation: " + rightHandRotation +
             "\nRight hand hovering: " + (rightHandHoveredItemId ?? "null") +

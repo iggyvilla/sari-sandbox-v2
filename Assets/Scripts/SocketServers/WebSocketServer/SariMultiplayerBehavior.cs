@@ -185,20 +185,60 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 // Send("Hand transformed");
                 // break;
             case "TranslateHand":
-                agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
-                Send("Hand translated");
+                agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
+                Send("Right hand translated");
+                break;
+            case "TransformRightHand":
+                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
+                Send("Right hand transformed");
+                break;
+            case "TransformLeftHand":
+                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Left);
+                Send("Left hand transformed");
+                break;
+            case "TranslateRightHand":
+                agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
+                Send("Right hand translated");
+                break;
+            case "TranslateLeftHand":
+                agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Left);
+                Send("Left hand translated");
                 break;
             case "ResetHandPosition":
-                agent.ResetHandPosition();
-                Send("Hand position reset");
+                agent.ResetHandPosition(AgentHandSide.Right);
+                Send("Right hand position reset");
+                break;
+            case "ResetRightHandPosition":
+                agent.ResetHandPosition(AgentHandSide.Right);
+                Send("Right hand position reset");
+                break;
+            case "ResetLeftHandPosition":
+                agent.ResetHandPosition(AgentHandSide.Left);
+                Send("Left hand position reset");
                 break;
             case "ToggleGrip":
-                agent.ToggleGrip();
-                Send("Grip toggled");
+                agent.ToggleGrip(AgentHandSide.Right);
+                Send("Right grip toggled");
+                break;
+            case "ToggleRightGrip":
+                agent.ToggleGrip(AgentHandSide.Right);
+                Send("Right grip toggled");
+                break;
+            case "ToggleLeftGrip":
+                agent.ToggleGrip(AgentHandSide.Left);
+                Send("Left grip toggled");
                 break;
             case "TogglePoint":
-                agent.TogglePoint();
-                Send("Point toggled");
+                agent.TogglePoint(AgentHandSide.Right);
+                Send("Right point toggled");
+                break;
+            case "ToggleRightPoint":
+                agent.TogglePoint(AgentHandSide.Right);
+                Send("Right point toggled");
+                break;
+            case "ToggleLeftPoint":
+                agent.TogglePoint(AgentHandSide.Left);
+                Send("Left point toggled");
                 break;
             default:
                 Send($"Unknown command: {cmd.command}");

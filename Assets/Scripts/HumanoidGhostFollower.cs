@@ -6,10 +6,12 @@ public class HumanoidGhostFollower : MonoBehaviour
     private Animator _bodyAnimator;
     private Transform _headJoint;
     private Transform _handTarget;
+    private Transform _leftHandTarget;
     private Transform _lookAtTarget;
     private Renderer[] _renderers;
     private bool[] _rendererInitialStates;
     private Quaternion _handRotationOffset;
+    private Quaternion _leftHandRotationOffset;
     private Vector3 _lastPosition;
     private int _captureSuppressionDepth;
 
@@ -18,7 +20,8 @@ public class HumanoidGhostFollower : MonoBehaviour
         _authority = authority;
         _bodyAnimator = humanoidController.BodyAnimator;
         _headJoint = humanoidController.HeadJoint;
-        _handTarget = humanoidController.HandTarget;
+        _handTarget = humanoidController.RightHandTarget;
+        _leftHandTarget = humanoidController.LeftHandTarget;
         _lookAtTarget = humanoidController.LookAtTarget;
 
         SanitizePresentationOnlyGhost();
@@ -26,6 +29,10 @@ public class HumanoidGhostFollower : MonoBehaviour
         Transform sourceHand = _authority.HandTransform;
         if (sourceHand != null && _handTarget != null)
             _handRotationOffset = Quaternion.Inverse(sourceHand.rotation) * _handTarget.rotation;
+
+        Transform sourceLeftHand = _authority.LeftHandTransform;
+        if (sourceLeftHand != null && _leftHandTarget != null)
+            _leftHandRotationOffset = Quaternion.Inverse(sourceLeftHand.rotation) * _leftHandTarget.rotation;
 
         FollowAuthority();
         _lastPosition = transform.position;
@@ -93,6 +100,12 @@ public class HumanoidGhostFollower : MonoBehaviour
             _handTarget.SetPositionAndRotation(
                 sourceHand.position,
                 sourceHand.rotation * _handRotationOffset);
+
+        Transform sourceLeftHand = _authority.LeftHandTransform;
+        if (sourceLeftHand != null && _leftHandTarget != null)
+            _leftHandTarget.SetPositionAndRotation(
+                sourceLeftHand.position,
+                sourceLeftHand.rotation * _leftHandRotationOffset);
     }
 
     private void AnimateBody()
