@@ -78,7 +78,7 @@ public class WebSocketHandler : MonoBehaviour
     public void EnqueueScreenshot(
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
-        Action<string> callback)
+        Action<byte[]> callback)
     {
         EnqueueCoroutine(ScreenshotRoutine(camera, hiddenGhost, callback));
     }
@@ -105,7 +105,7 @@ public class WebSocketHandler : MonoBehaviour
     private static IEnumerator ScreenshotRoutine(
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
-        Action<string> callback)
+        Action<byte[]> callback)
     {
         if (camera == null) yield break;
 
@@ -116,7 +116,7 @@ public class WebSocketHandler : MonoBehaviour
         {
             tracker?.SetCamera(camera);
             yield return null; // let instancer dispatch with the requested frustum
-            yield return ScreenshotUtility.GetScreenshotBase64(
+            yield return ScreenshotUtility.GetScreenshotBytes(
                 camera,
                 callback,
                 () =>

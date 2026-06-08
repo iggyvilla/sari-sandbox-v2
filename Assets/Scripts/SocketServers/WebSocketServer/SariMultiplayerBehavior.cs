@@ -118,7 +118,7 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 WebSocketHandler.Instance.EnqueueScreenshot(
                     mpCamera,
                     MultiplayerAgentManager.Instance.GetGhostFollower(_agentId),
-                    base64 => Send(base64));
+                    bytes => Send(bytes));
                 break;
             }
 

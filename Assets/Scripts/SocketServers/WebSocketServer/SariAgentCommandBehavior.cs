@@ -14,6 +14,10 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         public float[] rotation;
         public float[] handPosition;
         public float[] handRotation;
+        public float[] leftTranslation;
+        public float[] leftRotation;
+        public float[] rightTranslation;
+        public float[] rightRotation;
     }
 
     [Serializable]
@@ -61,16 +65,16 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         switch (cmd.command)
         {
             case "TransformAgent":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                if (!sariSandboxV1CompatibilityLayer) goto case "TranslateAgent";
-                Vector3 worldPosition = ToVec3(cmd.translation);
-                worldPosition.y = Mathf.Min(worldPosition.y, agent.MaximumMovementRootHeight);
-                agent.TransformAgent(worldPosition, ToVec3(cmd.rotation));
-                handler.EnqueueCoroutine(SendAgentStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer));
-                break;
+                // if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                // if (!sariSandboxV1CompatibilityLayer) goto case "TranslateAgent";
+                // Vector3 worldPosition = ToVec3(cmd.translation);
+                // worldPosition.y = Mathf.Min(worldPosition.y, agent.MaximumMovementRootHeight);
+                // agent.TransformAgent(worldPosition, ToVec3(cmd.rotation));
+                // handler.EnqueueCoroutine(SendAgentStateAfterPhysics(
+                //     agent,
+                //     session,
+                //     sariSandboxV1CompatibilityLayer));
+                // break;
 
             case "TranslateAgent":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
@@ -104,6 +108,18 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             case "TransformLeftHand":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Left);
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
+                break;
+            
+            // The command is called TransformHands in the Sari V1
+            // communication protocol, but it TRANSLATES, not transforms
+            case "TransformHands":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.TranslateHand(ToVec3(cmd.leftTranslation), ToVec3(cmd.leftRotation), AgentHandSide.Left);
+                agent.TranslateHand(ToVec3(cmd.rightTranslation), ToVec3(cmd.rightRotation), AgentHandSide.Right);
                 handler.EnqueueCoroutine(SendHandStateAfterPhysics(
                     agent,
                     session,
@@ -193,7 +209,7 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             {
                 Camera camera = handler.AgentCamera;
                 if (camera == null) { session.Send("Error: no camera found for agent"); return; }
-                handler.EnqueueScreenshot(camera, handler.AgentGhost, base64 => session.Send(base64));
+                handler.EnqueueScreenshot(camera, handler.AgentGhost, bytes => session.Send(bytes));
                 break;
             }
 
@@ -278,6 +294,7 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             "\nCurrent left hand rotation: " + leftHandRotation +
             "\nLeft hand hovering: " + (leftHandHoveredItemId ?? "null") +
             "\nLeft hand gripping: " + agent.IsLeftGripped +
+            "\nCurrent right hand position: " +
             "\nCurrent right hand position: " + rightHandPosition +
             "\nCurrent right hand rotation: " + rightHandRotation +
             "\nRight hand hovering: " + (rightHandHoveredItemId ?? "null") +

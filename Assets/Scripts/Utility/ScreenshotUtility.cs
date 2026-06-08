@@ -6,6 +6,11 @@ public static class ScreenshotUtility
 {
     public static IEnumerator GetScreenshotBase64(Action<string> callback)
     {
+        yield return GetScreenshotBytes(bytes => callback?.Invoke(Convert.ToBase64String(bytes)));
+    }
+
+    public static IEnumerator GetScreenshotBytes(Action<byte[]> callback)
+    {
         // Delay so the frame captures movement that already happened
         yield return new WaitForSeconds(0.5f);
 
@@ -13,15 +18,27 @@ public static class ScreenshotUtility
 
         Texture2D screenshot = ScreenCapture.CaptureScreenshotAsTexture();
         byte[] bytes = screenshot.EncodeToPNG();
-        string base64 = Convert.ToBase64String(bytes);
         UnityEngine.Object.Destroy(screenshot);
 
-        callback?.Invoke(base64);
+        callback?.Invoke(bytes);
     }
 
     public static IEnumerator GetScreenshotBase64(
         Camera cam,
         Action<string> callback,
+        Action beforeRender = null,
+        Action afterRender = null)
+    {
+        yield return GetScreenshotBytes(
+            cam,
+            bytes => callback?.Invoke(Convert.ToBase64String(bytes)),
+            beforeRender,
+            afterRender);
+    }
+
+    public static IEnumerator GetScreenshotBytes(
+        Camera cam,
+        Action<byte[]> callback,
         Action beforeRender = null,
         Action afterRender = null)
     {
@@ -47,7 +64,7 @@ public static class ScreenshotUtility
             tex.Apply();
 
             byte[] bytes = tex.EncodeToPNG();
-            callback?.Invoke(Convert.ToBase64String(bytes));
+            callback?.Invoke(bytes);
         }
         finally
         {
