@@ -21,6 +21,21 @@ MonoBehaviour:
       surfaceData: 2
     screenSpaceSettings:
       normalBlend: 0
+--- !u!114 &-3927577442398140683
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61afdf1a37aa4464eac574765c030ae6, type: 3}
+  m_Name: HiZDepthCopyFeature
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  copyShader: {fileID: 4800000, guid: 2d7b48507155648c8a6375fd16039aa5, type: 3}
+  injectionPoint: 500
 --- !u!114 &-2201557913886577281
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -75,7 +90,8 @@ MonoBehaviour:
   - {fileID: 6971159631047061389}
   - {fileID: -2201557913886577281}
   - {fileID: -6915550147709291973}
-  m_RendererFeatureMap: 8d6f1ae9bf88be607f2d57debd7e72e13b3263e3c70707a0
+  - {fileID: -3927577442398140683}
+  m_RendererFeatureMap: 8d6f1ae9bf88be607f2d57debd7e72e13b3263e3c70707a0f586051620717ec9
   m_UseNativeRenderPass: 0
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}

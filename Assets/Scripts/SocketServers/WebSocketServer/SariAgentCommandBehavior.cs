@@ -213,6 +213,18 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                 break;
             }
 
+            case "RequestDepthMap":
+            {
+                // Linearized Hi-Z occlusion depth map (near = white, far = black), 1 frame old.
+                // Exists so the agent/user can confirm what the occlusion culler "sees".
+                byte[] png = OcclusionDebugger.Instance != null
+                    ? OcclusionDebugger.Instance.GetDepthMapPNG()
+                    : null;
+                if (png == null) { session.Send("Error: Hi-Z depth map unavailable (no depth captured yet)"); return; }
+                session.Send(png);
+                break;
+            }
+
             case "ResetEnvironment":
                 DataHandler.Instance.ResetEnvironment();
                 session.Send("Environment reset");

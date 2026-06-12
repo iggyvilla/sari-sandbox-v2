@@ -1,0 +1,70 @@
+// Builds the Hi-Z occlusion pyramid consumed by FrustumCullingFilterer.compute.
+//
+// ASSUMPTION (A2): depth is reversed-Z (Metal/D3D: 1 = near, 0 = far), so taking the MIN
+// over a region keeps the FARTHEST occluder — the conservative choice: a mip texel says
+// "everything in my footprint is at least this close", and an instance is only culled when
+// it is behind even that farthest value. If this assumption is wrong, the raw mip-0 debug
+// dump will show near geometry as BLACK instead of WHITE (see OcclusionDebugger).
+#pragma kernel CopyDepth
+#pragma kernel DownsampleMin
+
+// CopyDepth in: the camera depth texture (_CameraDepthTexture), arbitrary non-POT size
+Texture2D<float> _SourceDepth;
+
+// Sizes travel as float4 set via SetVector — NOT SetInts/int2: on Metal, SetInts uses
+// 16-byte array packing, so int2.y reads back as 0 and every thread early-outs (black pyramid).
+float4 _SrcSize;   // x = width, y = height
+float4 _DstSize;   // x = width, y = height
+// x != 0 → CopyDepth writes a UV gradient instead of depth. Isolates failures: gradient
+// visible in the V-key dump = pyramid+dump path fine, source depth read is the problem;
+// still black = the dispatch/readback path itself is broken.
+float4 _DebugParams;
+
+// DownsampleMin in: previous mip of the pyramid (bound per-dispatch via SetTexture mip arg)
+RWTexture2D<float> _SrcMip;
+
+// out: the mip being written this dispatch
+RWTexture2D<float> _DstMip;
+
+// Mip 0: min-gather the full-res depth into the power-of-two base level. The scale factor
+// is generally fractional (e.g. 1920 -> 512), so each output texel min-reduces its entire
+// integer footprint in the source — no source texel is ever skipped (conservative).
+[numthreads(8,8,1)]
+void CopyDepth (uint3 id : SV_DispatchThreadID)
+{
+    uint2 srcSize = uint2(_SrcSize.xy);
+    uint2 dstSize = uint2(_DstSize.xy);
+    if (id.x >= dstSize.x || id.y >= dstSize.y) return;
+
+    if (_DebugParams.x != 0.0)
+    {
+        _DstMip[id.xy] = (float)(id.x + id.y) / (float)(dstSize.x + dstSize.y);
+        return;
+    }
+
+    uint2 start = (id.xy * srcSize) / dstSize;
+    uint2 end   = ((id.xy + 1) * srcSize) / dstSize;
+    end = min(max(end, start + 1), srcSize);
+
+    float d = _SourceDepth.Load(int3(start, 0));
+    for (uint y = start.y; y < end.y; y++)
+        for (uint x = start.x; x < end.x; x++)
+            d = min(d, _SourceDepth.Load(int3(x, y, 0)));
+
+    _DstMip[id.xy] = d;
+}
+
+// Mips 1..N: exact 2x2 min reduction (dimensions are POT, so the mapping never straddles).
+[numthreads(8,8,1)]
+void DownsampleMin (uint3 id : SV_DispatchThreadID)
+{
+    uint2 dstSize = uint2(_DstSize.xy);
+    if (id.x >= dstSize.x || id.y >= dstSize.y) return;
+
+    uint2 s = id.xy * 2;
+    float d0 = _SrcMip[s];
+    float d1 = _SrcMip[s + uint2(1, 0)];
+    float d2 = _SrcMip[s + uint2(0, 1)];
+    float d3 = _SrcMip[s + uint2(1, 1)];
+    _DstMip[id.xy] = min(min(d0, d1), min(d2, d3));
+}

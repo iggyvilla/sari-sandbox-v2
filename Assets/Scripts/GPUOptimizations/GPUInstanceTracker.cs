@@ -36,6 +36,11 @@ public class GPUInstanceTracker : MonoBehaviour
             return;
         }
         Instance = this;
+
+        // Hi-Z occlusion culling support: zero scene wiring — the manager captures depth +
+        // builds the pyramid, the debugger verifies the assumptions (see HiZOcclusionManager).
+        if (GetComponent<HiZOcclusionManager>() == null) gameObject.AddComponent<HiZOcclusionManager>();
+        if (GetComponent<OcclusionDebugger>() == null) gameObject.AddComponent<OcclusionDebugger>();
     }
 
     void Update()
@@ -51,6 +56,9 @@ public class GPUInstanceTracker : MonoBehaviour
     }
 
     public Camera MainCamera => mainCamera;
+
+    /// <summary>All live batchers, for OcclusionDebugger's visible-count readbacks.</summary>
+    public IEnumerable<BatchInstancer> AllInstancers => trackers.Values;
 
     public void SetCamera(Camera cam)
     {

@@ -104,6 +104,20 @@ public class BatchInstancer : MonoBehaviour
     private int _fKernelId;
     private uint _fThreadGroupSizeX;
 
+    // Hi-Z occlusion bindings (values come from HiZOcclusionManager each frame)
+    private int _fHizTextureId;
+    private int _fOcclusionEnabledId;
+    private int _fHizMipCountId;
+    private int _fHizTextureSizeId;
+    private int _fHizViewProjId;
+    private int _fHizProjScaleId;
+    private int _fCameraPositionId;
+    private int _fDepthBiasId;
+    private int _fHizFlipYId;
+
+    // Metal requires every declared texture slot bound even when the branch is off
+    private static Texture2D _dummyHiZTexture;
+
     // Matches the 4 named AppendStructuredBuffer outputs in the compute shader
     private static readonly string[] LodBufNames = { "lod0_buf", "lod1_buf", "lod2_buf", "lod3_buf" };
     private readonly int[] _fLodBufIds = new int[LodBufNames.Length];
@@ -112,6 +126,15 @@ public class BatchInstancer : MonoBehaviour
 
     private bool _ready = false;
     private bool _buffersDirty = false;
+
+    // Read by OcclusionDebugger to bind debug buffers / read visible counts
+    public int CullingKernel => _fKernelId;
+    public int ActiveLodCount => lods != null ? lods.Length : 0;
+    public int InstanceCount => instances.Count;
+    public ComputeBuffer GetVisibleIndexBuffer(int lod) =>
+        _visibleIndexBuffers != null && lod >= 0 && lod < _visibleIndexBuffers.Length
+            ? _visibleIndexBuffers[lod]
+            : null;
 
     public void Init()
     {
@@ -150,6 +173,24 @@ public class BatchInstancer : MonoBehaviour
         _fLodDistancesId  = Shader.PropertyToID("lod_distances");
         _fNumLodsId       = Shader.PropertyToID("num_lods");
         _fAgentPositionId = Shader.PropertyToID("agent_position");
+
+        _fHizTextureId       = Shader.PropertyToID("hiz_texture");
+        _fOcclusionEnabledId = Shader.PropertyToID("occlusion_enabled");
+        _fHizMipCountId      = Shader.PropertyToID("hiz_mip_count");
+        _fHizTextureSizeId   = Shader.PropertyToID("hiz_texture_size");
+        _fHizViewProjId      = Shader.PropertyToID("hiz_view_proj");
+        _fHizProjScaleId     = Shader.PropertyToID("hiz_proj_scale");
+        _fCameraPositionId   = Shader.PropertyToID("camera_position");
+        _fDepthBiasId        = Shader.PropertyToID("occlusion_depth_bias");
+        _fHizFlipYId         = Shader.PropertyToID("hiz_flip_y");
+
+        if (_dummyHiZTexture == null)
+        {
+            _dummyHiZTexture = new Texture2D(1, 1, TextureFormat.RFloat, false);
+            _dummyHiZTexture.SetPixel(0, 0, Color.clear);
+            _dummyHiZTexture.Apply();
+        }
+
         for (int i = 0; i < LodBufNames.Length; i++)
             _fLodBufIds[i] = Shader.PropertyToID(LodBufNames[i]);
 
@@ -195,6 +236,29 @@ public class BatchInstancer : MonoBehaviour
         Profiler.BeginSample("Set Agent Position");
         Vector3 agentPos = DataHandler.Instance.AgentPosition;
         frustumCullingShader.SetVector(_fAgentPositionId, new Vector4(agentPos.x, agentPos.y, agentPos.z, 0f));
+        Profiler.EndSample();
+
+        Profiler.BeginSample("Set HiZ Occlusion");
+        // Compute shaders ignore Shader.SetGlobal*, and this is an Instantiate()d copy —
+        // so the Hi-Z state has to be pushed here, per instancer, per dispatch.
+        HiZOcclusionManager hiz = HiZOcclusionManager.Instance;
+        bool occlusionOn = hiz != null && hiz.OcclusionEnabled && hiz.IsValid;
+        frustumCullingShader.SetInt(_fOcclusionEnabledId, occlusionOn ? 1 : 0);
+        if (occlusionOn)
+        {
+            frustumCullingShader.SetTexture(_fKernelId, _fHizTextureId, hiz.HiZTexture);
+            frustumCullingShader.SetInt(_fHizMipCountId, hiz.HiZMipCount);
+            frustumCullingShader.SetVector(_fHizTextureSizeId, hiz.HiZTextureSize);
+            frustumCullingShader.SetMatrix(_fHizViewProjId, hiz.HiZViewProj);
+            frustumCullingShader.SetVector(_fHizProjScaleId, hiz.HiZProjScale);
+            frustumCullingShader.SetVector(_fCameraPositionId, hiz.CameraPosition);
+            frustumCullingShader.SetFloat(_fDepthBiasId, hiz.DepthBias);
+            frustumCullingShader.SetInt(_fHizFlipYId, hiz.FlipY ? 1 : 0);
+        }
+        else
+        {
+            frustumCullingShader.SetTexture(_fKernelId, _fHizTextureId, _dummyHiZTexture);
+        }
         Profiler.EndSample();
 
         Profiler.BeginSample("Dispatch Compute Shader");
@@ -286,10 +350,29 @@ public class BatchInstancer : MonoBehaviour
         for (int i = 0; i < lods.Length; i++)
             lodTransforms[i] = new LodRenderData[instances.Count];
 
+        // Conservative bounding-sphere base radius for the occlusion test (assumption A5):
+        // extents.magnitude covers the box under any rotation, center.magnitude covers an
+        // off-pivot bounds center (the sphere stays centered on the pivot we cull with).
+        // Max over all LOD meshes so no LOD can poke outside the sphere.
+        float baseRadius = 0f;
+        for (int i = 0; i < lods.Length; i++)
+        {
+            if (lods[i].mesh == null) continue;
+            Bounds b = lods[i].mesh.bounds;
+            baseRadius = Mathf.Max(baseRadius, b.extents.magnitude + b.center.magnitude);
+        }
+
+        float minRadius = float.MaxValue, maxRadius = 0f;
+
         for (int i = 0; i < instances.Count; i++)
         {
             InstanceData instance = instances[i];
-            positions[i] = new Vector4(instance.lod0.position.x, instance.lod0.position.y, instance.lod0.position.z, 0f);
+            Vector3 scale = instance.lod0.scale;
+            float maxScale = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+            float radius = baseRadius * maxScale;
+            minRadius = Mathf.Min(minRadius, radius);
+            maxRadius = Mathf.Max(maxRadius, radius);
+            positions[i] = new Vector4(instance.lod0.position.x, instance.lod0.position.y, instance.lod0.position.z, radius);
 
             for (int lod = 0; lod < lods.Length; lod++)
             {
@@ -303,6 +386,10 @@ public class BatchInstancer : MonoBehaviour
         }
 
         _positionBuffer.SetData(positions);
+
+        if (HiZOcclusionManager.LogRadii)
+            Debug.Log($"BatchInstancer ({itemId}): {instances.Count} instances, " +
+                      $"occlusion sphere radius range [{minRadius:F2}, {maxRadius:F2}] m (A5)");
 
         if (_lodTransformBuffers != null)
             foreach (var buf in _lodTransformBuffers) buf?.Release();

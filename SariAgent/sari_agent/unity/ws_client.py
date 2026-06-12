@@ -15,6 +15,15 @@ class UnityCommandError(RuntimeError):
     pass
 
 
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+# Commands whose response is a PNG image saved to screenshot_dir
+IMAGE_COMMANDS = {
+    "RequestScreenshot": "screenshot",
+    "RequestDepthMap": "depthmap",
+}
+
+
 def _is_png_base64(value: str) -> bytes | None:
     try:
         png_bytes = base64.b64decode(value, validate=True)
@@ -45,15 +54,18 @@ class UnityCommandClient:
             await websocket.send(json.dumps(message))
             response = await websocket.recv()
         if isinstance(response, bytes):
+            # Unity sends image payloads as raw binary frames — don't utf-8 decode those.
+            if response.startswith(PNG_MAGIC):
+                return self._save_image(command, response)
             response = response.decode("utf-8")
         return self.normalize_response(command, response)
 
     def normalize_response(self, command: str, response: str) -> dict[str, Any]:
-        if command == "RequestScreenshot":
+        if command in IMAGE_COMMANDS:
             png_bytes = _is_png_base64(response)
             if png_bytes is None:
-                raise UnityCommandError("RequestScreenshot response was not a base64 PNG payload")
-            return self._save_screenshot(png_bytes)
+                raise UnityCommandError(f"{command} response was not a PNG payload: {response[:200]}")
+            return self._save_image(command, png_bytes)
 
         try:
             value = json.loads(response)
@@ -66,13 +78,14 @@ class UnityCommandClient:
             return {"command": command, "result": value}
         return {"command": command, "result": value}
 
-    def _save_screenshot(self, png_bytes: bytes) -> dict[str, Any]:
+    def _save_image(self, command: str, png_bytes: bytes) -> dict[str, Any]:
+        kind = IMAGE_COMMANDS.get(command, "image")
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-        path = (self.screenshot_dir / f"commands-screenshot-{timestamp}.png").resolve()
+        path = (self.screenshot_dir / f"commands-{kind}-{timestamp}.png").resolve()
         path.write_bytes(png_bytes)
         return {
-            "command": "RequestScreenshot",
+            "command": command,
             "screenshot": {
                 "path": str(path),
                 "bytes": len(png_bytes),

@@ -1,5 +1,8 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
+// Debug variant: writes one DebugRecord per instance so OcclusionDebugger can verify the
+// occlusion math on the CPU (assumptions A3/A4). Off in normal play — zero cost.
+#pragma multi_compile _ OCCLUSION_DEBUG
 
 #define MAX_LODS 4
 
@@ -9,7 +12,9 @@ struct Plane
     float3 normal;
 };
 
-// in: per-instance culling positions shared by all LOD levels
+// in: per-instance culling positions shared by all LOD levels.
+// xyz = pivot position; w = conservative bounding-sphere radius (covers every LOD mesh
+// under any rotation). w == 0 means "no occlusion test for this instance".
 StructuredBuffer<float4> position_buffer;
 // in: how many item locations
 int num_to_draw;
@@ -26,6 +31,53 @@ float4 lod_distances;
 // in: number of active LOD levels (1–4); unused slots are never written to
 int num_lods;
 
+// ---- Hi-Z occlusion inputs (all captured together at the end of the PREVIOUS frame by
+// HiZOcclusionManager — 1-frame latency, assumption A6) ----
+// Min-filtered depth pyramid: each texel holds the FARTHEST depth in its footprint
+// (reversed-Z, assumption A2), so culling against it is conservative.
+Texture2D<float> hiz_texture;
+int occlusion_enabled;          // 0 = frustum-only (A/B debugging / Hi-Z not ready)
+int hiz_mip_count;
+float4 hiz_texture_size;        // mip 0: w, h, 1/w, 1/h
+float4x4 hiz_view_proj;         // GL.GetGPUProjectionMatrix(proj, true) * worldToCamera (A3/A4)
+float4 hiz_proj_scale;          // xy = |P[0][0]|, |P[1][1]| — sphere radius -> NDC footprint
+float3 camera_position;         // camera position at depth capture (NOT agent_position: that's the body)
+float occlusion_depth_bias;     // small reversed-Z bias to avoid borderline flicker
+int hiz_flip_y;                 // assumption A3 escape hatch: flip V at runtime, no recompile
+
+#ifdef OCCLUSION_DEBUG
+// Must match OcclusionDebugger.DebugRecord (7 fields x 4 bytes, stride 28).
+struct DebugRecord
+{
+    uint instance_index;
+    float2 uv;          // projected sphere-center UV in Hi-Z space (after optional flip)
+    uint mip;           // pyramid level sampled
+    float sphere_depth; // reversed-Z depth of the sphere's nearest point
+    float hiz_sample;   // min of the 4 footprint corner texels (farthest occluder)
+    uint result;        // see RESULT_* below; sentinel 0xFFFFFFFF = thread never ran
+};
+RWStructuredBuffer<DebugRecord> debug_records;
+int debug_record_count;
+
+#define RESULT_VISIBLE_TESTED   0   // passed the occlusion test
+#define RESULT_OCCLUDED         1
+#define RESULT_FRUSTUM_CULLED   2
+#define RESULT_NEAR_PLANE_SKIP  3   // sphere touches the near plane -> treated visible
+#define RESULT_NOT_TESTED       4   // occlusion off, radius 0, or hard-distance culled first
+
+#define WRITE_DEBUG(res, uvv, mipv, sd, hs)                          \
+    if (id.x < (uint)debug_record_count)                             \
+    {                                                                \
+        DebugRecord rec;                                             \
+        rec.instance_index = id.x;                                   \
+        rec.uv = uvv; rec.mip = mipv;                                \
+        rec.sphere_depth = sd; rec.hiz_sample = hs; rec.result = res;\
+        debug_records[id.x] = rec;                                   \
+    }
+#else
+#define WRITE_DEBUG(res, uvv, mipv, sd, hs)
+#endif
+
 // out: one compact visible-instance index list per LOD level
 // (HLSL cannot declare these as an array — named outputs are the unavoidable constraint)
 AppendStructuredBuffer<uint> lod0_buf;
@@ -38,13 +90,19 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= (uint) num_to_draw) return;
 
-    float3 cullPos = position_buffer[id.x].xyz;
+    float4 posAndRadius = position_buffer[id.x];
+    float3 cullPos = posAndRadius.xyz;
+    float radius = posAndRadius.w;
 
     [unroll]
     for (int i = 0; i < 6; i++)
     {
-        if (dot(planes[i].normal, cullPos) + planes[i].distance < -0.2f)
+        // Slack grows with the bounding sphere so large items don't pop at screen edges
+        if (dot(planes[i].normal, cullPos) + planes[i].distance < -max(0.2f, radius))
+        {
+            WRITE_DEBUG(RESULT_FRUSTUM_CULLED, float2(0, 0), 0u, 0.0, 0.0);
             return; // culled
+        }
     }
 
     float3 toAgent = cullPos - agent_position;
@@ -52,7 +110,66 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
     // Hard cull: lod_distances[num_lods - 1] is the max distance for the farthest LOD.
     // Anything beyond it is dropped entirely — not just switched to a lower-quality mesh.
-    if (distSq >= lod_distances[num_lods - 1]) return;
+    if (distSq >= lod_distances[num_lods - 1])
+    {
+        WRITE_DEBUG(RESULT_NOT_TESTED, float2(0, 0), 0u, 0.0, 0.0);
+        return;
+    }
+
+    // ---- Hi-Z occlusion test (assumptions A2–A4, A6) ----
+    if (occlusion_enabled != 0 && radius > 0.0)
+    {
+        float4 clipC = mul(hiz_view_proj, float4(cullPos, 1.0));
+        if (clipC.w <= radius)
+        {
+            // Sphere reaches/crosses the near plane: footprint math degenerates, treat visible
+            WRITE_DEBUG(RESULT_NEAR_PLANE_SKIP, float2(0, 0), 0u, 0.0, 0.0);
+        }
+        else
+        {
+            // Conservative screen-space AABB of the sphere around its projected center
+            float2 ndc = clipC.xy / clipC.w;
+            float2 uvC = ndc * 0.5 + 0.5;
+            if (hiz_flip_y != 0) uvC.y = 1.0 - uvC.y;
+            float2 uvHalf = (radius * hiz_proj_scale.xy / clipC.w) * 0.5; // NDC delta -> UV delta is *0.5
+            float2 uvMin = saturate(uvC - uvHalf);
+            float2 uvMax = saturate(uvC + uvHalf);
+
+            // Pick the mip where the footprint spans <= 2x2 texels, sample its 4 corners.
+            // The min of those is the farthest occluder anywhere over the footprint.
+            float2 footprintPx = (uvMax - uvMin) * hiz_texture_size.xy;
+            int mip = clamp((int)ceil(log2(max(max(footprintPx.x, footprintPx.y), 1.0) * 0.5)), 0, hiz_mip_count - 1);
+            int2 mipSize = max(int2(hiz_texture_size.xy) >> mip, int2(1, 1));
+            int2 t0 = clamp(int2(uvMin * mipSize), int2(0, 0), mipSize - 1);
+            int2 t1 = clamp(int2(uvMax * mipSize), int2(0, 0), mipSize - 1);
+            float d00 = hiz_texture.Load(int3(t0.x, t0.y, mip));
+            float d10 = hiz_texture.Load(int3(t1.x, t0.y, mip));
+            float d01 = hiz_texture.Load(int3(t0.x, t1.y, mip));
+            float d11 = hiz_texture.Load(int3(t1.x, t1.y, mip));
+            float occluder = min(min(d00, d10), min(d01, d11));
+
+            // Depth of the sphere's point nearest the camera (clamped so it can't overshoot
+            // past the camera when the camera is inside the sphere).
+            float3 toCam = camera_position - cullPos;
+            float distToCam = length(toCam);
+            float3 nearestPoint = cullPos + toCam / max(distToCam, 1e-5) * min(radius, distToCam);
+            float4 clipN = mul(hiz_view_proj, float4(nearestPoint, 1.0));
+            float sphereDepth = clipN.w > 0.0 ? clipN.z / clipN.w : 1.0;
+
+            // Reversed-Z + min pyramid: occluded iff even the sphere's CLOSEST point is
+            // farther (smaller depth value) than the FARTHEST occluder in the footprint.
+            if (sphereDepth + occlusion_depth_bias < occluder)
+            {
+                WRITE_DEBUG(RESULT_OCCLUDED, uvC, (uint)mip, sphereDepth, occluder);
+                return; // occluded
+            }
+            WRITE_DEBUG(RESULT_VISIBLE_TESTED, uvC, (uint)mip, sphereDepth, occluder);
+        }
+    }
+    else
+    {
+        WRITE_DEBUG(RESULT_NOT_TESTED, float2(0, 0), 0u, 0.0, 0.0);
+    }
 
     // Select LOD: default to the farthest, then walk from LOD0 outward to find the
     // highest-quality level whose threshold (lod_distances[j]) we're still within.

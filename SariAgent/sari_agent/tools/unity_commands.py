@@ -106,6 +106,13 @@ def assemble(
     async def RequestScreenshot() -> dict[str, object]:
         return await client.command("RequestScreenshot")
 
+    @factory.tool(
+        desc="Request the occlusion-culling depth map (near = white, far = black) and save it to disk.",
+        properties=[],
+    )
+    async def RequestDepthMap() -> dict[str, object]:
+        return await client.command("RequestDepthMap")
+
     @factory.tool(desc="Reset the Unity environment.", properties=[])
     async def ResetEnvironment() -> dict[str, object]:
         return await client.command("ResetEnvironment")
