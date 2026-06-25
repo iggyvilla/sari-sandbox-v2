@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Profiling;
+using UnityEngine.Rendering;
 
 // Per-LOD transform uploaded to the GPU.
 // Matches the HLSL LodTransform struct layout exactly.
@@ -64,6 +65,32 @@ public struct LODDefinition
     public float maxDistance;
 }
 
+public struct LidarIndirectDrawStats
+{
+    public int batchers;
+    public int readyBatchers;
+    public int skippedNotReady;
+    public int skippedNoInstances;
+    public int skippedMissingBuffers;
+    public int sourceInstances;
+    public int lods;
+    public int submeshes;
+    public int queuedCommands;
+
+    public void Add(LidarIndirectDrawStats other)
+    {
+        batchers += other.batchers;
+        readyBatchers += other.readyBatchers;
+        skippedNotReady += other.skippedNotReady;
+        skippedNoInstances += other.skippedNoInstances;
+        skippedMissingBuffers += other.skippedMissingBuffers;
+        sourceInstances += other.sourceInstances;
+        lods += other.lods;
+        submeshes += other.submeshes;
+        queuedCommands += other.queuedCommands;
+    }
+}
+
 public class BatchInstancer : MonoBehaviour
 {
     public Camera agentCamera;
@@ -90,6 +117,7 @@ public class BatchInstancer : MonoBehaviour
 
     // One visible-index AppendBuffer per active LOD; _dummyBuffer fills unused named HLSL slots
     private ComputeBuffer[] _visibleIndexBuffers;
+    private ComputeBuffer[] _lidarVisibleIndexBuffers;
     private ComputeBuffer _dummyBuffer;
     private SubMeshInstance[][] _subMeshPerLOD;
 
@@ -101,6 +129,9 @@ public class BatchInstancer : MonoBehaviour
     private int _fLodDistancesId;
     private int _fNumLodsId;
     private int _fAgentPositionId;
+    private int _fCullingModeId;
+    private int _fRangeCullOriginId;
+    private int _fRangeCullMaxDistanceSqId;
     private int _fKernelId;
     private uint _fThreadGroupSizeX;
 
@@ -150,6 +181,9 @@ public class BatchInstancer : MonoBehaviour
         _fLodDistancesId  = Shader.PropertyToID("lod_distances");
         _fNumLodsId       = Shader.PropertyToID("num_lods");
         _fAgentPositionId = Shader.PropertyToID("agent_position");
+        _fCullingModeId   = Shader.PropertyToID("culling_mode");
+        _fRangeCullOriginId = Shader.PropertyToID("range_cull_origin");
+        _fRangeCullMaxDistanceSqId = Shader.PropertyToID("range_cull_max_distance_sq");
         for (int i = 0; i < LodBufNames.Length; i++)
             _fLodBufIds[i] = Shader.PropertyToID(LodBufNames[i]);
 
@@ -187,50 +221,8 @@ public class BatchInstancer : MonoBehaviour
 
         if (instances.Count == 0) return;
 
-        Profiler.BeginSample("Get Planes");
-        SimplePlane[] planes = GPUInstanceTracker.Instance.cameraFrustumPlanes;
-        _simplePlaneBuffer.SetData(planes);
-        Profiler.EndSample();
-
-        Profiler.BeginSample("Set Agent Position");
-        Vector3 agentPos = DataHandler.Instance.AgentPosition;
-        frustumCullingShader.SetVector(_fAgentPositionId, new Vector4(agentPos.x, agentPos.y, agentPos.z, 0f));
-        Profiler.EndSample();
-
-        Profiler.BeginSample("Dispatch Compute Shader");
-        for (int i = 0; i < lods.Length; i++)
-        {
-            _visibleIndexBuffers[i].SetCounterValue(0);
-        }
-
-        frustumCullingShader.Dispatch(
-            _fKernelId,
-            Mathf.CeilToInt(instances.Count / (float)_fThreadGroupSizeX),
-            1,
-            1
-        );
-        Profiler.EndSample();
-
-        // Draw each active LOD
-        for (int i = 0; i < lods.Length; i++)
-        {
-            if (_subMeshPerLOD[i] == null || lods[i].mesh == null) continue;
-            for (int s = 0; s < _subMeshPerLOD[i].Length; s++)
-            {
-                _subMeshPerLOD[i][s].material.SetBuffer(_sVisibleIndicesId, _visibleIndexBuffers[i]);
-                _subMeshPerLOD[i][s].material.SetBuffer(_sPositionsId, _positionBuffer);
-                _subMeshPerLOD[i][s].material.SetBuffer(_sLodTransformDataId, _lodTransformBuffers[i]);
-                _subMeshPerLOD[i][s].UpdateInstanceCountBuf(_visibleIndexBuffers[i]);
-
-                Graphics.DrawMeshInstancedIndirect(
-                    lods[i].mesh,
-                    s,
-                    _subMeshPerLOD[i][s].material,
-                    new Bounds(Vector3.zero, Vector3.one * 1000f),
-                    _subMeshPerLOD[i][s].argsBuffer
-                );
-            }
-        }
+        CullForMainCamera();
+        DrawVisibleBuffers(_visibleIndexBuffers);
     }
 
     void OnDestroy()
@@ -246,6 +238,9 @@ public class BatchInstancer : MonoBehaviour
 
         if (_visibleIndexBuffers != null)
             foreach (var buf in _visibleIndexBuffers) buf?.Release();
+
+        if (_lidarVisibleIndexBuffers != null)
+            foreach (var buf in _lidarVisibleIndexBuffers) buf?.Release();
 
         if (_lodTransformBuffers != null)
             foreach (var buf in _lodTransformBuffers) buf?.Release();
@@ -324,10 +319,190 @@ public class BatchInstancer : MonoBehaviour
             frustumCullingShader.SetBuffer(_fKernelId, _fLodBufIds[i], _visibleIndexBuffers[i]);
         }
 
+        if (_lidarVisibleIndexBuffers != null)
+            foreach (var buf in _lidarVisibleIndexBuffers) buf?.Release();
+
+        _lidarVisibleIndexBuffers = new ComputeBuffer[lods.Length];
+        for (int i = 0; i < lods.Length; i++)
+            _lidarVisibleIndexBuffers[i] = new ComputeBuffer(instances.Count, _visibleIndexSize, ComputeBufferType.Append);
+
         frustumCullingShader.SetInt(_fNumToDrawId, instances.Count);
         frustumCullingShader.SetBuffer(_fKernelId, _fPositionBufferId, _positionBuffer);
 
         _buffersDirty = false;
+    }
+
+    public void CullForLidarRange(Vector3 origin, float maxRange)
+    {
+        if (!_ready || instances.Count == 0) return;
+
+        if (_buffersDirty)
+            RebuildBuffers();
+
+        DispatchCulling(
+            _lidarVisibleIndexBuffers,
+            true,
+            null,
+            origin,
+            Mathf.Max(0.01f, maxRange));
+    }
+
+    public void AddLidarDrawCommands(CommandBuffer cmd)
+    {
+        if (!_ready || instances.Count == 0 || _lidarVisibleIndexBuffers == null) return;
+
+        AddDrawCommands(cmd, _lidarVisibleIndexBuffers);
+    }
+
+    public LidarIndirectDrawStats AddLidarDepthDrawCommands(CommandBuffer cmd, Material depthMaterial)
+    {
+        LidarIndirectDrawStats stats = new LidarIndirectDrawStats
+        {
+            batchers = 1,
+            sourceInstances = instances.Count
+        };
+
+        if (!_ready || depthMaterial == null)
+        {
+            stats.skippedNotReady = 1;
+            return stats;
+        }
+
+        stats.readyBatchers = 1;
+
+        if (instances.Count == 0)
+        {
+            stats.skippedNoInstances = 1;
+            return stats;
+        }
+
+        if (_lidarVisibleIndexBuffers == null)
+        {
+            stats.skippedMissingBuffers = 1;
+            return stats;
+        }
+
+        AddDepthDrawCommands(cmd, _lidarVisibleIndexBuffers, depthMaterial, ref stats);
+        return stats;
+    }
+
+    private void CullForMainCamera()
+    {
+        SimplePlane[] planes = GPUInstanceTracker.Instance.cameraFrustumPlanes;
+        if (planes == null) return;
+
+        Vector3 agentPos =
+            DataHandler.Instance != null
+                ? DataHandler.Instance.AgentPosition
+                : (agentCamera != null ? agentCamera.transform.position : transform.position);
+
+        DispatchCulling(_visibleIndexBuffers, false, planes, agentPos, 0f);
+    }
+
+    private void DispatchCulling(
+        ComputeBuffer[] targetBuffers,
+        bool rangeMode,
+        SimplePlane[] planes,
+        Vector3 cullOrigin,
+        float maxRange)
+    {
+        if (targetBuffers == null || targetBuffers.Length == 0) return;
+
+        Profiler.BeginSample(rangeMode ? "LiDAR Range Culling" : "Frustum Culling");
+
+        for (int i = 0; i < lods.Length; i++)
+        {
+            targetBuffers[i].SetCounterValue(0);
+            frustumCullingShader.SetBuffer(_fKernelId, _fLodBufIds[i], targetBuffers[i]);
+        }
+
+        if (!rangeMode && planes != null)
+            _simplePlaneBuffer.SetData(planes);
+
+        frustumCullingShader.SetInt(_fCullingModeId, rangeMode ? 1 : 0);
+        frustumCullingShader.SetVector(_fAgentPositionId, new Vector4(cullOrigin.x, cullOrigin.y, cullOrigin.z, 0f));
+        frustumCullingShader.SetVector(_fRangeCullOriginId, new Vector4(cullOrigin.x, cullOrigin.y, cullOrigin.z, 0f));
+        frustumCullingShader.SetFloat(_fRangeCullMaxDistanceSqId, maxRange * maxRange);
+
+        frustumCullingShader.Dispatch(
+            _fKernelId,
+            Mathf.CeilToInt(instances.Count / (float)_fThreadGroupSizeX),
+            1,
+            1
+        );
+
+        Profiler.EndSample();
+    }
+
+    private void DrawVisibleBuffers(ComputeBuffer[] visibleBuffers)
+    {
+        for (int i = 0; i < lods.Length; i++)
+        {
+            if (_subMeshPerLOD[i] == null || lods[i].mesh == null) continue;
+            for (int s = 0; s < _subMeshPerLOD[i].Length; s++)
+            {
+                SubMeshInstance subMesh = _subMeshPerLOD[i][s];
+                BindMaterialBuffers(subMesh.material, visibleBuffers[i], i);
+                subMesh.UpdateInstanceCountBuf(visibleBuffers[i]);
+
+                Graphics.DrawMeshInstancedIndirect(
+                    lods[i].mesh,
+                    s,
+                    subMesh.material,
+                    new Bounds(Vector3.zero, Vector3.one * 1000f),
+                    subMesh.argsBuffer
+                );
+            }
+        }
+    }
+
+    private void AddDrawCommands(CommandBuffer cmd, ComputeBuffer[] visibleBuffers)
+    {
+        for (int i = 0; i < lods.Length; i++)
+        {
+            if (_subMeshPerLOD[i] == null || lods[i].mesh == null) continue;
+            for (int s = 0; s < _subMeshPerLOD[i].Length; s++)
+            {
+                SubMeshInstance subMesh = _subMeshPerLOD[i][s];
+                BindMaterialBuffers(subMesh.material, visibleBuffers[i], i);
+                subMesh.UpdateInstanceCountBuf(visibleBuffers[i]);
+                cmd.DrawMeshInstancedIndirect(lods[i].mesh, s, subMesh.material, 0, subMesh.argsBuffer);
+            }
+        }
+    }
+
+    private void AddDepthDrawCommands(
+        CommandBuffer cmd,
+        ComputeBuffer[] visibleBuffers,
+        Material depthMaterial,
+        ref LidarIndirectDrawStats stats)
+    {
+        for (int i = 0; i < lods.Length; i++)
+        {
+            if (_subMeshPerLOD[i] == null || lods[i].mesh == null) continue;
+            stats.lods++;
+
+            for (int s = 0; s < _subMeshPerLOD[i].Length; s++)
+            {
+                SubMeshInstance subMesh = _subMeshPerLOD[i][s];
+                subMesh.UpdateInstanceCountBuf(visibleBuffers[i]);
+
+                MaterialPropertyBlock properties = new MaterialPropertyBlock();
+                properties.SetBuffer(_sVisibleIndicesId, visibleBuffers[i]);
+                properties.SetBuffer(_sPositionsId, _positionBuffer);
+                properties.SetBuffer(_sLodTransformDataId, _lodTransformBuffers[i]);
+                cmd.DrawMeshInstancedIndirect(lods[i].mesh, s, depthMaterial, 0, subMesh.argsBuffer, 0, properties);
+                stats.submeshes++;
+                stats.queuedCommands++;
+            }
+        }
+    }
+
+    private void BindMaterialBuffers(Material material, ComputeBuffer visibleBuffer, int lodIndex)
+    {
+        material.SetBuffer(_sVisibleIndicesId, visibleBuffer);
+        material.SetBuffer(_sPositionsId, _positionBuffer);
+        material.SetBuffer(_sLodTransformDataId, _lodTransformBuffers[lodIndex]);
     }
 
     private static LodTransform GetLodTransform(InstanceData instance, int lod)

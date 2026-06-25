@@ -213,6 +213,18 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                 break;
             }
 
+            case "RequestLidarScan":
+            {
+                Camera camera = handler.AgentCamera;
+                if (camera == null) { session.Send("Error: no camera found for agent"); return; }
+                handler.EnqueueLidarScan(
+                    camera,
+                    handler.AgentGhost,
+                    bytes => session.Send(bytes),
+                    error => session.Send(error));
+                break;
+            }
+
             case "ResetEnvironment":
                 DataHandler.Instance.ResetEnvironment();
                 session.Send("Environment reset");

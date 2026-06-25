@@ -122,6 +122,19 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 break;
             }
 
+            case "RequestLidarScan":
+            {
+                if (_agentId == null) { Send("Error: not joined"); return; }
+                Camera mpCamera = MultiplayerAgentManager.Instance.GetAgentCamera(_agentId);
+                if (mpCamera == null) { Send("Error: no camera found for agent"); return; }
+                WebSocketHandler.Instance.EnqueueLidarScan(
+                    mpCamera,
+                    MultiplayerAgentManager.Instance.GetGhostFollower(_agentId),
+                    bytes => Send(bytes),
+                    error => Send(error));
+                break;
+            }
+
             case "Chat":
             {
                 if (_agentId == null) { Send("Error: not joined"); return; }

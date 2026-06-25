@@ -1,0 +1,163 @@
+#pragma kernel CSMain
+#pragma kernel DepthDebug
+#pragma kernel DepthStats
+
+Texture2D<float> _Face0Depth;
+Texture2D<float> _Face1Depth;
+Texture2D<float> _Face2Depth;
+Texture2D<float> _Face3Depth;
+Texture2D<float> _Face4Depth;
+Texture2D<float> _Face5Depth;
+Texture2D<float> _DebugDepth;
+
+StructuredBuffer<float> _VerticalAnglesDeg;
+RWStructuredBuffer<float> _Ranges;
+RWStructuredBuffer<uint> _DepthStats;
+RWTexture2D<float4> _DebugTexture;
+
+int _Channels;
+int _AzimuthSamples;
+int _FaceResolution;
+float _MinRange;
+float _MaxRange;
+float _AzimuthStartDeg;
+float _AzimuthStepDeg;
+float4 _ZBufferParamsForLidar;
+int _UsesReversedZBuffer;
+
+float LoadFaceDepth(int face, int2 pixel)
+{
+    pixel = clamp(pixel, int2(0, 0), int2(_FaceResolution - 1, _FaceResolution - 1));
+
+    switch (face)
+    {
+        case 0: return _Face0Depth.Load(int3(pixel, 0));
+        case 1: return _Face1Depth.Load(int3(pixel, 0));
+        case 2: return _Face2Depth.Load(int3(pixel, 0));
+        case 3: return _Face3Depth.Load(int3(pixel, 0));
+        case 4: return _Face4Depth.Load(int3(pixel, 0));
+        default: return _Face5Depth.Load(int3(pixel, 0));
+    }
+}
+
+void SelectFace(float3 dir, out int face, out float forwardDot, out float2 faceUv)
+{
+    float3 ad = abs(dir);
+    float rightDot;
+    float upDot;
+
+    if (ad.x >= ad.y && ad.x >= ad.z)
+    {
+        if (dir.x >= 0.0)
+        {
+            face = 0;
+            forwardDot = dir.x;
+            rightDot = -dir.z;
+            upDot = dir.y;
+        }
+        else
+        {
+            face = 1;
+            forwardDot = -dir.x;
+            rightDot = dir.z;
+            upDot = dir.y;
+        }
+    }
+    else if (ad.y >= ad.x && ad.y >= ad.z)
+    {
+        if (dir.y >= 0.0)
+        {
+            face = 2;
+            forwardDot = dir.y;
+            rightDot = dir.x;
+            upDot = -dir.z;
+        }
+        else
+        {
+            face = 3;
+            forwardDot = -dir.y;
+            rightDot = dir.x;
+            upDot = dir.z;
+        }
+    }
+    else
+    {
+        if (dir.z >= 0.0)
+        {
+            face = 4;
+            forwardDot = dir.z;
+            rightDot = dir.x;
+            upDot = dir.y;
+        }
+        else
+        {
+            face = 5;
+            forwardDot = -dir.z;
+            rightDot = -dir.x;
+            upDot = dir.y;
+        }
+    }
+
+    faceUv = float2(rightDot / forwardDot, upDot / forwardDot) * 0.5 + 0.5;
+}
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    uint azimuthIndex = id.x;
+    uint channelIndex = id.y;
+    if (azimuthIndex >= (uint)_AzimuthSamples || channelIndex >= (uint)_Channels)
+        return;
+
+    float azimuthRad = radians(_AzimuthStartDeg + (float)azimuthIndex * _AzimuthStepDeg);
+    float verticalRad = radians(_VerticalAnglesDeg[channelIndex]);
+    float cosVertical = cos(verticalRad);
+    float3 rayDir = normalize(float3(sin(azimuthRad) * cosVertical, sin(verticalRad), cos(azimuthRad) * cosVertical));
+
+    int face;
+    float forwardDot;
+    float2 faceUv;
+    SelectFace(rayDir, face, forwardDot, faceUv);
+
+    int2 pixel = int2(faceUv * (float)(_FaceResolution - 1) + 0.5);
+    float eyeDepth = LoadFaceDepth(face, pixel);
+    float range = eyeDepth / max(forwardDot, 0.0001);
+
+    if (range < _MinRange || range > _MaxRange || range != range)
+        range = _MaxRange;
+
+    _Ranges[channelIndex * (uint)_AzimuthSamples + azimuthIndex] = range;
+}
+
+[numthreads(8, 8, 1)]
+void DepthDebug(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_FaceResolution || id.y >= (uint)_FaceResolution)
+        return;
+
+    float depthMeters = _DebugDepth.Load(int3(id.xy, 0));
+    float normalized = saturate(1.0 - depthMeters / max(_MaxRange, 0.0001));
+    _DebugTexture[id.xy] = float4(normalized, normalized, normalized, 1.0);
+}
+
+[numthreads(8, 8, 1)]
+void DepthStats(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_FaceResolution || id.y >= (uint)_FaceResolution)
+        return;
+
+    float depthMeters = _DebugDepth.Load(int3(id.xy, 0));
+    uint scaled = (uint)round(saturate(depthMeters / max(_MaxRange, 0.0001)) * 1000000.0);
+
+    bool hasDepth = depthMeters > 0.000001 && depthMeters < _MaxRange - 0.000001;
+
+    if (hasDepth)
+    {
+        InterlockedAdd(_DepthStats[0], 1);
+        InterlockedMin(_DepthStats[1], scaled);
+        InterlockedMax(_DepthStats[2], scaled);
+    }
+
+    if (id.x == (uint)(_FaceResolution / 2) && id.y == (uint)(_FaceResolution / 2))
+        _DepthStats[3] = scaled;
+}

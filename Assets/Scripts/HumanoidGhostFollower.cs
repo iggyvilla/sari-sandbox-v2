@@ -15,6 +15,8 @@ public class HumanoidGhostFollower : MonoBehaviour
     private Vector3 _lastPosition;
     private int _captureSuppressionDepth;
 
+    public AgentControllerBase Authority => _authority;
+
     public void Bind(AgentControllerBase authority, IKAgentController humanoidController)
     {
         _authority = authority;

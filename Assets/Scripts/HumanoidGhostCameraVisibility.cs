@@ -9,6 +9,8 @@ public class HumanoidGhostCameraVisibility : MonoBehaviour
     private bool _usesScriptableRenderPipeline;
     private int _suppressionDepth;
 
+    public HumanoidGhostFollower Ghost => _ghost;
+
     public void Bind(HumanoidGhostFollower ghost)
     {
         RestoreVisibility();

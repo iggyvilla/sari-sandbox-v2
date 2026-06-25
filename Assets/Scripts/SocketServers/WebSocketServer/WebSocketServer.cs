@@ -83,6 +83,15 @@ public class WebSocketHandler : MonoBehaviour
         EnqueueCoroutine(ScreenshotRoutine(camera, hiddenGhost, callback));
     }
 
+    public void EnqueueLidarScan(
+        Camera camera,
+        HumanoidGhostFollower hiddenGhost,
+        Action<byte[]> callback,
+        Action<string> errorCallback)
+    {
+        EnqueueCoroutine(LidarScanRoutine(camera, hiddenGhost, callback, errorCallback));
+    }
+
     void OnDestroy()
     {
         _wss?.Stop();
@@ -132,5 +141,22 @@ public class WebSocketHandler : MonoBehaviour
         {
             if (tracker != null) tracker.SetCamera(originalCamera);
         }
+    }
+
+    private static IEnumerator LidarScanRoutine(
+        Camera camera,
+        HumanoidGhostFollower hiddenGhost,
+        Action<byte[]> callback,
+        Action<string> errorCallback)
+    {
+        if (camera == null)
+        {
+            errorCallback?.Invoke("Error: no camera found for LiDAR scan");
+            yield break;
+        }
+
+        LidarSensor sensor = LidarSensor.ResolveLevelSensor(camera);
+
+        yield return sensor.CaptureScan(camera, hiddenGhost, callback, errorCallback);
     }
 }

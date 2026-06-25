@@ -18,6 +18,10 @@ StructuredBuffer<Plane> planes;
 
 // in: agent (player) world position for LOD selections
 float3 agent_position;
+// 0 = camera frustum culling, 1 = LiDAR range culling.
+int culling_mode;
+float3 range_cull_origin;
+float range_cull_max_distance_sq;
 // in: squared distance thresholds, ASCENDING (inner → outer), one per LOD level:
 //   lod_distances[j] = max distance squared for lods[j]
 //   indices 0..num_lods-2 drive LOD selection; index num_lods-1 is the hard cull distance
@@ -40,19 +44,28 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
     float3 cullPos = position_buffer[id.x].xyz;
 
-    [unroll]
-    for (int i = 0; i < 6; i++)
+    if (culling_mode == 0)
     {
-        if (dot(planes[i].normal, cullPos) + planes[i].distance < -0.2f)
-            return; // culled
+        [unroll]
+        for (int i = 0; i < 6; i++)
+        {
+            if (dot(planes[i].normal, cullPos) + planes[i].distance < -0.2f)
+                return; // culled
+        }
+    }
+    else
+    {
+        float3 toRangeOrigin = cullPos - range_cull_origin;
+        if (dot(toRangeOrigin, toRangeOrigin) > range_cull_max_distance_sq)
+            return;
     }
 
     float3 toAgent = cullPos - agent_position;
     float distSq = dot(toAgent, toAgent);
 
-    // Hard cull: lod_distances[num_lods - 1] is the max distance for the farthest LOD.
-    // Anything beyond it is dropped entirely — not just switched to a lower-quality mesh.
-    if (distSq >= lod_distances[num_lods - 1]) return;
+    // Hard cull normal rendering at the farthest LOD distance. LiDAR range culling already
+    // applied maxRange above, so keep far objects and draw them with the farthest LOD.
+    if (culling_mode == 0 && distSq >= lod_distances[num_lods - 1]) return;
 
     // Select LOD: default to the farthest, then walk from LOD0 outward to find the
     // highest-quality level whose threshold (lod_distances[j]) we're still within.

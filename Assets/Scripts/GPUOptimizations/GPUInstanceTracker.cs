@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Plane = UnityEngine.Plane;
 using Vector3 = UnityEngine.Vector3;
 
@@ -57,6 +58,28 @@ public class GPUInstanceTracker : MonoBehaviour
         mainCamera = cam;
         foreach (BatchInstancer bi in GetComponents<BatchInstancer>())
             bi.agentCamera = cam;
+    }
+
+    public void CullForLidarRange(Vector3 origin, float maxRange)
+    {
+        foreach (BatchInstancer bi in GetComponents<BatchInstancer>())
+            bi.CullForLidarRange(origin, maxRange);
+    }
+
+    public void AddLidarDrawCommands(CommandBuffer cmd)
+    {
+        foreach (BatchInstancer bi in GetComponents<BatchInstancer>())
+            bi.AddLidarDrawCommands(cmd);
+    }
+
+    public LidarIndirectDrawStats AddLidarDepthDrawCommands(CommandBuffer cmd, Material depthMaterial)
+    {
+        LidarIndirectDrawStats stats = new LidarIndirectDrawStats();
+
+        foreach (BatchInstancer bi in GetComponents<BatchInstancer>())
+            stats.Add(bi.AddLidarDepthDrawCommands(cmd, depthMaterial));
+
+        return stats;
     }
 
     public void DespawnAllItems()
