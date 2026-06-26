@@ -45,6 +45,10 @@ public class WebSocketHandler : MonoBehaviour
 
     public void Enqueue(Action action) => _mainThreadActions.Enqueue(action);
 
+    /// <summary>
+    /// Queues Unity work that must run as a coroutine on the main thread.
+    /// Coroutines are serialized so expensive captures do not overlap.
+    /// </summary>
     public void EnqueueCoroutine(IEnumerator routine)
     {
         _queuedCoroutines.Enqueue(routine);
@@ -65,6 +69,9 @@ public class WebSocketHandler : MonoBehaviour
 
     public HumanoidGhostFollower AgentGhost => _agentGhost;
 
+    /// <summary>
+    /// Rebinds the WebSocket-controlled agent and recreates its hidden ghost follower.
+    /// </summary>
     public void SetAgent(AgentController controller)
     {
         if (agentController == controller && _agentGhost != null) return;
@@ -75,6 +82,9 @@ public class WebSocketHandler : MonoBehaviour
         _agentGhost = HumanoidGhostFactory.Spawn(ikHumanoidGhostPrefab, agentController);
     }
 
+    /// <summary>
+    /// Schedules a screenshot capture and returns PNG bytes through the callback.
+    /// </summary>
     public void EnqueueScreenshot(
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
@@ -83,6 +93,10 @@ public class WebSocketHandler : MonoBehaviour
         EnqueueCoroutine(ScreenshotRoutine(camera, hiddenGhost, callback));
     }
 
+    /// <summary>
+    /// Schedules a LiDAR scan and returns the raw LDR1 binary payload through the byte callback.
+    /// Errors are returned as text through <paramref name="errorCallback"/>.
+    /// </summary>
     public void EnqueueLidarScan(
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
@@ -98,6 +112,9 @@ public class WebSocketHandler : MonoBehaviour
         if (_agentGhost != null) Destroy(_agentGhost.gameObject);
     }
 
+    /// <summary>
+    /// Runs queued capture/movement coroutines one at a time on Unity's main thread.
+    /// </summary>
     private IEnumerator RunQueuedCoroutines()
     {
         try
@@ -111,6 +128,9 @@ public class WebSocketHandler : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Captures a camera screenshot while temporarily hiding the matching ghost from that view.
+    /// </summary>
     private static IEnumerator ScreenshotRoutine(
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
@@ -143,6 +163,9 @@ public class WebSocketHandler : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Resolves the correct level LiDAR sensor, captures a scan, and forwards its binary payload.
+    /// </summary>
     private static IEnumerator LidarScanRoutine(
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
@@ -155,6 +178,8 @@ public class WebSocketHandler : MonoBehaviour
             yield break;
         }
 
+        // Resolve the level, yaw-only LiDAR mount before rendering. The resulting payload is
+        // passed back as byte[] and sent by WebSocketSharp as a binary WebSocket frame.
         LidarSensor sensor = LidarSensor.ResolveLevelSensor(camera);
 
         yield return sensor.CaptureScan(camera, hiddenGhost, callback, errorCallback);

@@ -130,6 +130,8 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 WebSocketHandler.Instance.EnqueueLidarScan(
                     mpCamera,
                     MultiplayerAgentManager.Instance.GetGhostFollower(_agentId),
+                    // WebSocketSharp.Send(byte[]) sends a binary frame. The bytes are the LDR1
+                    // payload built in LidarSensor.BuildPayload, not JSON or base64 text.
                     bytes => Send(bytes),
                     error => Send(error));
                 break;

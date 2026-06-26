@@ -51,6 +51,12 @@ public class LidarSensor : MonoBehaviour
 
     public bool IsBusy => _isBusy;
 
+    /// <summary>
+    /// Finds or creates the navigation LiDAR for an agent camera.
+    /// Agent scans use a child mount under the movement root so the scan starts at head height
+    /// but stays level with the floor: position comes from the camera, yaw comes from the root.
+    /// Non-agent cameras fall back to the older camera-attached behavior.
+    /// </summary>
     public static LidarSensor ResolveLevelSensor(Camera sourceCamera)
     {
         if (sourceCamera == null) return null;
@@ -76,6 +82,10 @@ public class LidarSensor : MonoBehaviour
         return sensor;
     }
 
+    /// <summary>
+    /// Captures one full 360-degree LiDAR scan, reads the GPU range buffer back to CPU memory,
+    /// and returns the binary WebSocket payload through <paramref name="onComplete"/>.
+    /// </summary>
     public IEnumerator CaptureScan(
         Camera sourceCamera,
         HumanoidGhostFollower hiddenGhost,
@@ -134,6 +144,10 @@ public class LidarSensor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Fallback resolver for non-agent cameras: reuse an existing camera/parent/child sensor,
+    /// or attach one directly to the camera if none exists.
+    /// </summary>
     private static LidarSensor ResolveCameraSensor(Camera sourceCamera)
     {
         LidarSensor sensor =
@@ -147,6 +161,10 @@ public class LidarSensor : MonoBehaviour
         return sensor;
     }
 
+    /// <summary>
+    /// Places the level sensor at the camera's current world position while removing camera pitch/roll.
+    /// This keeps LiDAR egocentric without leaking the head tilt into the scan frame.
+    /// </summary>
     private void AlignLevelToSource(Camera sourceCamera, Transform mountRoot)
     {
         transform.SetPositionAndRotation(
@@ -154,6 +172,10 @@ public class LidarSensor : MonoBehaviour
             Quaternion.Euler(0f, mountRoot.eulerAngles.y, 0f));
     }
 
+    /// <summary>
+    /// Captures PNG/debug artifacts for the forward LiDAR face and logs intermediate render statistics.
+    /// This is intended for visual diagnosis, not for WebSocket payload generation.
+    /// </summary>
     public IEnumerator CaptureForwardDepthDebug(
         Camera sourceCamera,
         HumanoidGhostFollower hiddenGhost,
@@ -354,6 +376,10 @@ public class LidarSensor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Loads shaders, creates hidden face cameras/render targets, clamps scan settings,
+    /// and records the source camera/agent roots used for self-culling.
+    /// </summary>
     private bool EnsureResources(Camera sourceCamera, out string error)
     {
         error = null;
@@ -411,6 +437,9 @@ public class LidarSensor : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Creates one hidden 90-degree camera for a cube-map face of the LiDAR depth capture.
+    /// </summary>
     private Camera CreateFaceCamera(int face)
     {
         GameObject cameraObject = new GameObject($"LiDAR Face {face}");
@@ -429,6 +458,10 @@ public class LidarSensor : MonoBehaviour
         return camera;
     }
 
+    /// <summary>
+    /// Copies render settings from the source camera, then forces LiDAR-specific depth range,
+    /// square projection, and render-texture behavior.
+    /// </summary>
     private void ConfigureFaceCamera(Camera faceCamera, Camera sourceCamera)
     {
         faceCamera.CopyFrom(sourceCamera);
@@ -447,6 +480,9 @@ public class LidarSensor : MonoBehaviour
         faceCamera.forceIntoRenderTexture = true;
     }
 
+    /// <summary>
+    /// Ensures each cube face has a color target for debugging and an RFloat target for linear depth.
+    /// </summary>
     private void EnsureRenderTargets(int face)
     {
         if (_colorTargets[face] == null || _colorTargets[face].width != faceResolution || _colorTargets[face].depth != 24)
@@ -472,6 +508,10 @@ public class LidarSensor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Renders one cube face into the RFloat linear-depth target, including regular scene renderers
+    /// and GPU-instanced/indirect objects that need explicit draw commands.
+    /// </summary>
     private void RenderFace(
         int face,
         GPUInstanceTracker tracker,
@@ -515,6 +555,10 @@ public class LidarSensor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Adds standard MeshRenderer/SkinnedMeshRenderer depth draw commands for one face.
+    /// Debug mode can collect a bounded sample of what was drawn or culled.
+    /// </summary>
     private LidarDrawStats DrawSceneRenderersForFace(CommandBuffer cmd, Camera faceCamera, bool collectSamples)
     {
         LidarDrawStats stats = LidarDrawStats.Empty;
@@ -546,6 +590,10 @@ public class LidarSensor : MonoBehaviour
         return stats;
     }
 
+    /// <summary>
+    /// Applies LiDAR-specific renderer filtering: self/ghost suppression, layer mask checks,
+    /// supported renderer types, and face frustum culling.
+    /// </summary>
     private bool ShouldDrawRendererForLidar(
         Renderer renderer,
         Camera faceCamera,
@@ -607,6 +655,9 @@ public class LidarSensor : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Determines how many submeshes should be drawn for a renderer when writing linear depth.
+    /// </summary>
     private static int GetRendererSubMeshCount(Renderer renderer)
     {
         Mesh mesh = null;
@@ -627,6 +678,9 @@ public class LidarSensor : MonoBehaviour
         return Mathf.Max(1, renderer.sharedMaterials != null ? renderer.sharedMaterials.Length : 1);
     }
 
+    /// <summary>
+    /// Formats scene-renderer debug counters into a single log-friendly block.
+    /// </summary>
     private static string FormatSceneStats(LidarDrawStats stats)
     {
         return
@@ -648,6 +702,9 @@ public class LidarSensor : MonoBehaviour
             "}";
     }
 
+    /// <summary>
+    /// Formats coarse name-based debug categories such as shelf/item/wall/floor.
+    /// </summary>
     private static string FormatCategoryStats(LidarDebugCategoryStats stats)
     {
         return
@@ -661,6 +718,9 @@ public class LidarSensor : MonoBehaviour
             "}";
     }
 
+    /// <summary>
+    /// Formats GPU-instanced/indirect draw counters for LiDAR debug logs.
+    /// </summary>
     private static string FormatIndirectStats(LidarIndirectDrawStats stats)
     {
         return
@@ -677,6 +737,9 @@ public class LidarSensor : MonoBehaviour
             "}";
     }
 
+    /// <summary>
+    /// Renders a normal color view for a face so debug captures can prove the face camera sees geometry.
+    /// </summary>
     private void RenderFaceColorOnly(int face)
     {
         Camera faceCamera = _faceCameras[face];
@@ -696,6 +759,10 @@ public class LidarSensor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Dispatches the compute shader that samples the six face depth textures into a flat range array.
+    /// Output order is channel-major: range[channelIndex * azimuthSamples + azimuthIndex].
+    /// </summary>
     private void DispatchRangeSampler()
     {
         int kernel = depthSampler.FindKernel("CSMain");
@@ -722,6 +789,9 @@ public class LidarSensor : MonoBehaviour
             1);
     }
 
+    /// <summary>
+    /// Converts one RFloat linear-depth face into a grayscale preview texture for debug PNG output.
+    /// </summary>
     private void WriteLinearDepthPreview(int face, RenderTexture target)
     {
         int kernel = depthSampler.FindKernel("DepthDebug");
@@ -732,6 +802,9 @@ public class LidarSensor : MonoBehaviour
         depthSampler.Dispatch(kernel, Mathf.CeilToInt(faceResolution / 8f), Mathf.CeilToInt(faceResolution / 8f), 1);
     }
 
+    /// <summary>
+    /// Returns configured vertical channel angles, or evenly distributes them across the vertical FOV.
+    /// </summary>
     private float[] GetVerticalAngles()
     {
         if (verticalAnglesDeg != null && verticalAnglesDeg.Length == channels)
@@ -753,6 +826,9 @@ public class LidarSensor : MonoBehaviour
         return angles;
     }
 
+    /// <summary>
+    /// Uploads vertical channel angles to a GPU buffer consumed by the range-sampling compute shader.
+    /// </summary>
     private void UploadVerticalAngles(float[] angles)
     {
         if (_verticalAnglesBuffer == null || _verticalAnglesBuffer.count != angles.Length)
@@ -764,6 +840,9 @@ public class LidarSensor : MonoBehaviour
         _verticalAnglesBuffer.SetData(angles);
     }
 
+    /// <summary>
+    /// Ensures the GPU output buffer is sized for one float range per channel/azimuth sample pair.
+    /// </summary>
     private void EnsureRangeBuffer()
     {
         int count = channels * azimuthSamples;
@@ -774,6 +853,26 @@ public class LidarSensor : MonoBehaviour
         _rangeBufferCount = count;
     }
 
+    /// <summary>
+    /// Builds the exact binary payload sent by WebSocketSharp's Send(byte[]) API.
+    ///
+    /// All values are little-endian because BinaryWriter writes little-endian primitives on Unity/.NET:
+    ///   bytes  0-3   char[4]  magic "LDR1"
+    ///   bytes  4-5   ushort   channels
+    ///   bytes  6-7   ushort   azimuthSamples
+    ///   bytes  8-11  float    minRange, meters
+    ///   bytes 12-15  float    maxRange, meters
+    ///   bytes 16-19  float    azimuthStartDeg, currently 0
+    ///   bytes 20-23  float    azimuthStepDeg, 360 / azimuthSamples
+    ///   bytes 24-27  uint     sequence, increments per sensor
+    ///   bytes 28-35  double   UTC Unix timestamp in seconds
+    ///   next channels floats: verticalAnglesDeg[channel]
+    ///   next channels * azimuthSamples floats: ranges in meters
+    ///
+    /// The range array is channel-major:
+    ///   ranges[channelIndex * azimuthSamples + azimuthIndex]
+    /// No Unity world position, rotation, or object identity is serialized in this payload.
+    /// </summary>
     private byte[] BuildPayload(float[] angles, NativeArray<float> ranges)
     {
         using MemoryStream stream = new MemoryStream();
@@ -798,6 +897,9 @@ public class LidarSensor : MonoBehaviour
         return stream.ToArray();
     }
 
+    /// <summary>
+    /// Mirrors Unity's z-buffer parameter math for debug compute kernels that need depth conversion.
+    /// </summary>
     private static Vector4 BuildZBufferParams(Camera camera)
     {
         float near = camera.nearClipPlane;
@@ -810,6 +912,9 @@ public class LidarSensor : MonoBehaviour
         return new Vector4(1f - farOverNear, farOverNear, (1f - farOverNear) / far, farOverNear / far);
     }
 
+    /// <summary>
+    /// Converts a cube face index into a stable debug filename label.
+    /// </summary>
     private static string GetFaceName(int face)
     {
         switch (face)
@@ -824,6 +929,9 @@ public class LidarSensor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Saves a render texture as a PNG and returns simple brightness statistics for debug logging.
+    /// </summary>
     private TextureStats SaveRenderTexturePng(RenderTexture source, string path)
     {
         RenderTexture previous = RenderTexture.active;
@@ -847,6 +955,9 @@ public class LidarSensor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Computes non-black/min/max pixel statistics for a debug texture.
+    /// </summary>
     private static TextureStats CalculateTextureStats(Texture2D texture)
     {
         Color32[] pixels = texture.GetPixels32();
@@ -868,6 +979,10 @@ public class LidarSensor : MonoBehaviour
         return stats;
     }
 
+    /// <summary>
+    /// Computes hit/miss summary stats for the sampled range buffer.
+    /// Values at maxRange are treated as misses/no return.
+    /// </summary>
     private RangeStats CalculateRangeStats(NativeArray<float> ranges)
     {
         RangeStats stats = new RangeStats
@@ -897,6 +1012,10 @@ public class LidarSensor : MonoBehaviour
         return stats;
     }
 
+    /// <summary>
+    /// Legacy renderer-toggle helper retained for debugging paths that need to hide the source avatar.
+    /// Current LiDAR rendering primarily uses renderer filtering instead of mutating visibility.
+    /// </summary>
     private static List<RendererState> HideSourceAgentRenderers(Camera sourceCamera)
     {
         Transform root = ResolveSelfRoot(sourceCamera);
@@ -922,6 +1041,9 @@ public class LidarSensor : MonoBehaviour
         return states;
     }
 
+    /// <summary>
+    /// Finds the hidden ghost corresponding to the source camera so it can be excluded from LiDAR renders.
+    /// </summary>
     private static HumanoidGhostFollower ResolveHiddenGhost(Camera sourceCamera, HumanoidGhostFollower explicitGhost)
     {
         if (explicitGhost != null) return explicitGhost;
@@ -968,6 +1090,9 @@ public class LidarSensor : MonoBehaviour
         return closest;
     }
 
+    /// <summary>
+    /// Resolves the transform considered "self" for renderer filtering.
+    /// </summary>
     private static Transform ResolveSelfRoot(Camera sourceCamera)
     {
         if (sourceCamera == null) return null;
@@ -981,6 +1106,9 @@ public class LidarSensor : MonoBehaviour
         return sourceCamera.transform.root;
     }
 
+    /// <summary>
+    /// Restores renderer enabled states captured by HideSourceAgentRenderers.
+    /// </summary>
     private static void RestoreRenderers(List<RendererState> states)
     {
         if (states == null) return;
@@ -1024,6 +1152,7 @@ public class LidarSensor : MonoBehaviour
             frustumSamples = ""
         };
 
+        // Records a bounded sample of drawn/cull categories for forward-face debug logs.
         public void AddDrawnSample(Renderer renderer) =>
             AddSample(ref drawnSamples, ref drawnSampleCount, renderer);
 
@@ -1045,6 +1174,7 @@ public class LidarSensor : MonoBehaviour
         public void AddDrawnCategory(Renderer renderer) =>
             drawnCategories.Add(renderer);
 
+        // Appends at most DebugSampleLimit renderer descriptions, then marks the sample as truncated.
         private static void AddSample(ref string target, ref int count, Renderer renderer)
         {
             if (count >= DebugSampleLimit)
@@ -1077,6 +1207,7 @@ public class LidarSensor : MonoBehaviour
         public int wallLike;
         public int floorLike;
 
+        // Coarsely categorizes renderers by name/parent names for fast debug summaries.
         public void Add(Renderer renderer)
         {
             string name = BuildCategoryText(renderer);
@@ -1089,6 +1220,7 @@ public class LidarSensor : MonoBehaviour
             if (name.Contains("floor") || name.Contains("ground")) floorLike++;
         }
 
+        // Builds the lower-case name context used by the coarse debug categorizer.
         private static string BuildCategoryText(Renderer renderer)
         {
             string text = renderer.name;
@@ -1129,6 +1261,9 @@ public class LidarSensor : MonoBehaviour
         public bool wasEnabled;
     }
 
+    /// <summary>
+    /// Releases GPU buffers, render textures, materials, and hidden face cameras owned by this sensor.
+    /// </summary>
     private void OnDestroy()
     {
         _verticalAnglesBuffer?.Release();
@@ -1145,6 +1280,9 @@ public class LidarSensor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Releases and destroys one render texture if it exists.
+    /// </summary>
     private static void ReleaseRenderTexture(RenderTexture texture)
     {
         if (texture == null) return;

@@ -220,6 +220,8 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                 handler.EnqueueLidarScan(
                     camera,
                     handler.AgentGhost,
+                    // WebSocketSharp.Send(byte[]) sends a binary frame. The bytes are the LDR1
+                    // payload built in LidarSensor.BuildPayload, not JSON or base64 text.
                     bytes => session.Send(bytes),
                     error => session.Send(error));
                 break;
