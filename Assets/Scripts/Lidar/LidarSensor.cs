@@ -8,19 +8,26 @@ using UnityEngine.Rendering;
 
 public class LidarSensor : MonoBehaviour
 {
+    public enum SweepMode
+    {
+        Full360,
+        EgocentricView
+    }
+
     private const string Magic = "LDR1";
     private const string LevelSensorMountName = "Level LiDAR Sensor";
     private const int FaceCount = 6;
     private const int DebugSampleLimit = 8;
     private const float HiddenGhostFallbackMaxDistance = 4f;
 
-    [SerializeField] private int channels = 16;
+    [SerializeField] private SweepMode sweepMode = SweepMode.Full360;
+    [SerializeField] private int channels = 32;
     [SerializeField] private int azimuthSamples = 1024;
     [SerializeField] private int faceResolution = 512;
     [SerializeField] private float minRange = 0.1f;
     [SerializeField] private float maxRange = 20f;
-    [SerializeField] private float verticalFovMinDeg = -15f;
-    [SerializeField] private float verticalFovMaxDeg = 15f;
+    [SerializeField] private float verticalFovMinDeg = -75f;
+    [SerializeField] private float verticalFovMaxDeg = 75f;
     [SerializeField] private float[] verticalAnglesDeg;
     [SerializeField] private ComputeShader depthSampler;
     [SerializeField] private Shader linearDepthShader;
@@ -83,7 +90,7 @@ public class LidarSensor : MonoBehaviour
     }
 
     /// <summary>
-    /// Captures one full 360-degree LiDAR scan, reads the GPU range buffer back to CPU memory,
+    /// Captures one configured LiDAR scan, reads the GPU range buffer back to CPU memory,
     /// and returns the binary WebSocket payload through <paramref name="onComplete"/>.
     /// </summary>
     public IEnumerator CaptureScan(
@@ -113,6 +120,7 @@ public class LidarSensor : MonoBehaviour
             float[] angles = GetVerticalAngles();
             UploadVerticalAngles(angles);
             EnsureRangeBuffer();
+            AzimuthSweep azimuthSweep = ResolveAzimuthSweep();
 
             activeHiddenGhost = ResolveHiddenGhost(sourceCamera, hiddenGhost);
             _excludedHiddenGhostRoot = activeHiddenGhost != null ? activeHiddenGhost.transform : null;
@@ -123,7 +131,7 @@ public class LidarSensor : MonoBehaviour
             for (int face = 0; face < FaceCount; face++)
                 RenderFace(face, tracker);
 
-            DispatchRangeSampler();
+            DispatchRangeSampler(azimuthSweep);
 
             AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(_rangeBuffer);
             yield return new WaitUntil(() => request.done);
@@ -135,7 +143,7 @@ public class LidarSensor : MonoBehaviour
             }
 
             NativeArray<float> ranges = request.GetData<float>();
-            onComplete?.Invoke(BuildPayload(angles, ranges));
+            onComplete?.Invoke(BuildPayload(angles, ranges, azimuthSweep));
         }
         finally
         {
@@ -334,7 +342,8 @@ public class LidarSensor : MonoBehaviour
             float[] angles = GetVerticalAngles();
             UploadVerticalAngles(angles);
             EnsureRangeBuffer();
-            DispatchRangeSampler();
+            AzimuthSweep azimuthSweep = ResolveAzimuthSweep();
+            DispatchRangeSampler(azimuthSweep);
 
             AsyncGPUReadbackRequest rangeRequest = AsyncGPUReadback.Request(_rangeBuffer);
             yield return new WaitUntil(() => rangeRequest.done);
@@ -763,7 +772,7 @@ public class LidarSensor : MonoBehaviour
     /// Dispatches the compute shader that samples the six face depth textures into a flat range array.
     /// Output order is channel-major: range[channelIndex * azimuthSamples + azimuthIndex].
     /// </summary>
-    private void DispatchRangeSampler()
+    private void DispatchRangeSampler(AzimuthSweep azimuthSweep)
     {
         int kernel = depthSampler.FindKernel("CSMain");
 
@@ -772,8 +781,8 @@ public class LidarSensor : MonoBehaviour
         depthSampler.SetInt("_FaceResolution", faceResolution);
         depthSampler.SetFloat("_MinRange", minRange);
         depthSampler.SetFloat("_MaxRange", maxRange);
-        depthSampler.SetFloat("_AzimuthStartDeg", 0f);
-        depthSampler.SetFloat("_AzimuthStepDeg", 360f / azimuthSamples);
+        depthSampler.SetFloat("_AzimuthStartDeg", azimuthSweep.startDeg);
+        depthSampler.SetFloat("_AzimuthStepDeg", azimuthSweep.stepDeg);
         depthSampler.SetVector("_ZBufferParamsForLidar", BuildZBufferParams(_faceCameras[0]));
         depthSampler.SetInt("_UsesReversedZBuffer", SystemInfo.usesReversedZBuffer ? 1 : 0);
         depthSampler.SetBuffer(kernel, "_VerticalAnglesDeg", _verticalAnglesBuffer);
@@ -787,6 +796,61 @@ public class LidarSensor : MonoBehaviour
             Mathf.CeilToInt(azimuthSamples / 8f),
             Mathf.CeilToInt(channels / 8f),
             1);
+    }
+
+    /// <summary>
+    /// Resolves the horizontal LiDAR sweep described by the selected inspector mode.
+    /// </summary>
+    private AzimuthSweep ResolveAzimuthSweep()
+    {
+        switch (sweepMode)
+        {
+            case SweepMode.EgocentricView:
+                return ResolveEgocentricSweep();
+            case SweepMode.Full360:
+            default:
+                return new AzimuthSweep
+                {
+                    startDeg = 0f,
+                    stepDeg = 360f / azimuthSamples
+                };
+        }
+    }
+
+    /// <summary>
+    /// Centers the horizontal sweep on the source camera's forward direction.
+    /// </summary>
+    private AzimuthSweep ResolveEgocentricSweep()
+    {
+        float horizontalFovDeg = CalculateHorizontalFovDeg(_sourceCamera);
+
+        if (azimuthSamples == 1)
+        {
+            return new AzimuthSweep
+            {
+                startDeg = 0f,
+                stepDeg = 0f
+            };
+        }
+
+        return new AzimuthSweep
+        {
+            startDeg = horizontalFovDeg * -0.5f,
+            stepDeg = horizontalFovDeg / (azimuthSamples - 1)
+        };
+    }
+
+    /// <summary>
+    /// Converts Unity's vertical camera FOV into the horizontal FOV visible at the current aspect ratio.
+    /// </summary>
+    private static float CalculateHorizontalFovDeg(Camera camera)
+    {
+        if (camera == null) return 360f;
+
+        float verticalFovRad = camera.fieldOfView * Mathf.Deg2Rad;
+        float aspect = Mathf.Max(camera.aspect, 0.0001f);
+        float horizontalFovRad = 2f * Mathf.Atan(Mathf.Tan(verticalFovRad * 0.5f) * aspect);
+        return horizontalFovRad * Mathf.Rad2Deg;
     }
 
     /// <summary>
@@ -862,8 +926,8 @@ public class LidarSensor : MonoBehaviour
     ///   bytes  6-7   ushort   azimuthSamples
     ///   bytes  8-11  float    minRange, meters
     ///   bytes 12-15  float    maxRange, meters
-    ///   bytes 16-19  float    azimuthStartDeg, currently 0
-    ///   bytes 20-23  float    azimuthStepDeg, 360 / azimuthSamples
+    ///   bytes 16-19  float    azimuthStartDeg for the selected sweep mode
+    ///   bytes 20-23  float    azimuthStepDeg for the selected sweep mode
     ///   bytes 24-27  uint     sequence, increments per sensor
     ///   bytes 28-35  double   UTC Unix timestamp in seconds
     ///   next channels floats: verticalAnglesDeg[channel]
@@ -873,7 +937,7 @@ public class LidarSensor : MonoBehaviour
     ///   ranges[channelIndex * azimuthSamples + azimuthIndex]
     /// No Unity world position, rotation, or object identity is serialized in this payload.
     /// </summary>
-    private byte[] BuildPayload(float[] angles, NativeArray<float> ranges)
+    private byte[] BuildPayload(float[] angles, NativeArray<float> ranges, AzimuthSweep azimuthSweep)
     {
         using MemoryStream stream = new MemoryStream();
         using BinaryWriter writer = new BinaryWriter(stream);
@@ -883,8 +947,8 @@ public class LidarSensor : MonoBehaviour
         writer.Write((ushort)azimuthSamples);
         writer.Write(minRange);
         writer.Write(maxRange);
-        writer.Write(0f);
-        writer.Write(360f / azimuthSamples);
+        writer.Write(azimuthSweep.startDeg);
+        writer.Write(azimuthSweep.stepDeg);
         writer.Write((uint)++_sequence);
         writer.Write(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0);
 
@@ -1244,6 +1308,12 @@ public class LidarSensor : MonoBehaviour
         public int nonBlackPixels;
         public int minValue;
         public int maxValue;
+    }
+
+    private struct AzimuthSweep
+    {
+        public float startDeg;
+        public float stepDeg;
     }
 
     private struct RangeStats

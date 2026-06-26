@@ -3260,7 +3260,7 @@ GameObject:
   - component: {fileID: 1224550419}
   - component: {fileID: 1224550420}
   m_Layer: 0
-  m_Name: LiDAR
+  m_Name: LiDAR Debug
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
