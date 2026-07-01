@@ -178,7 +178,7 @@ public class WebSocketHandler : MonoBehaviour
             yield break;
         }
 
-        // Resolve the level, yaw-only LiDAR mount before rendering. The resulting payload is
+        // Resolve the level LiDAR mount before rendering. The resulting payload is
         // passed back as byte[] and sent by WebSocketSharp as a binary WebSocket frame.
         LidarSensor sensor = LidarSensor.ResolveLevelSensor(camera);
 

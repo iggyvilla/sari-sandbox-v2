@@ -8,7 +8,9 @@ Requires:
 Usage:
   python TestScripts/verify_lidar_websocket.py
   python TestScripts/verify_lidar_websocket.py --count 5 --no-show
+  python TestScripts/verify_lidar_websocket.py --sweep-mode egocentric
   python TestScripts/verify_lidar_websocket.py --azimuth-min-deg 0 --azimuth-max-deg 90
+  python TestScripts/verify_lidar_websocket.py --probe-azimuth-deg 0 --probe-vertical-deg 0
 """
 
 import argparse
@@ -30,6 +32,10 @@ MAGIC = b"LDR1"
 HEADER_FORMAT = "<4sHHffffId"
 HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
 RANGE_TOLERANCE = 1e-4
+PROBE_MISS_TOLERANCE = 1e-3
+SWEEP_MODE_FULL360 = "full360"
+SWEEP_MODE_EGOCENTRIC = "egocentric"
+SWEEP_MODE_PAYLOAD = "payload"
 
 
 class LidarVerifierError(RuntimeError):
@@ -122,11 +128,12 @@ def parse_scan(payload):
     }
 
 
-def validate_scan(scan):
+def validate_scan(scan, sweep_mode, expected_horizontal_fov_deg):
     channels = scan["channels"]
     azimuth_samples = scan["azimuth_samples"]
     min_range = scan["min_range"]
     max_range = scan["max_range"]
+    azimuth_start_deg = scan["azimuth_start_deg"]
     azimuth_step_deg = scan["azimuth_step_deg"]
     timestamp_seconds = scan["timestamp_seconds"]
     vertical_angles = scan["vertical_angles_deg"]
@@ -135,7 +142,7 @@ def validate_scan(scan):
     finite_header_values = [
         ("min_range", min_range),
         ("max_range", max_range),
-        ("azimuth_start_deg", scan["azimuth_start_deg"]),
+        ("azimuth_start_deg", azimuth_start_deg),
         ("azimuth_step_deg", azimuth_step_deg),
         ("timestamp_seconds", timestamp_seconds),
     ]
@@ -168,13 +175,13 @@ def validate_scan(scan):
             f"Expected {expected_range_count} ranges, got {len(ranges)}"
         )
 
-    expected_step = 360.0 / azimuth_samples
-    step_tolerance = max(1e-5, abs(expected_step) * 1e-4)
-    if abs(azimuth_step_deg - expected_step) > step_tolerance:
-        raise LidarVerifierError(
-            "Unexpected azimuth step: "
-            f"expected {expected_step:.9f}, got {azimuth_step_deg:.9f}"
-        )
+    azimuth_validation = validate_azimuth_sweep(
+        azimuth_samples,
+        azimuth_start_deg,
+        azimuth_step_deg,
+        sweep_mode,
+        expected_horizontal_fov_deg,
+    )
 
     range_tolerance = max(RANGE_TOLERANCE, (max_range - min_range) * 1e-5)
     bad_ranges = []
@@ -226,8 +233,7 @@ def validate_scan(scan):
     return {
         "range_count": range_count,
         "range_tolerance": range_tolerance,
-        "azimuth_step_expected_deg": expected_step,
-        "azimuth_step_tolerance_deg": step_tolerance,
+        **azimuth_validation,
         "min_observed_range": min_observed,
         "max_observed_range": max_observed,
         "mean_observed_range": mean_observed,
@@ -235,6 +241,91 @@ def validate_scan(scan):
         "max_range_percent": max_range_count / range_count * 100.0,
         "per_channel": per_channel,
     }
+
+
+def validate_azimuth_sweep(
+    azimuth_samples,
+    azimuth_start_deg,
+    azimuth_step_deg,
+    sweep_mode,
+    expected_horizontal_fov_deg,
+):
+    if sweep_mode == SWEEP_MODE_PAYLOAD:
+        return {
+            "sweep_mode": sweep_mode,
+            "azimuth_step_expected_deg": None,
+            "azimuth_start_expected_deg": None,
+            "azimuth_sweep_expected_deg": None,
+        }
+
+    if sweep_mode == SWEEP_MODE_FULL360:
+        expected_start = 0.0
+        expected_step = 360.0 / azimuth_samples
+        expected_sweep = 360.0
+    elif sweep_mode == SWEEP_MODE_EGOCENTRIC:
+        expected_sweep = resolve_expected_egocentric_sweep(
+            azimuth_samples,
+            azimuth_step_deg,
+            expected_horizontal_fov_deg,
+        )
+        if azimuth_samples == 1:
+            expected_start = 0.0
+            expected_step = 0.0
+        else:
+            expected_start = expected_sweep * -0.5
+            expected_step = expected_sweep / (azimuth_samples - 1)
+    else:
+        raise LidarVerifierError(f"Unsupported sweep mode: {sweep_mode}")
+
+    assert_close_degrees(
+        "azimuth start",
+        azimuth_start_deg,
+        expected_start,
+    )
+    assert_close_degrees(
+        "azimuth step",
+        azimuth_step_deg,
+        expected_step,
+    )
+
+    return {
+        "sweep_mode": sweep_mode,
+        "azimuth_step_expected_deg": expected_step,
+        "azimuth_start_expected_deg": expected_start,
+        "azimuth_sweep_expected_deg": expected_sweep,
+    }
+
+
+def resolve_expected_egocentric_sweep(
+    azimuth_samples,
+    azimuth_step_deg,
+    expected_horizontal_fov_deg,
+):
+    if expected_horizontal_fov_deg is not None:
+        if expected_horizontal_fov_deg <= 0.0 or expected_horizontal_fov_deg > 360.0:
+            raise LidarVerifierError(
+                "--expected-horizontal-fov-deg must be greater than 0 and no more than 360"
+            )
+        return expected_horizontal_fov_deg
+
+    if azimuth_samples == 1:
+        return 0.0
+
+    observed_sweep = azimuth_step_deg * (azimuth_samples - 1)
+    if observed_sweep <= 0.0 or observed_sweep > 360.0:
+        raise LidarVerifierError(
+            "Unexpected egocentric azimuth sweep: "
+            f"expected a sweep in (0, 360], got {observed_sweep:.9f}"
+        )
+    return observed_sweep
+
+
+def assert_close_degrees(label, actual, expected):
+    tolerance = max(1e-5, abs(expected) * 1e-4)
+    if abs(actual - expected) > tolerance:
+        raise LidarVerifierError(
+            f"Unexpected {label}: expected {expected:.9f}, got {actual:.9f}"
+        )
 
 
 def select_azimuth_indices(scan, azimuth_min_deg, azimuth_max_deg):
@@ -274,6 +365,97 @@ def azimuth_degrees(scan, azimuth_index):
     return scan["azimuth_start_deg"] + azimuth_index * scan["azimuth_step_deg"]
 
 
+def angular_delta_degrees(actual, target):
+    return abs((actual - target + 180.0) % 360.0 - 180.0)
+
+
+def find_nearest_vertical_channel(scan, target_vertical_deg):
+    best_index = 0
+    best_delta = math.inf
+
+    for index, vertical_deg in enumerate(scan["vertical_angles_deg"]):
+        delta = abs(vertical_deg - target_vertical_deg)
+        if delta < best_delta:
+            best_delta = delta
+            best_index = index
+
+    return best_index
+
+
+def find_nearest_azimuth_index(scan, target_azimuth_deg):
+    best_index = 0
+    best_delta = math.inf
+
+    for index in range(scan["azimuth_samples"]):
+        delta = angular_delta_degrees(
+            azimuth_degrees(scan, index),
+            target_azimuth_deg,
+        )
+        if delta < best_delta:
+            best_delta = delta
+            best_index = index
+
+    return best_index
+
+
+def lidar_local_direction(azimuth_deg, vertical_deg):
+    azimuth_rad = math.radians(azimuth_deg)
+    vertical_rad = math.radians(vertical_deg)
+    cos_vertical = math.cos(vertical_rad)
+    return (
+        math.sin(azimuth_rad) * cos_vertical,
+        math.sin(vertical_rad),
+        math.cos(azimuth_rad) * cos_vertical,
+    )
+
+
+def reconstruct_lidar_local_point(range_m, azimuth_deg, vertical_deg):
+    direction = lidar_local_direction(azimuth_deg, vertical_deg)
+    return (
+        direction[0] * range_m,
+        direction[1] * range_m,
+        direction[2] * range_m,
+    )
+
+
+def build_probe(scan, target_azimuth_deg, target_vertical_deg):
+    channel_index = find_nearest_vertical_channel(scan, target_vertical_deg)
+    azimuth_index = find_nearest_azimuth_index(scan, target_azimuth_deg)
+    range_index = channel_index * scan["azimuth_samples"] + azimuth_index
+    range_m = scan["ranges"][range_index]
+    vertical_deg = scan["vertical_angles_deg"][channel_index]
+    azimuth_deg = azimuth_degrees(scan, azimuth_index)
+    direction = lidar_local_direction(azimuth_deg, vertical_deg)
+    local_point = (
+        direction[0] * range_m,
+        direction[1] * range_m,
+        direction[2] * range_m,
+    )
+
+    return {
+        "target_azimuth_deg": target_azimuth_deg,
+        "target_vertical_deg": target_vertical_deg,
+        "channel": channel_index,
+        "vertical_deg": vertical_deg,
+        "azimuth_index": azimuth_index,
+        "azimuth_deg": azimuth_deg,
+        "azimuth_normalized_deg": normalize_degrees(azimuth_deg),
+        "range_index": range_index,
+        "range_m": range_m,
+        "is_max_range": range_m >= scan["max_range"] - PROBE_MISS_TOLERANCE,
+        "local_direction": {
+            "x": direction[0],
+            "y": direction[1],
+            "z": direction[2],
+        },
+        "local_point": {
+            "x": local_point[0],
+            "y": local_point[1],
+            "z": local_point[2],
+        },
+    }
+
+
 def build_points(scan, azimuth_indices):
     points = []
     channels = scan["channels"]
@@ -283,18 +465,15 @@ def build_points(scan, azimuth_indices):
 
     for channel in range(channels):
         vertical_deg = vertical_angles[channel]
-        vertical_rad = math.radians(vertical_deg)
-        cos_vertical = math.cos(vertical_rad)
-        sin_vertical = math.sin(vertical_rad)
 
         for azimuth_index in azimuth_indices:
             range_m = ranges[channel * azimuth_samples + azimuth_index]
             azimuth_deg = normalize_degrees(azimuth_degrees(scan, azimuth_index))
-            azimuth_rad = math.radians(azimuth_deg)
-
-            x = math.sin(azimuth_rad) * cos_vertical * range_m
-            y = sin_vertical * range_m
-            z = math.cos(azimuth_rad) * cos_vertical * range_m
+            x, y, z = reconstruct_lidar_local_point(
+                range_m,
+                azimuth_deg,
+                vertical_deg,
+            )
 
             points.append((
                 channel,
@@ -326,7 +505,7 @@ def write_csv(path, points):
         writer.writerows(points)
 
 
-def write_json(path, scan, validation, selection, output_paths):
+def write_json(path, scan, validation, selection, probe, output_paths):
     timestamp_utc = datetime.fromtimestamp(
         scan["timestamp_seconds"],
         tz=timezone.utc,
@@ -344,6 +523,7 @@ def write_json(path, scan, validation, selection, output_paths):
         "azimuth_step_deg": scan["azimuth_step_deg"],
         "vertical_angles_deg": scan["vertical_angles_deg"],
         "selection": selection,
+        "probe": probe,
         "validation": validation,
         "outputs": {
             label: str(path.resolve())
@@ -504,7 +684,17 @@ def load_pyplot(no_show):
     return plt
 
 
-def write_scan_outputs(plt, scan, validation, azimuth_indices, output_dir, stride, no_show, scan_number):
+def write_scan_outputs(
+    plt,
+    scan,
+    validation,
+    probe,
+    azimuth_indices,
+    output_dir,
+    stride,
+    no_show,
+    scan_number,
+):
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     stem = f"lidar-websocket-{timestamp}-{scan_number:03d}"
@@ -544,7 +734,7 @@ def write_scan_outputs(plt, scan, validation, azimuth_indices, output_dir, strid
         "plot_stride": stride,
         "plotted_points": len(points[::stride]),
     }
-    write_json(json_path, scan, validation, selection, output_paths)
+    write_json(json_path, scan, validation, selection, probe, output_paths)
 
     return {
         "json": json_path,
@@ -554,7 +744,7 @@ def write_scan_outputs(plt, scan, validation, azimuth_indices, output_dir, strid
     }
 
 
-def print_summary(scan, validation, azimuth_indices, output_paths):
+def print_summary(scan, validation, probe, azimuth_indices, output_paths):
     timestamp_utc = datetime.fromtimestamp(
         scan["timestamp_seconds"],
         tz=timezone.utc,
@@ -574,6 +764,29 @@ def print_summary(scan, validation, azimuth_indices, output_paths):
         f"max={validation['max_observed_range']:.3f}m "
         f"mean={validation['mean_observed_range']:.3f}m "
         f"max_range_returns={validation['max_range_percent']:.1f}%"
+    )
+    print(
+        "[probe] "
+        f"target=({probe['target_azimuth_deg']:.3f}deg az, "
+        f"{probe['target_vertical_deg']:.3f}deg vertical) "
+        f"channel={probe['channel']} "
+        f"vertical={probe['vertical_deg']:.3f}deg "
+        f"azimuth_index={probe['azimuth_index']} "
+        f"azimuth={probe['azimuth_deg']:.3f}deg "
+        f"range_index={probe['range_index']} "
+        f"range={probe['range_m']:.6f}m "
+        f"is_max_range={probe['is_max_range']}"
+    )
+    print(
+        "  "
+        "local_direction="
+        f"({probe['local_direction']['x']:.6f}, "
+        f"{probe['local_direction']['y']:.6f}, "
+        f"{probe['local_direction']['z']:.6f}) "
+        "local_point="
+        f"({probe['local_point']['x']:.6f}, "
+        f"{probe['local_point']['y']:.6f}, "
+        f"{probe['local_point']['z']:.6f})"
     )
     print("[per-channel]")
     for channel in validation["per_channel"]:
@@ -606,7 +819,16 @@ def run(args):
         print(f"\n=== LiDAR scan {scan_number}/{args.count} ===")
         payload = request_scan(args.host, args.port, args.endpoint, args.timeout)
         scan = parse_scan(payload)
-        validation = validate_scan(scan)
+        validation = validate_scan(
+            scan,
+            args.sweep_mode,
+            args.expected_horizontal_fov_deg,
+        )
+        probe = build_probe(
+            scan,
+            args.probe_azimuth_deg,
+            args.probe_vertical_deg,
+        )
         azimuth_indices = select_azimuth_indices(
             scan,
             args.azimuth_min_deg,
@@ -616,13 +838,14 @@ def run(args):
             plt,
             scan,
             validation,
+            probe,
             azimuth_indices,
             output_dir,
             args.stride,
             args.no_show,
             scan_number,
         )
-        print_summary(scan, validation, azimuth_indices, output_paths)
+        print_summary(scan, validation, probe, azimuth_indices, output_paths)
 
     if not args.no_show:
         print("[show] Close Matplotlib windows to exit.")
@@ -644,6 +867,40 @@ def build_parser():
     )
     parser.add_argument("--azimuth-min-deg", type=float, default=0.0)
     parser.add_argument("--azimuth-max-deg", type=float, default=360.0)
+    parser.add_argument(
+        "--probe-azimuth-deg",
+        type=float,
+        default=0.0,
+        help="LiDAR azimuth angle used for the single-sample extraction probe.",
+    )
+    parser.add_argument(
+        "--probe-vertical-deg",
+        type=float,
+        default=0.0,
+        help="LiDAR vertical angle used for the single-sample extraction probe.",
+    )
+    parser.add_argument(
+        "--sweep-mode",
+        choices=[
+            SWEEP_MODE_FULL360,
+            SWEEP_MODE_EGOCENTRIC,
+            SWEEP_MODE_PAYLOAD,
+        ],
+        default=SWEEP_MODE_FULL360,
+        help=(
+            "Expected LiDAR sweep metadata. Use 'egocentric' when LidarSensor "
+            "is set to EgocentricView, or 'payload' to skip sweep-shape validation."
+        ),
+    )
+    parser.add_argument(
+        "--expected-horizontal-fov-deg",
+        type=float,
+        default=None,
+        help=(
+            "Optional stricter camera horizontal FOV expectation for "
+            "--sweep-mode egocentric."
+        ),
+    )
     parser.add_argument(
         "--stride",
         type=int,

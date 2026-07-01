@@ -19,8 +19,12 @@ public class LidarSensor : MonoBehaviour
     private const int FaceCount = 6;
     private const int DebugSampleLimit = 8;
     private const float HiddenGhostFallbackMaxDistance = 4f;
+    private const float DebugProbeAzimuthDeg = 0f;
+    private const float DebugProbeVerticalDeg = 0f;
+    private const float RangeMissTolerance = 0.001f;
+    private const float PlanarForwardEpsilonSqr = 0.000001f;
 
-    [SerializeField] private SweepMode sweepMode = SweepMode.Full360;
+    [SerializeField] private SweepMode sweepMode = SweepMode.EgocentricView;
     [SerializeField] private int channels = 32;
     [SerializeField] private int azimuthSamples = 1024;
     [SerializeField] private int faceResolution = 512;
@@ -31,6 +35,10 @@ public class LidarSensor : MonoBehaviour
     [SerializeField] private float[] verticalAnglesDeg;
     [SerializeField] private ComputeShader depthSampler;
     [SerializeField] private Shader linearDepthShader;
+    [SerializeField] private bool drawDebugProbeRaycastGizmo = true;
+    [SerializeField] private float debugProbeRaycastGizmoRadius = 0.08f;
+    [SerializeField] private Color debugProbeRaycastHitColor = new Color(1f, 0.8f, 0.05f, 1f);
+    [SerializeField] private Color debugProbeRayColor = new Color(0.05f, 0.85f, 1f, 1f);
 
     private readonly Camera[] _faceCameras = new Camera[FaceCount];
     private readonly RenderTexture[] _colorTargets = new RenderTexture[FaceCount];
@@ -55,13 +63,17 @@ public class LidarSensor : MonoBehaviour
     private int _rangeBufferCount;
     private int _sequence;
     private bool _isBusy;
+    private bool _hasDebugProbeRaycastGizmo;
+    private Vector3 _debugProbeRayOrigin;
+    private Vector3 _debugProbeRayEnd;
+    private Vector3 _debugProbeRaycastHitPoint;
 
     public bool IsBusy => _isBusy;
 
     /// <summary>
     /// Finds or creates the navigation LiDAR for an agent camera.
     /// Agent scans use a child mount under the movement root so the scan starts at head height
-    /// but stays level with the floor: position comes from the camera, yaw comes from the root.
+    /// but stays level with the floor. Full-360 scans use root yaw; egocentric scans use camera yaw.
     /// Non-agent cameras fall back to the older camera-attached behavior.
     /// </summary>
     public static LidarSensor ResolveLevelSensor(Camera sourceCamera)
@@ -171,13 +183,34 @@ public class LidarSensor : MonoBehaviour
 
     /// <summary>
     /// Places the level sensor at the camera's current world position while removing camera pitch/roll.
-    /// This keeps LiDAR egocentric without leaking the head tilt into the scan frame.
+    /// Egocentric scans follow the camera's planar heading without leaking head tilt into the scan frame.
     /// </summary>
     private void AlignLevelToSource(Camera sourceCamera, Transform mountRoot)
     {
         transform.SetPositionAndRotation(
             sourceCamera.transform.position,
-            Quaternion.Euler(0f, mountRoot.eulerAngles.y, 0f));
+            ResolveLevelRotation(sourceCamera, mountRoot));
+    }
+
+    private Quaternion ResolveLevelRotation(Camera sourceCamera, Transform mountRoot)
+    {
+        if (sweepMode == SweepMode.EgocentricView && TryGetPlanarCameraForward(sourceCamera, out Vector3 planarForward))
+            return Quaternion.LookRotation(planarForward, Vector3.up);
+
+        return Quaternion.Euler(0f, mountRoot.eulerAngles.y, 0f);
+    }
+
+    private static bool TryGetPlanarCameraForward(Camera sourceCamera, out Vector3 planarForward)
+    {
+        planarForward = Vector3.zero;
+        if (sourceCamera == null) return false;
+
+        planarForward = Vector3.ProjectOnPlane(sourceCamera.transform.forward, Vector3.up);
+        if (planarForward.sqrMagnitude <= PlanarForwardEpsilonSqr)
+            return false;
+
+        planarForward.Normalize();
+        return true;
     }
 
     /// <summary>
@@ -349,21 +382,31 @@ public class LidarSensor : MonoBehaviour
             yield return new WaitUntil(() => rangeRequest.done);
 
             string rangeMessage;
+            string probeMessage = "LiDAR debug step 7 probe: skipped because range buffer readback failed.";
             if (rangeRequest.hasError)
             {
                 rangeMessage = "LiDAR debug step 6 result: GPU readback failed for range buffer.";
             }
             else
             {
-                RangeStats rangeStats = CalculateRangeStats(rangeRequest.GetData<float>());
+                NativeArray<float> ranges = rangeRequest.GetData<float>();
+                RangeStats rangeStats = CalculateRangeStats(ranges);
                 rangeMessage =
                     "LiDAR debug step 6 result: " +
                     $"rangeHits={rangeStats.hitCount}/{rangeStats.totalCount}, " +
                     $"maxRangeCount={rangeStats.maxRangeCount}, " +
                     $"minRange={rangeStats.minRange:0.000}, " +
                     $"maxHitRange={rangeStats.maxHitRange:0.000}";
+                LidarProbeSample probe = BuildLidarProbeSample(
+                    angles,
+                    ranges,
+                    azimuthSweep,
+                    DebugProbeAzimuthDeg,
+                    DebugProbeVerticalDeg);
+                probeMessage = FormatLidarProbeMessage(probe);
             }
             Debug.Log(rangeMessage);
+            Debug.Log(probeMessage);
 
             string message =
                 "LiDAR debug complete.\n" +
@@ -372,7 +415,8 @@ public class LidarSensor : MonoBehaviour
                 $"Step 3 indirect-only linear-depth PNG: {indirectDepthPath}\n" +
                 $"Step 4 scene+indirect linear-depth PNG: {combinedDepthPath}\n" +
                 depthStatsMessage + "\n" +
-                rangeMessage;
+                rangeMessage + "\n" +
+                probeMessage;
             Debug.Log(message);
             onComplete?.Invoke(message);
         }
@@ -818,7 +862,7 @@ public class LidarSensor : MonoBehaviour
     }
 
     /// <summary>
-    /// Centers the horizontal sweep on the source camera's forward direction.
+    /// Centers the horizontal sweep on the level sensor's local forward direction.
     /// </summary>
     private AzimuthSweep ResolveEgocentricSweep()
     {
@@ -1077,6 +1121,235 @@ public class LidarSensor : MonoBehaviour
     }
 
     /// <summary>
+    /// Extracts the LiDAR sample nearest to the requested angles using the same channel-major
+    /// range indexing and point reconstruction used by the WebSocket verifier.
+    /// </summary>
+    private LidarProbeSample BuildLidarProbeSample(
+        float[] angles,
+        NativeArray<float> ranges,
+        AzimuthSweep azimuthSweep,
+        float targetAzimuthDeg,
+        float targetVerticalDeg)
+    {
+        int channelIndex = FindNearestVerticalChannel(angles, targetVerticalDeg);
+        int azimuthIndex = FindNearestAzimuthIndex(azimuthSweep, targetAzimuthDeg);
+        int rangeIndex = channelIndex * azimuthSamples + azimuthIndex;
+        float range = rangeIndex >= 0 && rangeIndex < ranges.Length ? ranges[rangeIndex] : maxRange;
+        float verticalDeg = angles[channelIndex];
+        float azimuthDeg = azimuthSweep.startDeg + azimuthIndex * azimuthSweep.stepDeg;
+        Vector3 localDirection = CalculateLidarLocalDirection(azimuthDeg, verticalDeg);
+        Vector3 localPoint = localDirection * range;
+        Vector3 worldDirection = transform.TransformDirection(localDirection).normalized;
+        Vector3 worldPoint = transform.position + worldDirection * range;
+
+        LidarProbeSample probe = new LidarProbeSample
+        {
+            targetAzimuthDeg = targetAzimuthDeg,
+            targetVerticalDeg = targetVerticalDeg,
+            channelIndex = channelIndex,
+            verticalDeg = verticalDeg,
+            azimuthIndex = azimuthIndex,
+            azimuthDeg = azimuthDeg,
+            rangeIndex = rangeIndex,
+            range = range,
+            isMaxRange = range >= maxRange - RangeMissTolerance,
+            localDirection = localDirection,
+            localPoint = localPoint,
+            worldDirection = worldDirection,
+            worldPoint = worldPoint,
+            raycast = BuildLidarProbeRaycast(worldDirection)
+        };
+
+        CacheDebugProbeRaycastGizmo(probe);
+        return probe;
+    }
+
+    private static int FindNearestVerticalChannel(float[] angles, float targetVerticalDeg)
+    {
+        int bestIndex = 0;
+        float bestDelta = float.PositiveInfinity;
+
+        for (int i = 0; i < angles.Length; i++)
+        {
+            float delta = Mathf.Abs(angles[i] - targetVerticalDeg);
+            if (delta < bestDelta)
+            {
+                bestDelta = delta;
+                bestIndex = i;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    private int FindNearestAzimuthIndex(AzimuthSweep azimuthSweep, float targetAzimuthDeg)
+    {
+        int bestIndex = 0;
+        float bestDelta = float.PositiveInfinity;
+
+        for (int i = 0; i < azimuthSamples; i++)
+        {
+            float azimuthDeg = azimuthSweep.startDeg + i * azimuthSweep.stepDeg;
+            float delta = Mathf.Abs(Mathf.DeltaAngle(azimuthDeg, targetAzimuthDeg));
+            if (delta < bestDelta)
+            {
+                bestDelta = delta;
+                bestIndex = i;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    private static Vector3 CalculateLidarLocalDirection(float azimuthDeg, float verticalDeg)
+    {
+        float azimuthRad = azimuthDeg * Mathf.Deg2Rad;
+        float verticalRad = verticalDeg * Mathf.Deg2Rad;
+        float cosVertical = Mathf.Cos(verticalRad);
+
+        return new Vector3(
+            Mathf.Sin(azimuthRad) * cosVertical,
+            Mathf.Sin(verticalRad),
+            Mathf.Cos(azimuthRad) * cosVertical);
+    }
+
+    private LidarProbeRaycast BuildLidarProbeRaycast(Vector3 worldDirection)
+    {
+        LidarProbeRaycast result = new LidarProbeRaycast
+        {
+            colliderName = "none",
+            layerName = "none"
+        };
+
+        if (worldDirection.sqrMagnitude <= 0.000001f)
+            return result;
+
+        int layerMask = _sourceCamera != null ? _sourceCamera.cullingMask : Physics.DefaultRaycastLayers;
+        RaycastHit[] hits = Physics.RaycastAll(
+            transform.position,
+            worldDirection.normalized,
+            maxRange,
+            layerMask,
+            QueryTriggerInteraction.Ignore);
+
+        int bestIndex = -1;
+        float bestDistance = float.PositiveInfinity;
+        for (int i = 0; i < hits.Length; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.collider == null || hit.distance < minRange) continue;
+            if (!ShouldUseProbeRaycastHit(hit.collider.transform)) continue;
+            if (hit.distance >= bestDistance) continue;
+
+            bestDistance = hit.distance;
+            bestIndex = i;
+        }
+
+        if (bestIndex < 0)
+            return result;
+
+        RaycastHit bestHit = hits[bestIndex];
+        string layerName = LayerMask.LayerToName(bestHit.collider.gameObject.layer);
+        if (string.IsNullOrEmpty(layerName))
+            layerName = bestHit.collider.gameObject.layer.ToString();
+
+        result.hit = true;
+        result.colliderName = bestHit.collider.name;
+        result.layerName = layerName;
+        result.distance = bestHit.distance;
+        result.point = bestHit.point;
+        return result;
+    }
+
+    private bool ShouldUseProbeRaycastHit(Transform hitTransform)
+    {
+        if (hitTransform == null) return false;
+
+        if (_sourceAgent != null && hitTransform.IsChildOf(_sourceAgent.transform))
+            return false;
+
+        if (_sourceSelfRoot != null && hitTransform.IsChildOf(_sourceSelfRoot))
+            return false;
+
+        if (_excludedHiddenGhostRoot != null && hitTransform.IsChildOf(_excludedHiddenGhostRoot))
+            return false;
+
+        if (hitTransform.GetComponentInParent<LidarSensor>() != null)
+            return false;
+
+        return true;
+    }
+
+    private string FormatLidarProbeMessage(LidarProbeSample probe)
+    {
+        return
+            "LiDAR debug step 7 probe: " +
+            $"targetAzimuthDeg={probe.targetAzimuthDeg:0.000}, " +
+            $"targetVerticalDeg={probe.targetVerticalDeg:0.000}, " +
+            $"channel={probe.channelIndex}, " +
+            $"verticalDeg={probe.verticalDeg:0.000}, " +
+            $"azimuthIndex={probe.azimuthIndex}, " +
+            $"azimuthDeg={probe.azimuthDeg:0.000}, " +
+            $"rangeIndex={probe.rangeIndex}, " +
+            $"range={probe.range:0.000000}, " +
+            $"isMaxRange={probe.isMaxRange}, " +
+            $"localDirection={FormatVector3(probe.localDirection)}, " +
+            $"localPoint={FormatVector3(probe.localPoint)}, " +
+            $"worldDirection={FormatVector3(probe.worldDirection)}, " +
+            $"worldPoint={FormatVector3(probe.worldPoint)}, " +
+            $"raycast={FormatLidarProbeRaycast(probe)}";
+    }
+
+    private static string FormatLidarProbeRaycast(LidarProbeSample probe)
+    {
+        if (!probe.raycast.hit)
+            return "noHit";
+
+        return
+            "hit{" +
+            $"collider={probe.raycast.colliderName}, " +
+            $"layer={probe.raycast.layerName}, " +
+            $"distance={probe.raycast.distance:0.000000}, " +
+            $"rangeDelta={probe.raycast.distance - probe.range:0.000000}, " +
+            $"point={FormatVector3(probe.raycast.point)}" +
+            "}";
+    }
+
+    private static string FormatVector3(Vector3 value)
+    {
+        return $"({value.x:0.000000}, {value.y:0.000000}, {value.z:0.000000})";
+    }
+
+    private void CacheDebugProbeRaycastGizmo(LidarProbeSample probe)
+    {
+        if (!probe.raycast.hit)
+        {
+            _hasDebugProbeRaycastGizmo = false;
+            return;
+        }
+
+        _hasDebugProbeRaycastGizmo = true;
+        _debugProbeRayOrigin = transform.position;
+        _debugProbeRayEnd = probe.raycast.point;
+        _debugProbeRaycastHitPoint = probe.raycast.point;
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!drawDebugProbeRaycastGizmo || !_hasDebugProbeRaycastGizmo)
+            return;
+
+        float radius = Mathf.Max(0.001f, debugProbeRaycastGizmoRadius);
+
+        Gizmos.color = debugProbeRayColor;
+        Gizmos.DrawLine(_debugProbeRayOrigin, _debugProbeRayEnd);
+
+        Gizmos.color = debugProbeRaycastHitColor;
+        Gizmos.DrawSphere(_debugProbeRaycastHitPoint, radius);
+        Gizmos.DrawWireSphere(_debugProbeRaycastHitPoint, radius * 2f);
+    }
+
+    /// <summary>
     /// Legacy renderer-toggle helper retained for debugging paths that need to hide the source avatar.
     /// Current LiDAR rendering primarily uses renderer filtering instead of mutating visibility.
     /// </summary>
@@ -1323,6 +1596,33 @@ public class LidarSensor : MonoBehaviour
         public int maxRangeCount;
         public float minRange;
         public float maxHitRange;
+    }
+
+    private struct LidarProbeSample
+    {
+        public float targetAzimuthDeg;
+        public float targetVerticalDeg;
+        public int channelIndex;
+        public float verticalDeg;
+        public int azimuthIndex;
+        public float azimuthDeg;
+        public int rangeIndex;
+        public float range;
+        public bool isMaxRange;
+        public Vector3 localDirection;
+        public Vector3 localPoint;
+        public Vector3 worldDirection;
+        public Vector3 worldPoint;
+        public LidarProbeRaycast raycast;
+    }
+
+    private struct LidarProbeRaycast
+    {
+        public bool hit;
+        public string colliderName;
+        public string layerName;
+        public float distance;
+        public Vector3 point;
     }
 
     private struct RendererState

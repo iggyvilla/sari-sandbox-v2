@@ -8,7 +8,7 @@ public class LidarDepthDebugCapture : MonoBehaviour
 
     /// <summary>
     /// Runs the LiDAR diagnostic capture from the Inspector context menu during play mode.
-    /// If no sensor is assigned, this uses the same level, yaw-only sensor resolver as WebSocket scans.
+    /// If no sensor is assigned, this uses the same level sensor resolver as WebSocket scans.
     /// </summary>
     [ContextMenu("Capture LiDAR Depth Debug")]
     public void Capture()
