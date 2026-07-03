@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
@@ -91,6 +92,21 @@ public struct LidarIndirectDrawStats
     }
 }
 
+public struct BatchInstancerDebugStats
+{
+    public string itemId;
+    public int sourceInstances;
+    public int lods;
+    public int submeshDraws;
+    public int materialSlots;
+    public int textureSlots;
+    public int visibleInstances;
+    public long estimatedSourceVerticesLod0;
+    public long estimatedSourceTrianglesLod0;
+    public long estimatedVisibleVertices;
+    public long estimatedVisibleTriangles;
+}
+
 public class BatchInstancer : MonoBehaviour
 {
     public Camera agentCamera;
@@ -98,6 +114,8 @@ public class BatchInstancer : MonoBehaviour
     // LOD table: lods[0] = _LOD0 (highest quality, closest), lods[N-1] = farthest.
     // Set by GPUInstanceTracker.PrepareBatchInstancer, or configured directly in the Inspector.
     public LODDefinition[] lods;
+    public bool ownsLodMaterials;
+    public bool ownsLodMeshes;
 
     private List<InstanceData> instances = new();
     public string itemId;
@@ -143,6 +161,11 @@ public class BatchInstancer : MonoBehaviour
 
     private bool _ready = false;
     private bool _buffersDirty = false;
+
+    private static readonly ProfilerMarker RebuildBuffersMarker = new("Sari.BatchInstancer.RebuildBuffers");
+    private static readonly ProfilerMarker FrustumCullingMarker = new("Sari.BatchInstancer.FrustumCulling");
+    private static readonly ProfilerMarker DrawVisibleBuffersMarker = new("Sari.BatchInstancer.DrawVisibleBuffers");
+    private static readonly ProfilerMarker DrawSubmeshMarker = new("Sari.BatchInstancer.DrawSubmesh");
 
     public void Init()
     {
@@ -244,6 +267,8 @@ public class BatchInstancer : MonoBehaviour
 
         if (_lodTransformBuffers != null)
             foreach (var buf in _lodTransformBuffers) buf?.Release();
+
+        ReleaseOwnedLodAssets();
     }
 
     public void RemoveSingleDrawData(InstanceData d)
@@ -273,63 +298,66 @@ public class BatchInstancer : MonoBehaviour
 
     private void RebuildBuffers()
     {
-        _positionBuffer?.Release();
-        _positionBuffer = new ComputeBuffer(instances.Count, _positionDataSize);
-
-        Vector4[] positions = new Vector4[instances.Count];
-        LodRenderData[][] lodTransforms = new LodRenderData[lods.Length][];
-        for (int i = 0; i < lods.Length; i++)
-            lodTransforms[i] = new LodRenderData[instances.Count];
-
-        for (int i = 0; i < instances.Count; i++)
+        using (RebuildBuffersMarker.Auto())
         {
-            InstanceData instance = instances[i];
-            positions[i] = new Vector4(instance.lod0.position.x, instance.lod0.position.y, instance.lod0.position.z, 0f);
+            _positionBuffer?.Release();
+            _positionBuffer = new ComputeBuffer(instances.Count, _positionDataSize);
 
-            for (int lod = 0; lod < lods.Length; lod++)
+            Vector4[] positions = new Vector4[instances.Count];
+            LodRenderData[][] lodTransforms = new LodRenderData[lods.Length][];
+            for (int i = 0; i < lods.Length; i++)
+                lodTransforms[i] = new LodRenderData[instances.Count];
+
+            for (int i = 0; i < instances.Count; i++)
             {
-                LodTransform t = GetLodTransform(instance, lod);
-                lodTransforms[lod][i] = new LodRenderData
+                InstanceData instance = instances[i];
+                positions[i] = new Vector4(instance.lod0.position.x, instance.lod0.position.y, instance.lod0.position.z, 0f);
+
+                for (int lod = 0; lod < lods.Length; lod++)
                 {
-                    rotation = t.rotation,
-                    scale = new Vector4(t.scale.x, t.scale.y, t.scale.z, 0f)
-                };
+                    LodTransform t = GetLodTransform(instance, lod);
+                    lodTransforms[lod][i] = new LodRenderData
+                    {
+                        rotation = t.rotation,
+                        scale = new Vector4(t.scale.x, t.scale.y, t.scale.z, 0f)
+                    };
+                }
             }
+
+            _positionBuffer.SetData(positions);
+
+            if (_lodTransformBuffers != null)
+                foreach (var buf in _lodTransformBuffers) buf?.Release();
+
+            _lodTransformBuffers = new ComputeBuffer[lods.Length];
+            for (int i = 0; i < lods.Length; i++)
+            {
+                _lodTransformBuffers[i] = new ComputeBuffer(instances.Count, _lodRenderDataSize);
+                _lodTransformBuffers[i].SetData(lodTransforms[i]);
+            }
+
+            if (_visibleIndexBuffers != null)
+                foreach (var buf in _visibleIndexBuffers) buf?.Release();
+
+            _visibleIndexBuffers = new ComputeBuffer[lods.Length];
+            for (int i = 0; i < lods.Length; i++)
+            {
+                _visibleIndexBuffers[i] = new ComputeBuffer(instances.Count, _visibleIndexSize, ComputeBufferType.Append);
+                frustumCullingShader.SetBuffer(_fKernelId, _fLodBufIds[i], _visibleIndexBuffers[i]);
+            }
+
+            if (_lidarVisibleIndexBuffers != null)
+                foreach (var buf in _lidarVisibleIndexBuffers) buf?.Release();
+
+            _lidarVisibleIndexBuffers = new ComputeBuffer[lods.Length];
+            for (int i = 0; i < lods.Length; i++)
+                _lidarVisibleIndexBuffers[i] = new ComputeBuffer(instances.Count, _visibleIndexSize, ComputeBufferType.Append);
+
+            frustumCullingShader.SetInt(_fNumToDrawId, instances.Count);
+            frustumCullingShader.SetBuffer(_fKernelId, _fPositionBufferId, _positionBuffer);
+
+            _buffersDirty = false;
         }
-
-        _positionBuffer.SetData(positions);
-
-        if (_lodTransformBuffers != null)
-            foreach (var buf in _lodTransformBuffers) buf?.Release();
-
-        _lodTransformBuffers = new ComputeBuffer[lods.Length];
-        for (int i = 0; i < lods.Length; i++)
-        {
-            _lodTransformBuffers[i] = new ComputeBuffer(instances.Count, _lodRenderDataSize);
-            _lodTransformBuffers[i].SetData(lodTransforms[i]);
-        }
-
-        if (_visibleIndexBuffers != null)
-            foreach (var buf in _visibleIndexBuffers) buf?.Release();
-
-        _visibleIndexBuffers = new ComputeBuffer[lods.Length];
-        for (int i = 0; i < lods.Length; i++)
-        {
-            _visibleIndexBuffers[i] = new ComputeBuffer(instances.Count, _visibleIndexSize, ComputeBufferType.Append);
-            frustumCullingShader.SetBuffer(_fKernelId, _fLodBufIds[i], _visibleIndexBuffers[i]);
-        }
-
-        if (_lidarVisibleIndexBuffers != null)
-            foreach (var buf in _lidarVisibleIndexBuffers) buf?.Release();
-
-        _lidarVisibleIndexBuffers = new ComputeBuffer[lods.Length];
-        for (int i = 0; i < lods.Length; i++)
-            _lidarVisibleIndexBuffers[i] = new ComputeBuffer(instances.Count, _visibleIndexSize, ComputeBufferType.Append);
-
-        frustumCullingShader.SetInt(_fNumToDrawId, instances.Count);
-        frustumCullingShader.SetBuffer(_fKernelId, _fPositionBufferId, _positionBuffer);
-
-        _buffersDirty = false;
     }
 
     public void CullForLidarRange(Vector3 origin, float maxRange)
@@ -408,50 +436,59 @@ public class BatchInstancer : MonoBehaviour
     {
         if (targetBuffers == null || targetBuffers.Length == 0) return;
 
-        Profiler.BeginSample(rangeMode ? "LiDAR Range Culling" : "Frustum Culling");
-
-        for (int i = 0; i < lods.Length; i++)
+        using (FrustumCullingMarker.Auto())
         {
-            targetBuffers[i].SetCounterValue(0);
-            frustumCullingShader.SetBuffer(_fKernelId, _fLodBufIds[i], targetBuffers[i]);
+            Profiler.BeginSample(rangeMode ? "LiDAR Range Culling" : "Frustum Culling");
+
+            for (int i = 0; i < lods.Length; i++)
+            {
+                targetBuffers[i].SetCounterValue(0);
+                frustumCullingShader.SetBuffer(_fKernelId, _fLodBufIds[i], targetBuffers[i]);
+            }
+
+            if (!rangeMode && planes != null)
+                _simplePlaneBuffer.SetData(planes);
+
+            frustumCullingShader.SetInt(_fCullingModeId, rangeMode ? 1 : 0);
+            frustumCullingShader.SetVector(_fAgentPositionId, new Vector4(cullOrigin.x, cullOrigin.y, cullOrigin.z, 0f));
+            frustumCullingShader.SetVector(_fRangeCullOriginId, new Vector4(cullOrigin.x, cullOrigin.y, cullOrigin.z, 0f));
+            frustumCullingShader.SetFloat(_fRangeCullMaxDistanceSqId, maxRange * maxRange);
+
+            frustumCullingShader.Dispatch(
+                _fKernelId,
+                Mathf.CeilToInt(instances.Count / (float)_fThreadGroupSizeX),
+                1,
+                1
+            );
+
+            Profiler.EndSample();
         }
-
-        if (!rangeMode && planes != null)
-            _simplePlaneBuffer.SetData(planes);
-
-        frustumCullingShader.SetInt(_fCullingModeId, rangeMode ? 1 : 0);
-        frustumCullingShader.SetVector(_fAgentPositionId, new Vector4(cullOrigin.x, cullOrigin.y, cullOrigin.z, 0f));
-        frustumCullingShader.SetVector(_fRangeCullOriginId, new Vector4(cullOrigin.x, cullOrigin.y, cullOrigin.z, 0f));
-        frustumCullingShader.SetFloat(_fRangeCullMaxDistanceSqId, maxRange * maxRange);
-
-        frustumCullingShader.Dispatch(
-            _fKernelId,
-            Mathf.CeilToInt(instances.Count / (float)_fThreadGroupSizeX),
-            1,
-            1
-        );
-
-        Profiler.EndSample();
     }
 
     private void DrawVisibleBuffers(ComputeBuffer[] visibleBuffers)
     {
-        for (int i = 0; i < lods.Length; i++)
+        using (DrawVisibleBuffersMarker.Auto())
         {
-            if (_subMeshPerLOD[i] == null || lods[i].mesh == null) continue;
-            for (int s = 0; s < _subMeshPerLOD[i].Length; s++)
+            for (int i = 0; i < lods.Length; i++)
             {
-                SubMeshInstance subMesh = _subMeshPerLOD[i][s];
-                BindMaterialBuffers(subMesh.material, visibleBuffers[i], i);
-                subMesh.UpdateInstanceCountBuf(visibleBuffers[i]);
+                if (_subMeshPerLOD[i] == null || lods[i].mesh == null) continue;
+                for (int s = 0; s < _subMeshPerLOD[i].Length; s++)
+                {
+                    using (DrawSubmeshMarker.Auto())
+                    {
+                        SubMeshInstance subMesh = _subMeshPerLOD[i][s];
+                        BindMaterialBuffers(subMesh.material, visibleBuffers[i], i);
+                        subMesh.UpdateInstanceCountBuf(visibleBuffers[i]);
 
-                Graphics.DrawMeshInstancedIndirect(
-                    lods[i].mesh,
-                    s,
-                    subMesh.material,
-                    new Bounds(Vector3.zero, Vector3.one * 1000f),
-                    subMesh.argsBuffer
-                );
+                        Graphics.DrawMeshInstancedIndirect(
+                            lods[i].mesh,
+                            s,
+                            subMesh.material,
+                            new Bounds(Vector3.zero, Vector3.one * 1000f),
+                            subMesh.argsBuffer
+                        );
+                    }
+                }
             }
         }
     }
@@ -514,6 +551,140 @@ public class BatchInstancer : MonoBehaviour
             case 2: return instance.lod2;
             case 3: return instance.lod3;
             default: return instance.lod0;
+        }
+    }
+
+    public BatchInstancerDebugStats GetDebugStats(bool captureVisibleCounts)
+    {
+        BatchInstancerDebugStats stats = new()
+        {
+            itemId = itemId,
+            sourceInstances = instances.Count,
+            lods = lods != null ? lods.Length : 0
+        };
+
+        if (lods == null)
+            return stats;
+
+        HashSet<Texture> textures = new();
+        for (int i = 0; i < lods.Length; i++)
+        {
+            Mesh mesh = lods[i].mesh;
+            Material[] materials = lods[i].materials;
+            int submeshCount = _subMeshPerLOD != null && i < _subMeshPerLOD.Length && _subMeshPerLOD[i] != null
+                ? _subMeshPerLOD[i].Length
+                : 0;
+
+            stats.submeshDraws += submeshCount;
+            if (materials != null)
+            {
+                stats.materialSlots += materials.Length;
+                AddMaterialTextures(materials, textures);
+            }
+
+            if (mesh == null)
+                continue;
+
+            long trianglesPerInstance = GetTriangleCount(mesh);
+            if (i == 0)
+            {
+                stats.estimatedSourceVerticesLod0 += (long)mesh.vertexCount * instances.Count;
+                stats.estimatedSourceTrianglesLod0 += trianglesPerInstance * instances.Count;
+            }
+
+            if (!captureVisibleCounts)
+                continue;
+
+            int visible = CaptureVisibleCountForLod(i);
+            stats.visibleInstances += visible;
+            stats.estimatedVisibleVertices += (long)mesh.vertexCount * visible;
+            stats.estimatedVisibleTriangles += trianglesPerInstance * visible;
+        }
+
+        stats.textureSlots = textures.Count;
+        return stats;
+    }
+
+    private int CaptureVisibleCountForLod(int lodIndex)
+    {
+        if (_subMeshPerLOD == null ||
+            lodIndex < 0 ||
+            lodIndex >= _subMeshPerLOD.Length ||
+            _subMeshPerLOD[lodIndex] == null ||
+            _subMeshPerLOD[lodIndex].Length == 0 ||
+            _subMeshPerLOD[lodIndex][0]?.argsBuffer == null)
+        {
+            return 0;
+        }
+
+        uint[] argsData = new uint[5];
+        _subMeshPerLOD[lodIndex][0].argsBuffer.GetData(argsData);
+        return (int)argsData[1];
+    }
+
+    private static long GetTriangleCount(Mesh mesh)
+    {
+        long indices = 0;
+        for (int i = 0; i < mesh.subMeshCount; i++)
+            indices += (long)mesh.GetIndexCount(i);
+        return indices / 3L;
+    }
+
+    private static void AddMaterialTextures(Material[] materials, HashSet<Texture> textures)
+    {
+        for (int i = 0; i < materials.Length; i++)
+        {
+            Material material = materials[i];
+            if (material == null)
+                continue;
+
+            AddTextureIfPresent(material, "_BaseMap", textures);
+            AddTextureIfPresent(material, "_MainTex", textures);
+            AddTextureIfPresent(material, "_BumpMap", textures);
+            AddTextureIfPresent(material, "_EmissionMap", textures);
+            AddTextureIfPresent(material, "_MetallicGlossMap", textures);
+            AddTextureIfPresent(material, "_OcclusionMap", textures);
+        }
+    }
+
+    private static void AddTextureIfPresent(Material material, string propertyName, HashSet<Texture> textures)
+    {
+        if (!material.HasProperty(propertyName))
+            return;
+
+        Texture texture = material.GetTexture(propertyName);
+        if (texture != null)
+            textures.Add(texture);
+    }
+
+    private void ReleaseOwnedLodAssets()
+    {
+        if (lods == null)
+            return;
+
+        if (ownsLodMaterials)
+        {
+            for (int i = 0; i < lods.Length; i++)
+            {
+                Material[] materials = lods[i].materials;
+                if (materials == null)
+                    continue;
+
+                for (int j = 0; j < materials.Length; j++)
+                {
+                    if (materials[j] != null)
+                        Destroy(materials[j]);
+                }
+            }
+        }
+
+        if (ownsLodMeshes)
+        {
+            for (int i = 0; i < lods.Length; i++)
+            {
+                if (lods[i].mesh != null)
+                    Destroy(lods[i].mesh);
+            }
         }
     }
 }

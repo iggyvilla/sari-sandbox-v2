@@ -10,6 +10,23 @@ public struct SimplePlane
     public Vector3 normal;
 }
 
+public struct GPUInstanceAggregateStats
+{
+    public int batchers;
+    public int activeBatchers;
+    public int itemIds;
+    public int sourceInstances;
+    public int visibleInstances;
+    public int lods;
+    public int submeshDraws;
+    public int materialSlots;
+    public int textureSlots;
+    public long estimatedSourceVerticesLod0;
+    public long estimatedSourceTrianglesLod0;
+    public long estimatedVisibleVertices;
+    public long estimatedVisibleTriangles;
+}
+
 // Singleton class made to track BatchInstancer per Item ID
 public class GPUInstanceTracker : MonoBehaviour
 {
@@ -87,6 +104,56 @@ public class GPUInstanceTracker : MonoBehaviour
         Debug.Log("Despawning all items...");
         foreach (KeyValuePair<string, BatchInstancer> kvp in trackers)
             kvp.Value.ClearAllDrawData();
+    }
+
+    public void ResetAllBatchesForProfiling()
+    {
+        foreach (KeyValuePair<string, BatchInstancer> kvp in trackers)
+        {
+            if (kvp.Value != null)
+                Destroy(kvp.Value);
+        }
+
+        trackers.Clear();
+    }
+
+    public GPUInstanceAggregateStats GetAggregateStats(bool captureVisibleCounts)
+    {
+        GPUInstanceAggregateStats aggregate = new()
+        {
+            batchers = trackers.Count,
+            itemIds = trackers.Count
+        };
+
+        HashSet<string> textureKeys = new();
+        foreach (KeyValuePair<string, BatchInstancer> kvp in trackers)
+        {
+            BatchInstancer batchInstancer = kvp.Value;
+            if (batchInstancer == null)
+                continue;
+
+            BatchInstancerDebugStats stats = batchInstancer.GetDebugStats(captureVisibleCounts);
+            if (stats.sourceInstances > 0)
+                aggregate.activeBatchers++;
+
+            aggregate.sourceInstances += stats.sourceInstances;
+            aggregate.visibleInstances += stats.visibleInstances;
+            aggregate.lods += stats.lods;
+            aggregate.submeshDraws += stats.submeshDraws;
+            aggregate.materialSlots += stats.materialSlots;
+            aggregate.estimatedSourceVerticesLod0 += stats.estimatedSourceVerticesLod0;
+            aggregate.estimatedSourceTrianglesLod0 += stats.estimatedSourceTrianglesLod0;
+            aggregate.estimatedVisibleVertices += stats.estimatedVisibleVertices;
+            aggregate.estimatedVisibleTriangles += stats.estimatedVisibleTriangles;
+
+            // Per-batcher texture counts are already unique within each batcher. This aggregate
+            // intentionally counts texture pressure across active batches, not global asset uniques.
+            for (int i = 0; i < stats.textureSlots; i++)
+                textureKeys.Add($"{stats.itemId}:{i}");
+        }
+
+        aggregate.textureSlots = textureKeys.Count;
+        return aggregate;
     }
 
     private SimplePlane[] GetFrustumPlanes(Camera camera)
@@ -172,6 +239,8 @@ public class GPUInstanceTracker : MonoBehaviour
         bi.frustumCullingShader = Instantiate(frustumCullingShader);
         bi.agentCamera          = mainCamera;
         bi.itemId               = itemId;
+        bi.ownsLodMaterials     = true;
+        bi.ownsLodMeshes        = true;
         bi.Init();
         bi.AddObjectToBatch(chunkInstance);
         trackers[itemId] = bi;
@@ -232,6 +301,8 @@ public class GPUInstanceTracker : MonoBehaviour
         bi.frustumCullingShader = Instantiate(frustumCullingShader);
         bi.agentCamera          = mainCamera;
         bi.itemId               = itemId;
+        bi.ownsLodMaterials     = true;
+        bi.ownsLodMeshes        = false;
     }
 
     /* Make each material a new clone of itself, since the
@@ -248,6 +319,7 @@ public class GPUInstanceTracker : MonoBehaviour
                 shader            = proceduralUrpLitShader,
                 enableInstancing  = true
             };
+            GpuSpawnPerfSettings.ApplyMaterialOverride(cloned[i]);
         }
         return cloned;
     }

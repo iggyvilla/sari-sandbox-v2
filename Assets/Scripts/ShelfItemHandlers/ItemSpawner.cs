@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Unity.Profiling;
 using UnityEngine;
 using Quaternion = UnityEngine.Quaternion;
 using Vector2 = UnityEngine.Vector2;
@@ -17,9 +18,9 @@ public class ItemSpawner : MonoBehaviour
     private float shelfWidth;
     // Set by ShelfBuilder, specified by user
     private float heightBudget;
-    
+
     private Dictionary<string, ItemPriceData> itemPriceData;
-    
+
     public float itemOuterPadding;
     public float itemBackPadding;
     // Adjust these constants if you'd like the items to be less dense
@@ -27,7 +28,7 @@ public class ItemSpawner : MonoBehaviour
     private const float CanFillFraction = 0.5f;
     private Material _airMaterial;
     private ItemCategory itemCategory;
-    
+
     private float _bBoxPadding = 0.005f;
 
     private float direction;
@@ -39,14 +40,19 @@ public class ItemSpawner : MonoBehaviour
     private GameObject _priceTagPrefab;
     private float _priceTagHeight;
     private float _priceTagWidth;
-    
+
     public ShelfItemData shelfItemData;
 
     private ItemSpawnOption _itemSpawnOption;
     private bool spawnPriceTags = false;
     private bool _spawnHingeDoors;
     private bool _initialized;
-    
+
+    private static readonly ProfilerMarker SpawnProductsMarker = new("Sari.ItemSpawner.SpawnProducts");
+    private static readonly ProfilerMarker AddToInstanceMarker = new("Sari.ItemSpawner.AddToInstance");
+    private static readonly ProfilerMarker CreateBBoxMarker = new("Sari.ItemSpawner.CreateBBox");
+    private static readonly ProfilerMarker RowCombineMarker = new("Sari.ItemSpawner.RowCombine");
+
     void Awake()
     {
         itemTriggerMask = LayerMask.NameToLayer("ItemBBox");
@@ -59,9 +65,9 @@ public class ItemSpawner : MonoBehaviour
         }
 
         UpdateShelfDimensions();
-        
+
         /*
-         * We don't spawn products immediately here 
+         * We don't spawn products immediately here
          * because we process scaling/rotation first
          * in ShelfBuilder.cs, then we use SpawnProducts()
          */
@@ -77,7 +83,7 @@ public class ItemSpawner : MonoBehaviour
         spawnPriceTags = _spawnPriceTags;
         _spawnHingeDoors = spawnHingeDoors;
         _airMaterial = airMaterial;
-        
+
         _priceTagPrefab = priceTagPrefab;
         if (priceTagPrefab != null)
         {
@@ -92,19 +98,20 @@ public class ItemSpawner : MonoBehaviour
     {
         // Not sure if there's a better name for this
         direction = CalculateDirectionInteger();
-        
+
         Renderer r = GetComponent<Renderer>();
-        
-        if (ShelfIsFacingZ()) {
+
+        if (ShelfIsFacingZ())
+        {
             widthBudget = r.bounds.size.x;
             depthBudget = r.bounds.size.z;
         }
         else
         {
             widthBudget = r.bounds.size.z;
-            depthBudget = r.bounds.size.x;   
+            depthBudget = r.bounds.size.x;
         }
-        
+
         // How "thick" the shelf is
         shelfWidth = r.bounds.size.y;
     }
@@ -126,178 +133,192 @@ public class ItemSpawner : MonoBehaviour
 
     public void SpawnProducts()
     {
-        if (!TryInitialize()) return;
+        using (SpawnProductsMarker.Auto())
+        {
+            if (!TryInitialize()) return;
 
-        // Update our knowledge of the shelf dimensions
-        UpdateShelfDimensions();
-        
-        if (_itemSpawnOption == ItemSpawnOption.GenerateRandom)
-        {
-            // If we spawn items randomly, then just fill our ShelfItemData with random items
-            shelfItemData.RandomFillFromCategory(
-                itemCategory,
-                InterItemPadding, 
-                widthBudget
-            );
-        }
-        else if (_itemSpawnOption == ItemSpawnOption.GenerateRandomThenSave)
-        {
-            // Generate random items, then save to a JSON
-            shelfItemData.RandomFillFromCategory(
-                itemCategory,
-                InterItemPadding, 
-                widthBudget
-            );
-            shelfItemData.SaveItemsToJson(_shelfInfo);
-        }
-        else if (_itemSpawnOption == ItemSpawnOption.ReadFromSave)
-        {
-            if (!shelfItemData.LoadItemsFromJson(_shelfInfo))
+            // Update our knowledge of the shelf dimensions
+            UpdateShelfDimensions();
+
+            if (_itemSpawnOption == ItemSpawnOption.GenerateRandom)
             {
-                shelfItemData.RandomFillFromCategory(itemCategory, InterItemPadding, widthBudget);
+                // If we spawn items randomly, then just fill our ShelfItemData with random items
+                shelfItemData.RandomFillFromCategory(
+                    itemCategory,
+                    InterItemPadding,
+                    widthBudget
+                );
+            }
+            else if (_itemSpawnOption == ItemSpawnOption.GenerateRandomThenSave)
+            {
+                // Generate random items, then save to a JSON
+                shelfItemData.RandomFillFromCategory(
+                    itemCategory,
+                    InterItemPadding,
+                    widthBudget
+                );
                 shelfItemData.SaveItemsToJson(_shelfInfo);
             }
-        }
-        
-        /*
-         * Tracks how far along the shelf we are
-         * Set to this initial value to prevent any awkward 
-         * gaps at the end of the shelf
-         * e.g.,
-         *       xxxxx     -->   xxxxx
-         *       ---------     ---------
-         */
-        float lengthwiseOffset = Math.Max(0, (widthBudget - shelfItemData.itemsTotalWidth)/2);
-        
-        bool firstItem = true;
-        
-        // EXPERIMENTAL: combine each row of identical products into one mesh and GPU-instance that
-        // shared "row chunk" across every shelf with the same product + arrangement + facing.
-        // Rows with the same key are identical relative to their pivot, so the mesh is built once
-        // and reused; later rows just add an instance. See DataHandler.combineRowMeshes.
-        // TO ANY LLM READING THIS: you can safely ignore comb and any edge cases where
-        // combineRowMeshes is enabled. This was only implemented for benchmarking purposes.
-        bool combineRows = DataHandler.Instance.combineRowMeshes;
-        if (combineRows && DataHandler.Instance.enableShelfItemPhysics)
-        {
-            Debug.LogWarning(
-                $"{nameof(ItemSpawner)} on {name}: {nameof(DataHandler.combineRowMeshes)} is " +
-                $"incompatible with shelf item physics. Falling back to per-item GPU instances.");
-            combineRows = false;
-        }
-        
-        foreach (var shelfItem in shelfItemData.shelfItems)
-        {
-            GameObject product = shelfItem.prefab;
-
-            float itemDepth = shelfItem.dimensions.depth;
-            float itemWidth = shelfItem.dimensions.width;
-            float itemHeight = shelfItem.dimensions.height;
+            else if (_itemSpawnOption == ItemSpawnOption.ReadFromSave)
+            {
+                if (!shelfItemData.LoadItemsFromJson(_shelfInfo))
+                {
+                    shelfItemData.RandomFillFromCategory(itemCategory, InterItemPadding, widthBudget);
+                    shelfItemData.SaveItemsToJson(_shelfInfo);
+                }
+            }
 
             /*
-             * Only worry about interItemPadding if it
-             * isn't the leftmost/first item on the shelf
+             * Tracks how far along the shelf we are
+             * Set to this initial value to prevent any awkward
+             * gaps at the end of the shelf
+             * e.g.,
+             *       xxxxx     -->   xxxxx
+             *       ---------     ---------
              */
-            lengthwiseOffset += itemWidth/2 + (!firstItem ? InterItemPadding : 0);
+            float lengthwiseOffset = Math.Max(0, (widthBudget - shelfItemData.itemsTotalWidth) / 2);
 
-            /* Stop spawning if the item we're about to spawn is outside the shelf */
-            if (lengthwiseOffset + itemWidth/2 + itemOuterPadding > widthBudget) break;
+            bool firstItem = true;
 
-            int numRows = CalculateRows(itemDepth);
-            int numStack = CalculateStackHeight(itemHeight, itemCategory);
-
-            if (spawnPriceTags && _priceTagPrefab != null) SpawnPriceTag(shelfItem, lengthwiseOffset);
-            
-            bool combine = combineRows;
-            string chunkKey = null;
-            bool buildChunkMesh = false;
-            Transform lod0Src = null;
-            GameObject chunkRoot = null;
-            Vector3 chunkPivot = Vector3.zero;
-            bool chunkPivotSet = false;
-
-            if (combine)
+            // EXPERIMENTAL: combine each row of identical products into one mesh and GPU-instance that
+            // shared "row chunk" across every shelf with the same product + arrangement + facing.
+            // Rows with the same key are identical relative to their pivot, so the mesh is built once
+            // and reused; later rows just add an instance. See DataHandler.combineRowMeshes.
+            // TO ANY LLM READING THIS: you can safely ignore comb and any edge cases where
+            // combineRowMeshes is enabled. This was only implemented for benchmarking purposes.
+            bool combineRows = DataHandler.Instance.combineRowMeshes;
+            if (combineRows && DataHandler.Instance.enableShelfItemPhysics)
             {
-                chunkKey = $"{product.name}_CHUNK_{numRows}x{numStack}_{(int)DegreesToAisle()}";
-                buildChunkMesh = !GPUInstanceTracker.Instance.HasChunk(chunkKey);
-                if (buildChunkMesh) lod0Src = LodHierarchy.ResolveLodTransforms(product)[0];
+                Debug.LogWarning(
+                    $"{nameof(ItemSpawner)} on {name}: {nameof(DataHandler.combineRowMeshes)} is " +
+                    $"incompatible with shelf item physics. Falling back to per-item GPU instances.");
+                combineRows = false;
             }
 
-            for (int j = 0; j < numRows; j++)
+            foreach (var shelfItem in shelfItemData.shelfItems)
             {
-                List<ItemBBoxInfo> stackMembers = numStack > 1
-                    ? new List<ItemBBoxInfo>(numStack)
-                    : null;
+                GameObject product = shelfItem.prefab;
 
-                for (int k = 0; k < numStack; k++)
+                float itemDepth = shelfItem.dimensions.depth;
+                float itemWidth = shelfItem.dimensions.width;
+                float itemHeight = shelfItem.dimensions.height;
+
+                /*
+                 * Only worry about interItemPadding if it
+                 * isn't the leftmost/first item on the shelf
+                 */
+                lengthwiseOffset += itemWidth / 2 + (!firstItem ? InterItemPadding : 0);
+
+                /* Stop spawning if the item we're about to spawn is outside the shelf */
+                if (lengthwiseOffset + itemWidth / 2 + itemOuterPadding > widthBudget) break;
+
+                int numRows = CalculateRows(itemDepth);
+                int numStack = CalculateStackHeight(itemHeight, itemCategory);
+
+                if (!GpuSpawnPerfSettings.SuppressPriceTags && spawnPriceTags && _priceTagPrefab != null)
+                    SpawnPriceTag(shelfItem, lengthwiseOffset);
+
+                bool combine = combineRows;
+                string chunkKey = null;
+                bool buildChunkMesh = false;
+                Transform lod0Src = null;
+                GameObject chunkRoot = null;
+                Vector3 chunkPivot = Vector3.zero;
+                bool chunkPivotSet = false;
+
+                if (combine)
                 {
-                    Vector3 spawnPosition =
-                        GenerateSpawnPositionsOnShelf(
-                            lengthwiseOffset,
-                            itemDepth,
-                            itemHeight,
-                            j,
-                            k
-                        );
-
-                    Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
-
-                    InstanceData instanceData =
-                        GenerateProductDrawData(product, spawnPosition);
-
-                    if (combine)
-                    {
-                        // The row's first spawn position is the chunk pivot (the empty's location).
-                        if (!chunkPivotSet) { chunkPivot = spawnPosition; chunkPivotSet = true; }
-
-                        // Only build the shared mesh the first time this arrangement is seen.
-                        if (buildChunkMesh)
-                        {
-                            if (chunkRoot == null)
-                                chunkRoot = CreateChunkRoot(product.name, spawnPosition);
-
-                            AddRowMeshChild(lod0Src, instanceData.lod0, chunkRoot.transform);
-                        }
-                    }
-                    else
-                    {
-                        GPUInstanceTracker.Instance.AddToInstance(
-                            product.name,
-                            product,
-                            instanceData
-                        );
-                    }
-
-                    // Pass in spawnPosition because bounding box position
-                    // calcs assumes mesh origin at bottom
-                    ItemBBoxInfo bboxInfo = GenerateBoundingBoxTriggerForItem(
-                        spawnPosition,
-                        spawnPosition,
-                        itemHeight,
-                        itemWidth,
-                        itemDepth,
-                        product.name,
-                        instanceData,
-                        aisleRot
-                    );
-
-                    stackMembers?.Add(bboxInfo);
+                    chunkKey = $"{product.name}_CHUNK_{numRows}x{numStack}_{(int)DegreesToAisle()}";
+                    buildChunkMesh = !GPUInstanceTracker.Instance.HasChunk(chunkKey);
+                    if (buildChunkMesh) lod0Src = LodHierarchy.ResolveLodTransforms(product)[0];
                 }
 
-                if (stackMembers != null)
-                    new ShelfItemPhysicsStack(stackMembers);
-            }
+                for (int j = 0; j < numRows; j++)
+                {
+                    List<ItemBBoxInfo> stackMembers = !GpuSpawnPerfSettings.SuppressBBoxTriggers && numStack > 1
+                        ? new List<ItemBBoxInfo>(numStack)
+                        : null;
 
-            if (combine && chunkPivotSet)
-            {
-                if (buildChunkMesh && chunkRoot != null)
-                    FinalizeChunk(chunkRoot, chunkKey, chunkPivot, ProductIsMultiMaterial(lod0Src));
-                else
-                    GPUInstanceTracker.Instance.AddChunkInstance(chunkKey, chunkPivot);
-            }
+                    for (int k = 0; k < numStack; k++)
+                    {
+                        Vector3 spawnPosition =
+                            GenerateSpawnPositionsOnShelf(
+                                lengthwiseOffset,
+                                itemDepth,
+                                itemHeight,
+                                j,
+                                k
+                            );
 
-            firstItem = false;
-            lengthwiseOffset += itemWidth/2;
+                        Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
+
+                        InstanceData instanceData =
+                            GenerateProductDrawData(product, spawnPosition);
+
+                        if (combine)
+                        {
+                            // The row's first spawn position is the chunk pivot (the empty's location).
+                            if (!chunkPivotSet) { chunkPivot = spawnPosition; chunkPivotSet = true; }
+
+                            // Only build the shared mesh the first time this arrangement is seen.
+                            if (buildChunkMesh)
+                            {
+                                if (chunkRoot == null)
+                                    chunkRoot = CreateChunkRoot(product.name, spawnPosition);
+
+                                AddRowMeshChild(lod0Src, instanceData.lod0, chunkRoot.transform);
+                            }
+                        }
+                        else
+                        {
+                            using (AddToInstanceMarker.Auto())
+                            {
+                                GPUInstanceTracker.Instance.AddToInstance(
+                                    product.name,
+                                    product,
+                                    instanceData
+                                );
+                            }
+                        }
+
+                        if (!GpuSpawnPerfSettings.SuppressBBoxTriggers)
+                        {
+                            // Pass in spawnPosition because bounding box position
+                            // calcs assumes mesh origin at bottom
+                            ItemBBoxInfo bboxInfo;
+                            using (CreateBBoxMarker.Auto())
+                            {
+                                bboxInfo = GenerateBoundingBoxTriggerForItem(
+                                    spawnPosition,
+                                    spawnPosition,
+                                    itemHeight,
+                                    itemWidth,
+                                    itemDepth,
+                                    product.name,
+                                    instanceData,
+                                    aisleRot
+                                );
+                            }
+
+                            stackMembers?.Add(bboxInfo);
+                        }
+                    }
+
+                    if (stackMembers != null)
+                        new ShelfItemPhysicsStack(stackMembers);
+                }
+
+                if (combine && chunkPivotSet)
+                {
+                    if (buildChunkMesh && chunkRoot != null)
+                        FinalizeChunk(chunkRoot, chunkKey, chunkPivot, ProductIsMultiMaterial(lod0Src));
+                    else
+                        GPUInstanceTracker.Instance.AddChunkInstance(chunkKey, chunkPivot);
+                }
+
+                firstItem = false;
+                lengthwiseOffset += itemWidth / 2;
+            }
         }
     }
 
@@ -358,32 +379,35 @@ public class ItemSpawner : MonoBehaviour
     // adds the first instance at the pivot), then discard the root.
     void FinalizeChunk(GameObject chunkRoot, string chunkKey, Vector3 pivot, bool multiMaterial)
     {
-        MeshCombiner combiner = chunkRoot.AddComponent<MeshCombiner>();
-        combiner.DestroyCombinedChildren = true;
-        // Multi-submesh items must use the multi-material combine path or they lose submeshes.
-        combiner.CreateMultiMaterialMesh = multiMaterial;
-        combiner.CombineMeshes(false);
+        using (RowCombineMarker.Auto())
+        {
+            MeshCombiner combiner = chunkRoot.AddComponent<MeshCombiner>();
+            combiner.DestroyCombinedChildren = true;
+            // Multi-submesh items must use the multi-material combine path or they lose submeshes.
+            combiner.CreateMultiMaterialMesh = multiMaterial;
+            combiner.CombineMeshes(false);
 
-        Mesh combined = chunkRoot.GetComponent<MeshFilter>().sharedMesh;
-        Material[] mats = chunkRoot.GetComponent<MeshRenderer>().sharedMaterials;
+            Mesh combined = chunkRoot.GetComponent<MeshFilter>().sharedMesh;
+            Material[] mats = chunkRoot.GetComponent<MeshRenderer>().sharedMaterials;
 
-        if (combined != null)
-            GPUInstanceTracker.Instance.AddCombinedChunk(chunkKey, combined, mats, pivot);
+            if (combined != null)
+                GPUInstanceTracker.Instance.AddCombinedChunk(chunkKey, combined, mats, pivot);
 
-        // The BatchInstancer now owns the combined mesh; drop the root so its own MeshRenderer
-        // doesn't double-render it.
-        MeshRenderer rootRenderer = chunkRoot.GetComponent<MeshRenderer>();
-        if (rootRenderer != null) rootRenderer.enabled = false;
-        Destroy(chunkRoot);
+            // The BatchInstancer now owns the combined mesh; drop the root so its own MeshRenderer
+            // doesn't double-render it.
+            MeshRenderer rootRenderer = chunkRoot.GetComponent<MeshRenderer>();
+            if (rootRenderer != null) rootRenderer.enabled = false;
+            Destroy(chunkRoot);
+        }
     }
 
     private void SpawnPriceTag(RetailItemData shelfItem, float lengthwiseOffset)
     {
-        Vector3 priceTagSpawnPos = transform.position 
-                                   + transform.right * (lengthwiseOffset - widthBudget/2) * (ShelfIsFacingZ() ? -1 : 1) 
-                                   + transform.forward * (depthBudget/2 + 0.001f)
-                                   + transform.up * shelfWidth/2
-                                   - transform.up * _priceTagHeight/2;
+        Vector3 priceTagSpawnPos = transform.position
+                                   + transform.right * (lengthwiseOffset - widthBudget / 2) * (ShelfIsFacingZ() ? -1 : 1)
+                                   + transform.forward * (depthBudget / 2 + 0.001f)
+                                   + transform.up * shelfWidth / 2
+                                   - transform.up * _priceTagHeight / 2;
 
         Quaternion priceTagRotation = Quaternion.LookRotation(-transform.up, transform.forward);
 
@@ -405,11 +429,11 @@ public class ItemSpawner : MonoBehaviour
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         GameObject pt = Instantiate(
-            _priceTagPrefab, 
+            _priceTagPrefab,
             priceTagSpawnPos,
             priceTagRotation
         );
-                    
+
         PriceTag ptconfig = pt.GetComponent<PriceTag>();
 
         if (ptconfig != null && itemPriceData.TryGetValue(shelfItem.name, out ptinfo))
@@ -420,7 +444,7 @@ public class ItemSpawner : MonoBehaviour
                 ptinfo.netWeight
             );
         }
-                    
+
         pt.isStatic = true;
         // Set name in Unity hierarchy, helpful when debugging
         pt.name = shelfItem.name + "_PRICE_TAG";
@@ -490,9 +514,9 @@ public class ItemSpawner : MonoBehaviour
         void AdjustLod(Transform lodTransform, ref LodTransform lodData)
         {
             if (lodTransform is null) return;
-            
+
             Mesh mesh = lodTransform.GetComponent<MeshFilter>()?.sharedMesh;
-            
+
             // If mesh exists, and its pivot is already at the bottom, no need to adjust
             if (mesh is null)
             {
@@ -520,7 +544,7 @@ public class ItemSpawner : MonoBehaviour
 
     int CalculateRows(float itemWidth)
     {
-        return (int) ((depthBudget-itemOuterPadding-itemBackPadding) /
+        return (int)((depthBudget - itemOuterPadding - itemBackPadding) /
                       (itemWidth + InterItemPadding));
     }
 
@@ -533,7 +557,7 @@ public class ItemSpawner : MonoBehaviour
         bbox.tag = "RetailItemBBox";
         bbox.AddComponent<OutlineFx.OutlineFx>();
         bbox.AddComponent<OutlineController>();
-        
+
         // Squares in Unity extrude from the center, hence the need to
         // add itemHeight since we assume that the item's
         // pivot is at it's bottom
@@ -544,7 +568,9 @@ public class ItemSpawner : MonoBehaviour
         bbox.GetComponent<Renderer>().material = _airMaterial;
 
         itemBBoxInfo.itemId = productName;
-        itemBBoxInfo.expirationDateDecalId = ExpirationDateDecalCatalog.GetRandomDecalId();
+        itemBBoxInfo.expirationDateDecalId = GpuSpawnPerfSettings.SuppressExpirationDecals
+            ? null
+            : ExpirationDateDecalCatalog.GetRandomDecalId();
         itemBBoxInfo.instanceData = instanceData;
         itemBBoxInfo.physicsSpawnPosition = physicsSpawnPosition;
         itemBBoxInfo.spawnRotation = aisleRot;
@@ -587,7 +613,7 @@ public class ItemSpawner : MonoBehaviour
             {
                 position = spawnPosition,
                 rotation = new Vector4(q.x, q.y, q.z, q.w),
-                scale    = src.lossyScale
+                scale = src.lossyScale
             };
         }
 
@@ -601,13 +627,13 @@ public class ItemSpawner : MonoBehaviour
 
         return AdjustDrawDataIfPivotOnCenter(lods[0], lods[1], lods[2], lods[3], data);
     }
-    
+
     Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum, bool bBoxDepth = false)
     {
         Vector3 shelfPos = transform.position;
-        
+
         float sideOffset =
-            (widthBudget/2 - itemOuterPadding - lengthwiseOffset) *
+            (widthBudget / 2 - itemOuterPadding - lengthwiseOffset) *
             direction;
 
         float backOffset;
@@ -618,10 +644,10 @@ public class ItemSpawner : MonoBehaviour
         else
         {
             backOffset =
-                (depthBudget/2 - ((itemDepth + InterItemPadding) 
+                (depthBudget / 2 - ((itemDepth + InterItemPadding)
                                   * (rowNum + 0.5f)) - itemOuterPadding) * direction;
         }
-        
+
         /* A shelf's side and back differs depending on how its rotated */
         Vector3 spawnPosition = new Vector3(
             // stacks items sidewards
@@ -650,13 +676,13 @@ public class ItemSpawner : MonoBehaviour
     int CalculateStackHeight(float itemHeight, ItemCategory category)
     {
         // TODO: can implement randomness for row front (i.e., iteration = 0)
-        
+
         // stack only if of type "Can" or "Biscuit"
         if (category is ItemCategory.Can)
         {
             return (int)((heightBudget * CanFillFraction) / itemHeight);
         }
-        
+
         return 1;
     }
 
