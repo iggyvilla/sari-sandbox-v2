@@ -128,6 +128,8 @@ public class ItemSpawner : MonoBehaviour
     {
         if (!TryInitialize()) return;
 
+        NearbyItemBBoxManager.TryGetInstance()?.ClearOwner(this, removeGpuInstances: true);
+
         // Update our knowledge of the shelf dimensions
         UpdateShelfDimensions();
         
@@ -223,10 +225,15 @@ public class ItemSpawner : MonoBehaviour
                 if (buildChunkMesh) lod0Src = LodHierarchy.ResolveLodTransforms(product)[0];
             }
 
+            NearbyItemBBoxManager nearbyBBoxManager = combine ? null : NearbyItemBBoxManager.Instance;
+
             for (int j = 0; j < numRows; j++)
             {
-                List<ItemBBoxInfo> stackMembers = numStack > 1
+                List<ItemBBoxInfo> eagerStackMembers = combine && numStack > 1
                     ? new List<ItemBBoxInfo>(numStack)
+                    : null;
+                List<VirtualItemBBoxRecord> virtualStackMembers = !combine && numStack > 1
+                    ? new List<VirtualItemBBoxRecord>(numStack)
                     : null;
 
                 for (int k = 0; k < numStack; k++)
@@ -268,24 +275,45 @@ public class ItemSpawner : MonoBehaviour
                         );
                     }
 
-                    // Pass in spawnPosition because bounding box position
-                    // calcs assumes mesh origin at bottom
-                    ItemBBoxInfo bboxInfo = GenerateBoundingBoxTriggerForItem(
-                        spawnPosition,
-                        spawnPosition,
-                        itemHeight,
-                        itemWidth,
-                        itemDepth,
-                        product.name,
-                        instanceData,
-                        aisleRot
-                    );
+                    if (combine)
+                    {
+                        // Pass in spawnPosition because bounding box position
+                        // calcs assumes mesh origin at bottom.
+                        ItemBBoxInfo bboxInfo = GenerateBoundingBoxTriggerForItem(
+                            spawnPosition,
+                            spawnPosition,
+                            itemHeight,
+                            itemWidth,
+                            itemDepth,
+                            product.name,
+                            instanceData,
+                            aisleRot
+                        );
 
-                    stackMembers?.Add(bboxInfo);
+                        eagerStackMembers?.Add(bboxInfo);
+                    }
+                    else
+                    {
+                        VirtualItemBBoxRecord record = CreateVirtualBBoxRecord(
+                            spawnPosition,
+                            spawnPosition,
+                            itemHeight,
+                            itemWidth,
+                            itemDepth,
+                            product.name,
+                            instanceData,
+                            aisleRot
+                        );
+
+                        nearbyBBoxManager.RegisterVirtualBBox(record);
+                        virtualStackMembers?.Add(record);
+                    }
                 }
 
-                if (stackMembers != null)
-                    new ShelfItemPhysicsStack(stackMembers);
+                if (eagerStackMembers != null)
+                    new ShelfItemPhysicsStack(eagerStackMembers);
+                if (virtualStackMembers != null)
+                    nearbyBBoxManager.RegisterStackGroup(virtualStackMembers);
             }
 
             if (combine && chunkPivotSet)
@@ -474,6 +502,8 @@ public class ItemSpawner : MonoBehaviour
 
     private void OnDestroy()
     {
+        NearbyItemBBoxManager.TryGetInstance()?.ClearOwner(this, removeGpuInstances: true);
+
         foreach (var trigger in triggers)
         {
             Destroy(trigger);
@@ -562,8 +592,29 @@ public class ItemSpawner : MonoBehaviour
             (ShelfIsFacingZ() ? itemDepth : itemWidth) + _bBoxPadding
         );
 
-        // itemTrigger.transform.SetParent(transform);
+        triggers.Add(bbox);
         return itemBBoxInfo;
+    }
+
+    VirtualItemBBoxRecord CreateVirtualBBoxRecord(Vector3 drawPosition, Vector3 physicsSpawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
+    {
+        return new VirtualItemBBoxRecord
+        {
+            itemId = productName,
+            expirationDateDecalId = ExpirationDateDecalCatalog.GetRandomDecalId(),
+            instanceData = instanceData,
+            bboxCenter = drawPosition + new Vector3(0, itemHeight / 2, 0),
+            bboxSize = new Vector3(
+                (ShelfIsFacingZ() ? itemWidth : itemDepth) + _bBoxPadding,
+                itemHeight + _bBoxPadding,
+                (ShelfIsFacingZ() ? itemDepth : itemWidth) + _bBoxPadding
+            ),
+            physicsSpawnPosition = physicsSpawnPosition,
+            spawnRotation = aisleRot,
+            bboxMaterial = _airMaterial,
+            ownerSpawner = this,
+            ownerTransform = transform
+        };
     }
 
     InstanceData GenerateProductDrawData(GameObject product, Vector3 spawnPosition)

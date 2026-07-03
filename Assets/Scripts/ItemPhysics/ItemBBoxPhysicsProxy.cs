@@ -21,6 +21,12 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
         _runtimeItem != null &&
         _runtimeItem.state == RetailItemRuntimeState.PhysicsPreview &&
         _runtimeItem.gameObject != null;
+    internal bool CanReturnToVirtualPool =>
+        !_permanentlyPhysical &&
+        _runtimeItem == null &&
+        _settleCoroutine == null &&
+        (_bBoxInfo == null || !_bBoxInfo.isPhysicsObject);
+    internal ItemBBoxInfo BBoxInfo => _bBoxInfo != null ? _bBoxInfo : GetComponent<ItemBBoxInfo>();
 
     void Awake()
     {
@@ -69,7 +75,8 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
         CancelSettleEvaluation();
         _bBoxInfo?.PhysicsStack?.OnMemberRemoved(this);
 
-        RetailItemRuntimeService.Instance.ReleaseActivePhysicsPreview(_runtimeItem);
+        if (_runtimeItem != null)
+            RetailItemRuntimeService.Instance.ReleaseActivePhysicsPreview(_runtimeItem);
         _runtimeItem = null;
     }
 
@@ -82,6 +89,45 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
             _bBoxInfo.onBeforeDelete = OnBeforeItemGrabbed;
 
         return _runtimeItem != null;
+    }
+
+    internal void ResetForVirtualPoolReuse(bool enableShelfPhysics)
+    {
+        CancelSettleEvaluation();
+        _bBoxInfo = GetComponent<ItemBBoxInfo>();
+        _permanentlyPhysical = false;
+        _runtimeItem = null;
+        enabled = enableShelfPhysics;
+    }
+
+    internal void ResetForVirtualPoolRelease()
+    {
+        CancelSettleEvaluation();
+        _permanentlyPhysical = false;
+        _runtimeItem = null;
+        enabled = false;
+    }
+
+    internal void ReleasePreviewForVirtualCleanup()
+    {
+        CancelSettleEvaluation();
+
+        if (_bBoxInfo != null)
+            _bBoxInfo.PhysicsStack?.OnMemberRemoved(this);
+
+        if (_runtimeItem != null)
+            RetailItemRuntimeService.Instance.ReleaseActivePhysicsPreview(_runtimeItem);
+        _runtimeItem = null;
+        _permanentlyPhysical = false;
+
+        if (_bBoxInfo != null)
+        {
+            _bBoxInfo.isPhysicsObject = false;
+            _bBoxInfo.returnToPoolOnDelete = false;
+            _bBoxInfo.onBeforeDelete = null;
+        }
+
+        enabled = false;
     }
 
     // Called by ItemBBoxInfo.DeleteItem() when the agent grabs the item mid-activation.

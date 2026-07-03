@@ -25,6 +25,16 @@ public class OutlineController : MonoBehaviour
         }
     }
 
+    public void ResetOutlineState()
+    {
+        _lastLookTime = 0f;
+        _isBeingLookedAt = false;
+        if (_outlineFxScript == null)
+            _outlineFxScript = GetComponent<OutlineFx.OutlineFx>();
+        if (_outlineFxScript != null)
+            _outlineFxScript.enabled = false;
+    }
+
     private void Update()
     {
         // If the current time passes the last hit + timeout, we stopped looking

@@ -15,6 +15,9 @@ public class ItemBBoxInfo : MonoBehaviour
     public InstanceData instanceData;
     public ShelfItemPhysicsStack PhysicsStack { get; set; }
     public bool IsStackable => PhysicsStack != null;
+    public VirtualItemBBoxRecord VirtualRecord { get; set; }
+    public bool IsVirtualShelfBBox => VirtualRecord != null;
+    public bool suppressGpuRemovalOnDestroy;
 
     // Original shelf/root spawn position before GPU-only pivot correction.
     public Vector3 physicsSpawnPosition;
@@ -32,6 +35,9 @@ public class ItemBBoxInfo : MonoBehaviour
 
     private void OnDestroy()
     {
-        RetailItemRuntimeService.RemoveShelfGpuInstanceForBBox(this);
+        NearbyItemBBoxManager.TryGetInstance()?.NotifyShelfBBoxDestroyed(this);
+
+        if (!suppressGpuRemovalOnDestroy)
+            RetailItemRuntimeService.RemoveShelfGpuInstanceForBBox(this);
     }
 }

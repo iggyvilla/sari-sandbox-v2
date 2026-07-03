@@ -235,6 +235,7 @@ public class RetailItemRuntimeService : MonoBehaviour
     {
         if (item == null) return;
         item.state = RetailItemRuntimeState.Dropped;
+        NearbyItemBBoxManager.TryGetInstance()?.NotifyBBoxBecameDropped(item.shelfBBoxInfo);
     }
 
     public void ReleaseActivePhysicsPreview(RuntimeRetailItem item)

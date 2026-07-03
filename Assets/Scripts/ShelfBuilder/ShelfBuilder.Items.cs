@@ -44,6 +44,13 @@ public partial class ShelfBuilder
 
     public void DespawnShelfItems()
     {
+        NearbyItemBBoxManager manager = NearbyItemBBoxManager.TryGetInstance();
+        if (manager != null)
+        {
+            foreach (ItemSpawner spawner in GetComponentsInChildren<ItemSpawner>())
+                manager.ClearOwner(spawner, removeGpuInstances: true);
+        }
+
         foreach (ItemBBoxInfo bboxInfo in GetComponentsInChildren<ItemBBoxInfo>())
         {
             bboxInfo.DeleteItem();
@@ -67,6 +74,7 @@ public partial class ShelfBuilder
 
     public static void DespawnAllItemsInScene()
     {
+        NearbyItemBBoxManager.TryGetInstance()?.ClearAllVirtualBBoxes(removeGpuInstances: false);
         GPUInstanceTracker.Instance.DespawnAllItems();
         DeleteAllPriceTags();
     }

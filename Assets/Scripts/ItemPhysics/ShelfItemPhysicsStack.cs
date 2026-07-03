@@ -17,6 +17,13 @@ public sealed class ShelfItemPhysicsStack
     private bool _permanentlyPhysical;
     private bool _isActivating;
 
+    internal bool CanReturnToVirtualPool =>
+        !_permanentlyPhysical &&
+        !_isActivating &&
+        _settleCoroutine == null &&
+        !HasHandOverlaps() &&
+        !HasActivePhysicsPreviews();
+
     public ShelfItemPhysicsStack(IReadOnlyList<ItemBBoxInfo> orderedMembers)
     {
         foreach (ItemBBoxInfo bboxInfo in orderedMembers)
@@ -92,6 +99,22 @@ public sealed class ShelfItemPhysicsStack
 
         if (!_isActivating && !HasHandOverlaps())
             BeginSettleEvaluation();
+    }
+
+    internal void ClearVirtualPoolMembers()
+    {
+        CancelSettleEvaluation();
+
+        foreach (ItemBBoxPhysicsProxy proxy in _members)
+        {
+            ItemBBoxInfo bboxInfo = proxy != null ? proxy.BBoxInfo : null;
+            if (bboxInfo != null && bboxInfo.PhysicsStack == this)
+                bboxInfo.PhysicsStack = null;
+        }
+
+        _members.Clear();
+        _handOverlaps.Clear();
+        _isActivating = false;
     }
 
     private void BeginSettleEvaluation()

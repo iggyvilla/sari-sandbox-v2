@@ -19,6 +19,16 @@ public class HandCollisionDetector : MonoBehaviour
         _itemBBoxMask = LayerMask.GetMask("ItemBBox");
     }
 
+    private void OnEnable()
+    {
+        NearbyItemBBoxManager.Instance.RegisterActivationOrigin(transform);
+    }
+
+    private void OnDisable()
+    {
+        NearbyItemBBoxManager.TryGetInstance()?.UnregisterActivationOrigin(transform);
+    }
+
     private void Update()
     {
         UpdateNearestItem();
