@@ -40,6 +40,9 @@ class AgentContext:
     tool_results: list[dict[str, Any]] = field(default_factory=list)
     completed: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Optional DebugHub used by the embedded websocket backend.  It is typed as
+    # Any to keep the context module free of runtime dependencies on debug code.
+    debug_hub: Any | None = None
 
     @property
     def current_state(self) -> AgentStateConfig:
