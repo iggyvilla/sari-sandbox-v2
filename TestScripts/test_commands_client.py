@@ -223,6 +223,13 @@ def expect_grip_state(hand_side, v1_compatibility):
     return expect_hand_state(False)
 
 
+def expect_reset_hand_state(v1_compatibility):
+    if v1_compatibility:
+        return expect_exact("Hand position reset")
+
+    return expect_hand_state(False)
+
+
 def parse_json_object(response, label):
     try:
         value = json.loads(response)
@@ -327,7 +334,7 @@ def run(
 
         tester.send_command(
             "ResetHandPosition",
-            validator=expect_exact("Hand position reset"),
+            validator=expect_reset_hand_state(v1_compatibility),
         )
 
         if v1_compatibility:
@@ -364,7 +371,7 @@ def run(
 
         tester.send_command(
             "ResetHandPosition",
-            validator=expect_exact("Hand position reset"),
+            validator=expect_reset_hand_state(v1_compatibility),
         )
         tester.send_command(
             "IsHoldingItem",

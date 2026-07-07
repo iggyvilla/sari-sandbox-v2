@@ -432,6 +432,10 @@ async def test_agent_turn_marks_sub_goal_failed_at_turn_limit() -> None:
     assert result == LoopResult.ADVANCE
     assert len(client.calls) == 2
     assert context.sub_goals[0].status == "failed"
+    assert context.metadata["sub_goal_turn_limit_stop"] == {
+        "sub_goal_index": 0,
+        "max_turns": 2,
+    }
     assert "pipeline.subgoal.turn_limit" in [
         event.to_dict()["type"] for event in hub.replay_events()
     ]

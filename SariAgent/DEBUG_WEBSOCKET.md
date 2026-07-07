@@ -109,7 +109,7 @@ never reach Unity) but still emit normal `tool.call.*` events:
 
 If a sub-goal exhausts its per-sub-goal turn budget (`SARI_MAX_TURNS_PER_SUB_GOAL`, default 8),
 it is marked `failed`, `pipeline.subgoal.turn_limit` (level `warning`) is emitted, and the
-run advances to the next sub-goal.
+run stops instead of advancing to the next sub-goal.
 
 ## Stage Outputs & Token Accounting
 

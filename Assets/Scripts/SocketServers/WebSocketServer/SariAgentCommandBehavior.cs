@@ -159,19 +159,43 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             case "ResetHandPosition":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.ResetHandPosition(AgentHandSide.Right);
-                session.Send("Hand position reset");
+                if (sariSandboxV1CompatibilityLayer)
+                {
+                    session.Send("Hand position reset");
+                    break;
+                }
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
                 break;
 
             case "ResetRightHandPosition":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.ResetHandPosition(AgentHandSide.Right);
-                session.Send("Right hand position reset");
+                if (sariSandboxV1CompatibilityLayer)
+                {
+                    session.Send("Right hand position reset");
+                    break;
+                }
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
                 break;
 
             case "ResetLeftHandPosition":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.ResetHandPosition(AgentHandSide.Left);
-                session.Send("Left hand position reset");
+                if (sariSandboxV1CompatibilityLayer)
+                {
+                    session.Send("Left hand position reset");
+                    break;
+                }
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
                 break;
 
             case "IsHoldingItem":

@@ -44,6 +44,7 @@ class LoopResult(str, Enum):
 
 COMPLETE_SUB_GOAL_TOOL = "complete_sub_goal"
 REVISE_SUB_GOALS_TOOL = "revise_sub_goals"
+TURN_LIMIT_STOP_KEY = "sub_goal_turn_limit_stop"
 
 # Loop-control tools surfaced to the model alongside the Unity tools. They are
 # intercepted by AgentTurnStage and never reach the ToolRegistry.
@@ -506,6 +507,10 @@ class AgentTurnStage(LoopStage):
             if current is not None:
                 current.status = "failed"
                 current.result = context.response_text
+            context.metadata[TURN_LIMIT_STOP_KEY] = {
+                "sub_goal_index": context.current_sub_goal_index,
+                "max_turns": max_turns,
+            }
             await _publish_debug(
                 context,
                 "pipeline.subgoal.turn_limit",
@@ -720,6 +725,18 @@ class EndConditionStage(LoopStage):
     name = "end_condition"
 
     async def run(self, context: AgentContext) -> LoopResult:
+        turn_limit_stop = context.metadata.get(TURN_LIMIT_STOP_KEY)
+        if (
+            isinstance(turn_limit_stop, dict)
+            and turn_limit_stop.get("sub_goal_index") == context.current_sub_goal_index
+        ):
+            context.stage_output = StageOutput(
+                kind="code",
+                text=_format_run_summary(context),
+                usage=context.total_usage() if context.stage_usage else None,
+            )
+            return LoopResult.DONE
+
         if context.current_sub_goal_index + 1 < len(context.sub_goals):
             context.stage_output = StageOutput(
                 text=(

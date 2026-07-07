@@ -133,6 +133,26 @@ async def test_end_condition_next_sub_goal_emits_advance_note() -> None:
 
 
 @pytest.mark.asyncio
+async def test_end_condition_stops_after_turn_limit() -> None:
+    context = AgentContext(user_input="inspect")
+    context.sub_goals = [
+        SubGoal("first", status="failed", result="last response"),
+        SubGoal("second"),
+    ]
+    context.metadata["sub_goal_turn_limit_stop"] = {
+        "sub_goal_index": 0,
+        "max_turns": 8,
+    }
+
+    result = await EndConditionStage().run(context)
+
+    assert result == LoopResult.DONE
+    assert context.current_sub_goal_index == 0
+    assert context.stage_output is not None
+    assert context.stage_output.kind == "code"
+
+
+@pytest.mark.asyncio
 async def test_agent_loop_publishes_errors() -> None:
     hub = DebugHub(enabled=True, run_id="run", replay_limit=20)
     context = AgentContext(user_input="inspect", debug_hub=hub)
