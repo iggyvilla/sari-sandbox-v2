@@ -33,11 +33,13 @@ public class SariAgentCommandBehavior : WebSocketBehavior
     {
         public float[] current_left_hand_position;
         public float[] current_left_hand_rotation;
-        public string left_hand_hovering;
+        // True when an item is within grab range of the hand, i.e. ToggleGrip would pick it up.
+        // Deliberately a bool: the item id must not leak to the agent.
+        public bool left_hand_can_grab;
         public bool left_hand_gripping;
         public float[] current_right_hand_position;
         public float[] current_right_hand_rotation;
-        public string right_hand_hovering;
+        public bool right_hand_can_grab;
         public bool right_hand_gripping;
     }
 
@@ -78,7 +80,8 @@ public class SariAgentCommandBehavior : WebSocketBehavior
 
             case "TranslateAgent":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                Vector3 deltaTranslation = agent.ClampTranslationToMaximumHeight(ToVec3(cmd.translation));
+                Vector3 deltaTranslation = agent.ClampTranslationToMaximumHeight(
+                    agent.EgocentricToWorldTranslation(ToVec3(cmd.translation)));
                 agent.TranslateAgent(deltaTranslation, ToVec3(cmd.rotation));
                 handler.EnqueueCoroutine(SendAgentStateAfterPhysics(
                     agent,
@@ -180,13 +183,29 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             case "ToggleGrip":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.ToggleGrip(AgentHandSide.Right);
-                session.Send("Right Grip: " + agent.IsGripped);
+                if (sariSandboxV1CompatibilityLayer)
+                {
+                    session.Send("Right Grip: " + agent.IsGripped);
+                    break;
+                }
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
                 break;
 
             case "ToggleLeftGrip":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.ToggleGrip(AgentHandSide.Left);
-                session.Send("Left Grip: " + agent.IsLeftGripped);
+                if (sariSandboxV1CompatibilityLayer)
+                {
+                    session.Send("Left Grip: " + agent.IsLeftGripped);
+                    break;
+                }
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
                 break;
 
             case "ToggleRightPoke":
@@ -289,15 +308,15 @@ public class SariAgentCommandBehavior : WebSocketBehavior
 
         if (!sariSandboxV1CompatibilityLayer)
         {
-            session.Send(SerializeHandStateResponse(new HandStateResponse
+            session.Send(JsonUtility.ToJson(new HandStateResponse
             {
                 current_left_hand_position = Vec3ToArr(leftHandPosition),
                 current_left_hand_rotation = Vec3ToArr(leftHandRotation),
-                left_hand_hovering = leftHandHoveredItemId,
+                left_hand_can_grab = !string.IsNullOrEmpty(leftHandHoveredItemId),
                 left_hand_gripping = agent.IsLeftGripped,
                 current_right_hand_position = Vec3ToArr(rightHandPosition),
                 current_right_hand_rotation = Vec3ToArr(rightHandRotation),
-                right_hand_hovering = rightHandHoveredItemId,
+                right_hand_can_grab = !string.IsNullOrEmpty(rightHandHoveredItemId),
                 right_hand_gripping = agent.IsGripped
             }));
             yield break;
@@ -313,19 +332,6 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             "\nCurrent right hand rotation: " + rightHandRotation +
             "\nRight hand hovering: " + (rightHandHoveredItemId ?? "null") +
             "\nRight hand gripping: " + agent.IsGripped);
-    }
-
-    private static string SerializeHandStateResponse(HandStateResponse response)
-    {
-        string json = JsonUtility.ToJson(response);
-
-        // JsonUtility can serialize null strings as empty strings under Unity serialization rules.
-        if (response.left_hand_hovering == null)
-            json = json.Replace("\"left_hand_hovering\":\"\"", "\"left_hand_hovering\":null");
-        if (response.right_hand_hovering == null)
-            json = json.Replace("\"right_hand_hovering\":\"\"", "\"right_hand_hovering\":null");
-
-        return json;
     }
 
     private static float[] Vec3ToArr(Vector3 v) => new float[] { v.x, v.y, v.z };

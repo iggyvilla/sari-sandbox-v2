@@ -40,7 +40,7 @@ export interface ToolCall {
   callId: string;
   toolName: string;
   argumentsJson?: string | null;
-  status: "running" | "completed" | "error";
+  status: "running" | "completed" | "error" | "cancelled";
   result?: unknown;
   content?: ContentBlock[];
   error?: ErrorInfo;
@@ -81,7 +81,7 @@ export interface StageSection {
   key: string;
   stage: string;
   occurrence: number;
-  status: "running" | "completed" | "error";
+  status: "running" | "completed" | "error" | "cancelled";
   durationMs?: number;
   output?: StageOutput;
   items: ChatItem[];
@@ -95,7 +95,7 @@ export interface SubGoalInfo {
 export interface Run {
   runId: string;
   maxSeq: number;
-  status: "running" | "completed" | "error";
+  status: "running" | "completed" | "error" | "cancelled";
   userInput: string;
   subGoals: SubGoalInfo[];
   currentSubGoalIndex: number;

@@ -338,7 +338,7 @@ async def test_chat_completions_run_requests_and_returns_usage() -> None:
     result = await client.run_streamed(
         input_items=[{"role": "user", "content": "say hello"}],
         tools=[],
-        stage="run_model",
+        stage="agent_turn",
     )
 
     assert fake.chat.completions.create_kwargs["stream_options"] == {"include_usage": True}
@@ -378,7 +378,7 @@ async def test_responses_client_publishes_debug_stream_events() -> None:
         input_items=[{"role": "user", "content": "say hello"}],
         tools=[{"type": "function", "name": "RequestScreenshot"}],
         instructions="system prompt",
-        stage="run_model",
+        stage="agent_turn",
     )
 
     events = [event.to_dict() for event in hub.replay_events()]

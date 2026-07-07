@@ -36,10 +36,72 @@ Rules:
 
 class LoopResult(str, Enum):
     ADVANCE = "advance"
-    REPEAT = "repeat"
     NEXT_SUB_GOAL = "next_sub_goal"
     STATE_TRANSITION = "state_transition"
     DONE = "done"
+
+
+COMPLETE_SUB_GOAL_TOOL = "complete_sub_goal"
+REVISE_SUB_GOALS_TOOL = "revise_sub_goals"
+
+# Loop-control tools surfaced to the model alongside the Unity tools. They are
+# intercepted by AgentTurnStage and never reach the ToolRegistry.
+CONTROL_TOOL_DEFINITIONS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "name": COMPLETE_SUB_GOAL_TOOL,
+        "description": (
+            "Mark the current sub-goal as finished. Call this as soon as the sub-goal "
+            "is done (status 'completed') or clearly impossible (status 'failed') "
+            "instead of replying with plain text; the loop only advances to the next "
+            "sub-goal after this call."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "string",
+                    "description": "Short outcome summary for this sub-goal.",
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["completed", "failed"],
+                    "description": "Outcome of the sub-goal. Defaults to 'completed'.",
+                },
+            },
+            "required": ["result"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
+        "name": REVISE_SUB_GOALS_TOOL,
+        "description": (
+            "Replace the pending sub-goals that come after the current one. Use this "
+            "when observations show the remaining plan is wrong, redundant, or "
+            "incomplete. Pass an empty list to drop all remaining sub-goals."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sub_goals": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "New descriptions for the sub-goals to execute after the "
+                        "current one, in order."
+                    ),
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why the plan changed.",
+                },
+            },
+            "required": ["sub_goals"],
+            "additionalProperties": False,
+        },
+    },
+]
 
 
 class LoopStage(ABC):
@@ -125,9 +187,6 @@ class AgentLoop:
                 if result == LoopResult.DONE:
                     context.completed = True
                     break
-                if result == LoopResult.REPEAT:
-                    stage_index = 0
-                    continue
                 if result == LoopResult.NEXT_SUB_GOAL:
                     context.current_sub_goal_index += 1
                     await _publish_debug(
@@ -345,12 +404,29 @@ def _fallback_sub_goals(user_input: str) -> list[SubGoal]:
     return [SubGoal(description=part) for part in parts]
 
 
-class RunModelStage(LoopStage):
-    name = "run_model"
+class AgentTurnStage(LoopStage):
+    """Runs the model/tool loop for the current sub-goal as one atomic stage.
 
-    def __init__(self, client: ResponsesClient, tools: list[dict[str, Any]]) -> None:
+    The model dictates when the sub-goal ends by calling the complete_sub_goal
+    control tool; revise_sub_goals lets it rewrite the remaining plan. A text
+    response with no tool calls is treated as a soft completion, and the turn
+    budget is a hard stop that marks the sub-goal failed.
+    """
+
+    name = "agent_turn"
+
+    def __init__(
+        self,
+        client: ResponsesClient,
+        tools: list[dict[str, Any]],
+        registry: ToolRegistry,
+        *,
+        max_turns: int | None = None,
+    ) -> None:
         self.client = client
         self.tools = tools
+        self.registry = registry
+        self.max_turns = max_turns
 
     async def run(self, context: AgentContext) -> LoopResult:
         goal = context.current_sub_goal.description if context.current_sub_goal else context.user_input
@@ -361,62 +437,123 @@ class RunModelStage(LoopStage):
         ):
             context.messages.append({"role": "user", "content": goal})
             context.metadata["active_sub_goal_index"] = active_sub_goal_index
-        input_items = list(context.messages)
 
-        result = await self.client.run_streamed(
-            input_items=input_items,
-            tools=self._allowed_tools(context),
-            instructions=context.system_prompt or None,
-            stage=self.name,
-        )
-        context.response_text = result.text
-        context.pending_tool_calls = result.tool_calls
-        context.messages.extend(result.message_items)
-        context.record_usage(self.name, result.usage)
-        context.stage_output = StageOutput(
-            text=_token_summary_line(result.usage),
-            usage=result.usage,
-        )
-        return LoopResult.ADVANCE
-
-    def _allowed_tools(self, context: AgentContext) -> list[dict[str, Any]]:
-        allowed = context.allowed_tool_names()
-        if allowed is None:
-            return self.tools
-        return [tool for tool in self.tools if tool.get("name") in allowed]
-
-
-class ExecuteToolsStage(LoopStage):
-    name = "execute_tools"
-
-    def __init__(self, registry: ToolRegistry) -> None:
-        self.registry = registry
-
-    async def run(self, context: AgentContext) -> LoopResult:
-        if not context.pending_tool_calls:
-            return LoopResult.ADVANCE
+        max_turns = self.max_turns or context.config.max_turns_per_sub_goal
         registry = self.registry.constrained(context.allowed_tool_names())
         context.tool_results = []
-        for call in context.pending_tool_calls:
-            call_id = call.get("call_id") or call.get("id") or ""
-            tool_name = call["name"]
-            arguments_json = call.get("arguments_json")
-            started_at = perf_counter()
+        stage_usage: dict[str, int] = {}
+        turns = 0
+        executed_calls = 0
+        sub_goal_terminal = False
 
+        while turns < max_turns:
+            turns += 1
+            result = await self.client.run_streamed(
+                input_items=list(context.messages),
+                tools=self._model_tools(context),
+                instructions=context.system_prompt or None,
+                stage=self.name,
+            )
+            context.response_text = result.text
+            context.messages.extend(result.message_items)
+            context.record_usage(self.name, result.usage)
+            _accumulate_usage(stage_usage, result.usage)
+
+            if not result.tool_calls:
+                sub_goal_terminal = self._soft_complete(context)
+                if sub_goal_terminal:
+                    await _publish_debug(
+                        context,
+                        "pipeline.subgoal.soft_completed",
+                        stage=self.name,
+                        level="warning",
+                        summary="Model ended the turn without calling complete_sub_goal",
+                        payload={
+                            "sub_goal_index": context.current_sub_goal_index,
+                            "response_text": result.text,
+                        },
+                    )
+                break
+
+            context.pending_tool_calls = result.tool_calls
+            for call in result.tool_calls:
+                ends_sub_goal = await self._execute_call(context, registry, call)
+                executed_calls += 1
+                sub_goal_terminal = sub_goal_terminal or ends_sub_goal
+            context.pending_tool_calls = []
+            if sub_goal_terminal:
+                break
+        else:
+            current = context.current_sub_goal
+            if current is not None:
+                current.status = "failed"
+                current.result = context.response_text
             await _publish_debug(
                 context,
-                "tool.call.started",
+                "pipeline.subgoal.turn_limit",
                 stage=self.name,
-                summary=f"Called {tool_name}",
+                level="warning",
+                summary=f"Sub-goal hit the {max_turns}-turn budget",
                 payload={
-                    "call_id": call_id,
-                    "tool_name": tool_name,
-                    "arguments": call.get("arguments"),
-                    "arguments_json": arguments_json,
+                    "sub_goal_index": context.current_sub_goal_index,
+                    "max_turns": max_turns,
                 },
             )
 
-            try:
+        context.stage_output = StageOutput(
+            text=(
+                f"{turns} model turn(s), {executed_calls} tool call(s) • "
+                f"{_token_summary_line(stage_usage or None)}"
+            ),
+            usage=stage_usage or None,
+        )
+        return LoopResult.ADVANCE
+
+    def _model_tools(self, context: AgentContext) -> list[dict[str, Any]]:
+        allowed = context.allowed_tool_names()
+        if allowed is None:
+            tools = list(self.tools)
+        else:
+            tools = [tool for tool in self.tools if tool.get("name") in allowed]
+        return tools + CONTROL_TOOL_DEFINITIONS
+
+    async def _execute_call(
+        self,
+        context: AgentContext,
+        registry: ToolRegistry,
+        call: dict[str, Any],
+    ) -> bool:
+        """Run one tool call, append its output message, and publish debug events.
+
+        Returns True when the call terminates the current sub-goal.
+        """
+
+        call_id = call.get("call_id") or call.get("id") or ""
+        tool_name = call["name"]
+        arguments_json = call.get("arguments_json")
+        started_at = perf_counter()
+
+        await _publish_debug(
+            context,
+            "tool.call.started",
+            stage=self.name,
+            summary=f"Called {tool_name}",
+            payload={
+                "call_id": call_id,
+                "tool_name": tool_name,
+                "arguments": call.get("arguments"),
+                "arguments_json": arguments_json,
+            },
+        )
+
+        ends_sub_goal = False
+        try:
+            if tool_name == COMPLETE_SUB_GOAL_TOOL:
+                result = await self._handle_complete_sub_goal(context, call.get("arguments"))
+                ends_sub_goal = True
+            elif tool_name == REVISE_SUB_GOALS_TOOL:
+                result = await self._handle_revise_sub_goals(context, call.get("arguments"))
+            else:
                 with tool_trace(
                     ToolTraceContext(
                         call_id=call_id,
@@ -425,58 +562,118 @@ class ExecuteToolsStage(LoopStage):
                     )
                 ):
                     result = await registry.dispatch(tool_name, call.get("arguments"))
-            except Exception as exc:
-                await _publish_debug(
-                    context,
-                    "tool.call.error",
-                    stage=self.name,
-                    level="error",
-                    summary=f"{tool_name} failed",
-                    payload={
-                        "call_id": call_id,
-                        "tool_name": tool_name,
-                        "duration_ms": _duration_ms(started_at),
-                        "error": _exception_payload(exc),
-                    },
-                )
-                raise
-
-            item = {
-                "type": "function_call_output",
-                "call_id": call_id,
-                "output": json.dumps(result),
-            }
-            context.tool_results.append(item)
-            content = _tool_result_content_blocks(context, result) if _debug_enabled(context) else []
+        except Exception as exc:
             await _publish_debug(
                 context,
-                "tool.call.completed",
+                "tool.call.error",
                 stage=self.name,
-                summary=f"Completed {tool_name}",
+                level="error",
+                summary=f"{tool_name} failed",
                 payload={
                     "call_id": call_id,
                     "tool_name": tool_name,
                     "duration_ms": _duration_ms(started_at),
-                    "result": result,
-                    "content": content,
+                    "error": _exception_payload(exc),
                 },
             )
-            if context.config.openai_api_style == "chat_completions":
-                context.messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": item["call_id"],
-                        "content": item["output"],
-                    }
-                )
-            else:
-                context.messages.append(item)
-        executed = [call["name"] for call in context.pending_tool_calls]
-        context.stage_output = StageOutput(
-            text=f"Executed {len(executed)} tool call(s): {', '.join(executed)}"
+            raise
+
+        item = {
+            "type": "function_call_output",
+            "call_id": call_id,
+            "output": json.dumps(result),
+        }
+        context.tool_results.append(item)
+        content = _tool_result_content_blocks(context, result) if _debug_enabled(context) else []
+        await _publish_debug(
+            context,
+            "tool.call.completed",
+            stage=self.name,
+            summary=f"Completed {tool_name}",
+            payload={
+                "call_id": call_id,
+                "tool_name": tool_name,
+                "duration_ms": _duration_ms(started_at),
+                "result": result,
+                "content": content,
+            },
         )
-        context.pending_tool_calls = []
-        return LoopResult.REPEAT
+        if context.config.openai_api_style == "chat_completions":
+            context.messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": item["call_id"],
+                    "content": item["output"],
+                }
+            )
+        else:
+            context.messages.append(item)
+        return ends_sub_goal
+
+    async def _handle_complete_sub_goal(
+        self,
+        context: AgentContext,
+        arguments: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        arguments = arguments or {}
+        current = context.current_sub_goal
+        if current is None:
+            return {"ok": False, "error": "No active sub-goal to complete."}
+
+        status = arguments.get("status")
+        if status not in {"completed", "failed"}:
+            status = "completed"
+        result_text = arguments.get("result")
+        if not isinstance(result_text, str) or not result_text.strip():
+            result_text = context.response_text
+        current.status = status
+        current.result = result_text
+        await _publish_debug(
+            context,
+            "pipeline.subgoal.completed",
+            stage=self.name,
+            summary=f"Model marked sub-goal {context.current_sub_goal_index + 1} {status}",
+            payload={
+                "sub_goal_index": context.current_sub_goal_index,
+                "status": status,
+                "result": result_text,
+            },
+        )
+        return {"ok": True, "status": status}
+
+    async def _handle_revise_sub_goals(
+        self,
+        context: AgentContext,
+        arguments: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        arguments = arguments or {}
+        raw = arguments.get("sub_goals")
+        if not isinstance(raw, list) or any(not isinstance(item, str) for item in raw):
+            return {"ok": False, "error": "sub_goals must be a list of strings."}
+
+        descriptions = [item.strip() for item in raw if item.strip()]
+        keep = context.sub_goals[: context.current_sub_goal_index + 1]
+        context.sub_goals = keep + [SubGoal(description=description) for description in descriptions]
+        plan = [
+            {"index": index, "description": sub_goal.description, "status": sub_goal.status}
+            for index, sub_goal in enumerate(context.sub_goals)
+        ]
+        await _publish_debug(
+            context,
+            "pipeline.subgoals.revised",
+            stage=self.name,
+            summary=f"Model revised the plan to {len(context.sub_goals)} sub-goal(s)",
+            payload={"sub_goals": plan, "reason": arguments.get("reason")},
+        )
+        return {"ok": True, "sub_goals": plan}
+
+    def _soft_complete(self, context: AgentContext) -> bool:
+        current = context.current_sub_goal
+        if current is None or current.status in {"completed", "failed"}:
+            return False
+        current.status = "completed"
+        current.result = context.response_text
+        return True
 
 
 class MemoryAssemblyStage(LoopStage):
@@ -487,12 +684,13 @@ class MemoryAssemblyStage(LoopStage):
 
     async def run(self, context: AgentContext) -> LoopResult:
         current = context.current_sub_goal
-        if current is not None and current.status != "completed":
-            current.status = "completed"
-            current.result = context.response_text
+        if current is not None and current.status in {"completed", "failed"}:
             await self.assembler.after_sub_goal(context)
             context.stage_output = StageOutput(
-                text=f"Marked sub-goal {context.current_sub_goal_index + 1} completed"
+                text=(
+                    f"Assembled memory for sub-goal {context.current_sub_goal_index + 1} "
+                    f"({current.status})"
+                )
             )
         return LoopResult.ADVANCE
 
@@ -562,11 +760,20 @@ def _pipeline_payload(context: AgentContext, iterations: int) -> dict[str, Any]:
     }
 
 
+def _accumulate_usage(totals: dict[str, int], usage: dict[str, Any] | None) -> None:
+    if not usage:
+        return
+    for key in ("input_tokens", "output_tokens", "total_tokens"):
+        value = usage.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            totals[key] = totals.get(key, 0) + int(value)
+
+
 def _token_summary_line(usage: dict[str, Any] | None) -> str:
     if not usage:
-        return "Model call: token usage unavailable"
+        return "token usage unavailable"
     return (
-        f"Model call: {usage.get('total_tokens', 0):,} tokens "
+        f"{usage.get('total_tokens', 0):,} tokens "
         f"({usage.get('input_tokens', 0):,} in / {usage.get('output_tokens', 0):,} out)"
     )
 

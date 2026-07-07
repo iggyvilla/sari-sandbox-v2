@@ -21,6 +21,7 @@ class ServeController:
         self.mode = mode
         self.state = "idle"
         self._prompts: asyncio.Queue[str] = asyncio.Queue(maxsize=1)
+        self._stop_requested = asyncio.Event()
 
     @property
     def accepts_prompts(self) -> bool:
@@ -44,8 +45,24 @@ class ServeController:
     async def next_prompt(self) -> str:
         return await self._prompts.get()
 
+    @property
+    def stop_requested(self) -> bool:
+        return self._stop_requested.is_set()
+
+    def clear_stop(self) -> None:
+        self._stop_requested.clear()
+
+    async def wait_for_stop(self) -> None:
+        await self._stop_requested.wait()
+
     async def handle_client_message(self, message: dict[str, Any]) -> None:
-        if message.get("type") != "client.run.start":
+        message_type = message.get("type")
+        if message_type == "client.run.stop":
+            # Idempotent: a stop that races a run completing is a no-op.
+            if self.mode == "serve" and self.state == "running":
+                self._stop_requested.set()
+            return
+        if message_type != "client.run.start":
             return
 
         prompt = message.get("prompt")

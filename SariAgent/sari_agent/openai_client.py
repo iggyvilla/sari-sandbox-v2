@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
@@ -304,9 +305,16 @@ class ResponsesClient:
             create_kwargs["tools"] = chat_tools
 
         stream = await self.client.chat.completions.create(**create_kwargs)
-        async for event in stream:
-            await self._publish_stream_event(event, stage=stage, api_style="chat_completions")
-            accumulator.process_event(event)
+        try:
+            async for event in stream:
+                await self._publish_stream_event(event, stage=stage, api_style="chat_completions")
+                accumulator.process_event(event)
+        except asyncio.CancelledError:
+            # Abort the HTTP stream so the server stops generating tokens.
+            close = getattr(stream, "close", None)
+            if close is not None:
+                await close()
+            raise
         return accumulator.result()
 
     async def _publish_llm_request(

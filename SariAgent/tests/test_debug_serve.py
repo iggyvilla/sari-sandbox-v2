@@ -64,6 +64,42 @@ async def test_controller_rejects_when_running_cli_mode_or_invalid() -> None:
 
 
 @pytest.mark.asyncio
+async def test_controller_stop_only_applies_to_active_serve_run() -> None:
+    hub = DebugHub(enabled=True, run_id="run", replay_limit=10)
+
+    running = ServeController(hub, mode="serve")
+    running.state = "running"
+    await running.handle_client_message({"type": "client.run.stop"})
+    assert running.stop_requested
+
+    running.clear_stop()
+    assert not running.stop_requested
+
+    idle = ServeController(hub, mode="serve")
+    await idle.handle_client_message({"type": "client.run.stop"})
+    assert not idle.stop_requested
+
+    cli = ServeController(hub, mode="cli")
+    cli.state = "running"
+    await cli.handle_client_message({"type": "client.run.stop"})
+    assert not cli.stop_requested
+
+
+@pytest.mark.asyncio
+async def test_controller_wait_for_stop_wakes_on_client_stop() -> None:
+    hub = DebugHub(enabled=True, run_id="run", replay_limit=10)
+    controller = ServeController(hub, mode="serve")
+    controller.state = "running"
+
+    waiter = asyncio.create_task(controller.wait_for_stop())
+    await asyncio.sleep(0)
+    assert not waiter.done()
+
+    await controller.handle_client_message({"type": "client.run.stop"})
+    await asyncio.wait_for(waiter, timeout=1)
+
+
+@pytest.mark.asyncio
 async def test_websocket_server_sends_status_and_routes_client_messages() -> None:
     websockets = pytest.importorskip("websockets")
     hub = DebugHub(enabled=True, run_id="run", replay_limit=10)

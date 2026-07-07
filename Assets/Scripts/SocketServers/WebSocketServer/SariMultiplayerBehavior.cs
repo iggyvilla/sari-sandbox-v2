@@ -190,7 +190,8 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 // Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
                 // break;
             case "TranslateAgent":
-                Vector3 deltaTranslation = agent.ClampTranslationToMaximumHeight(ToVec3(cmd.translation));
+                Vector3 deltaTranslation = agent.ClampTranslationToMaximumHeight(
+                    agent.EgocentricToWorldTranslation(ToVec3(cmd.translation)));
                 cmd.translation = Vec3ToArr(deltaTranslation);
                 agent.TranslateAgent(deltaTranslation, ToVec3(cmd.rotation));
                 Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");

@@ -163,7 +163,7 @@ class UnityCommandClient:
             return
         await self.debug_hub.publish(
             event_type,
-            stage="execute_tools",
+            stage="agent_turn",
             level=level,
             summary=summary,
             payload=payload,

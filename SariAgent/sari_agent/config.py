@@ -125,8 +125,13 @@ class AgentConfig:
     screenshot_dir: Path = field(
         default_factory=lambda: _env_path("SARI_SCREENSHOT_DIR", DEFAULT_SCREENSHOT_DIR)
     )
+    # Safety net on total pipeline stage executions across the whole run; the
+    # per-sub-goal model/tool loop is bounded by max_turns_per_sub_goal.
     max_loop_iterations: int = field(
-        default_factory=lambda: _env_int("SARI_MAX_LOOP_ITERATIONS", 8)
+        default_factory=lambda: _env_int("SARI_MAX_LOOP_ITERATIONS", 64)
+    )
+    max_turns_per_sub_goal: int = field(
+        default_factory=lambda: _env_int("SARI_MAX_TURNS_PER_SUB_GOAL", 8)
     )
     unity_max_message_bytes: int | None = field(
         default_factory=lambda: _env_optional_positive_int(

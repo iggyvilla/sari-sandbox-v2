@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -19,7 +20,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sari_agent.context import AgentContext, StageOutput
 from sari_agent.debug import DebugHub, DebugWebSocketServer
 from sari_agent.debug.images import thumbnail_data_url
-from sari_agent.loop import AgentLoop, EndConditionStage, LoopResult, LoopStage, PlanSubGoalsStage
+from sari_agent.loop import (
+    AgentLoop,
+    EndConditionStage,
+    LoopResult,
+    LoopStage,
+    MemoryAssemblyStage,
+    PlanSubGoalsStage,
+)
 from sari_agent.serve import ServeController
 
 PNG_BYTES = (
@@ -50,14 +58,41 @@ class FakeLoadMemoryStage(LoopStage):
         return LoopResult.ADVANCE
 
 
-class FakeRunModelStage(LoopStage):
-    name = "run_model"
+class FakeAgentTurnStage(LoopStage):
+    name = "agent_turn"
 
     async def run(self, context: AgentContext) -> LoopResult:
-        hub = context.debug_hub
-        first_pass = not context.metadata.get("model_ran")
-        context.metadata["model_ran"] = True
+        # Turn 1: reasoning + text, then two Unity tool calls.
+        await self._model_turn(context, first_pass=True)
+        await self._unity_tool_call(
+            context,
+            call_id="call_1",
+            tool_name="RequestScreenshot",
+            arguments={},
+        )
+        await self._unity_tool_call(
+            context,
+            call_id="call_2",
+            tool_name="TranslateAgent",
+            arguments={"direction": "forward", "distance": 2.0},
+        )
 
+        # Turn 2: final text, then the model completes the sub-goal itself.
+        await self._model_turn(context, first_pass=False)
+        await self._complete_sub_goal(context)
+
+        usage = {"input_tokens": 2270, "output_tokens": 420, "total_tokens": 2690}
+        context.stage_output = StageOutput(
+            text=(
+                f"2 model turn(s), 3 tool call(s) • {usage['total_tokens']:,} tokens "
+                f"({usage['input_tokens']:,} in / {usage['output_tokens']:,} out)"
+            ),
+            usage=usage,
+        )
+        return LoopResult.ADVANCE
+
+    async def _model_turn(self, context: AgentContext, *, first_pass: bool) -> None:
+        hub = context.debug_hub
         await hub.publish(
             "llm.request.started",
             stage=self.name,
@@ -65,21 +100,27 @@ class FakeRunModelStage(LoopStage):
             payload={
                 "model": "demo-model",
                 "api_style": "responses",
-                "tool_names": ["RequestScreenshot", "TranslateAgent"],
-                "input_item_count": 1 if first_pass else 3,
+                "tool_names": [
+                    "RequestScreenshot",
+                    "TranslateAgent",
+                    "complete_sub_goal",
+                    "revise_sub_goals",
+                ],
+                "input_item_count": 1 if first_pass else 5,
                 "instructions_present": True,
                 "instructions": "You are SariAgent, a store exploration assistant.",
                 "input_items": [{"role": "user", "content": context.user_input}],
             },
         )
-        for word in REASONING.split(" "):
-            await hub.publish(
-                "llm.reasoning.delta",
-                stage=self.name,
-                summary="Provider-exposed reasoning delta",
-                payload={"text": word + " "},
-            )
-            await asyncio.sleep(0.04)
+        if first_pass:
+            for word in REASONING.split(" "):
+                await hub.publish(
+                    "llm.reasoning.delta",
+                    stage=self.name,
+                    summary="Provider-exposed reasoning delta",
+                    payload={"text": word + " "},
+                )
+                await asyncio.sleep(0.04)
 
         text = FIRST_TEXT if first_pass else FINAL_TEXT
         for word in text.split(" "):
@@ -103,136 +144,136 @@ class FakeRunModelStage(LoopStage):
             else {"input_tokens": 1420, "output_tokens": 180, "total_tokens": 1600}
         )
         context.record_usage(self.name, usage)
-        context.stage_output = StageOutput(
-            text=(
-                f"Model call: {usage['total_tokens']:,} tokens "
-                f"({usage['input_tokens']:,} in / {usage['output_tokens']:,} out)"
-            ),
-            usage=usage,
-        )
-
         context.response_text = text
-        if first_pass:
-            context.pending_tool_calls = [
-                {
-                    "call_id": "call_1",
-                    "name": "RequestScreenshot",
-                    "arguments": {},
-                    "arguments_json": "{}",
-                },
-                {
-                    "call_id": "call_2",
-                    "name": "TranslateAgent",
-                    "arguments": {"direction": "forward", "distance": 2.0},
-                    "arguments_json": '{"direction": "forward", "distance": 2.0}',
-                },
-            ]
-        return LoopResult.ADVANCE
 
-
-class FakeExecuteToolsStage(LoopStage):
-    name = "execute_tools"
-
-    async def run(self, context: AgentContext) -> LoopResult:
-        if not context.pending_tool_calls:
-            return LoopResult.ADVANCE
+    async def _unity_tool_call(
+        self,
+        context: AgentContext,
+        *,
+        call_id: str,
+        tool_name: str,
+        arguments: dict,
+    ) -> None:
         hub = context.debug_hub
-        for call in context.pending_tool_calls:
-            call_id = call["call_id"]
-            tool_name = call["name"]
-            tool_call = {
+        arguments_json = json.dumps(arguments)
+        tool_call = {
+            "call_id": call_id,
+            "tool_name": tool_name,
+            "arguments_json": arguments_json,
+        }
+        await hub.publish(
+            "tool.call.started",
+            stage=self.name,
+            summary=f"Called {tool_name}",
+            payload={
                 "call_id": call_id,
                 "tool_name": tool_name,
-                "arguments_json": call["arguments_json"],
-            }
-            await hub.publish(
-                "tool.call.started",
-                stage=self.name,
-                summary=f"Called {tool_name}",
-                payload={
-                    "call_id": call_id,
-                    "tool_name": tool_name,
-                    "arguments": call["arguments"],
-                    "arguments_json": call["arguments_json"],
-                },
-            )
-            await hub.publish(
-                "unity.command.sent",
-                stage=self.name,
-                summary=f"Sent {tool_name} to Unity",
-                payload={
-                    "url": "ws://localhost:8080/commands",
-                    "command": tool_name,
-                    "payload": {"command": tool_name, **call["arguments"]},
-                    "raw_json": call["arguments_json"],
-                    "tool_call": tool_call,
-                },
-            )
-            await asyncio.sleep(0.4)
-
-            if tool_name == "RequestScreenshot":
-                result = {
-                    "command": tool_name,
-                    "screenshot": {"path": "/tmp/demo.png", "bytes": len(PNG_BYTES), "mime_type": "image/png"},
-                }
-                raw_response = {"kind": "base64", "bytes": len(PNG_BYTES), "mime_type": "image/png"}
-                content = [
-                    {
-                        "kind": "image",
-                        "mime_type": "image/png",
-                        "path": "/tmp/demo.png",
-                        "bytes": len(PNG_BYTES),
-                        "thumbnail_data_url": thumbnail_data_url(PNG_BYTES, max_edge=64),
-                    }
-                ]
-            else:
-                result = {"command": tool_name, "result": {"moved": True, "position": [1.0, 0.0, 3.5]}}
-                raw_response = {"kind": "text", "raw_text": '{"moved": true, "position": [1.0, 0.0, 3.5]}'}
-                content = [{"kind": "text", "text": '{"moved": true, "position": [1.0, 0.0, 3.5]}'}]
-
-            await hub.publish(
-                "unity.command.received",
-                stage=self.name,
-                summary=f"Received {tool_name} response from Unity",
-                payload={
-                    "url": "ws://localhost:8080/commands",
-                    "command": tool_name,
-                    "duration_ms": 412.5,
-                    "tool_call": tool_call,
-                    "raw_response": raw_response,
-                    "normalized_result": result,
-                    "content": content,
-                },
-            )
-            await hub.publish(
-                "tool.call.completed",
-                stage=self.name,
-                summary=f"Completed {tool_name}",
-                payload={
-                    "call_id": call_id,
-                    "tool_name": tool_name,
-                    "duration_ms": 415.2,
-                    "result": result,
-                    "content": content,
-                },
-            )
-        executed = [call["name"] for call in context.pending_tool_calls]
-        context.stage_output = StageOutput(
-            text=f"Executed {len(executed)} tool call(s): {', '.join(executed)}"
+                "arguments": arguments,
+                "arguments_json": arguments_json,
+            },
         )
-        context.pending_tool_calls = []
-        return LoopResult.REPEAT
+        await hub.publish(
+            "unity.command.sent",
+            stage=self.name,
+            summary=f"Sent {tool_name} to Unity",
+            payload={
+                "url": "ws://localhost:8080/commands",
+                "command": tool_name,
+                "payload": {"command": tool_name, **arguments},
+                "raw_json": arguments_json,
+                "tool_call": tool_call,
+            },
+        )
+        await asyncio.sleep(0.4)
 
+        if tool_name == "RequestScreenshot":
+            result = {
+                "command": tool_name,
+                "screenshot": {"path": "/tmp/demo.png", "bytes": len(PNG_BYTES), "mime_type": "image/png"},
+            }
+            raw_response = {"kind": "base64", "bytes": len(PNG_BYTES), "mime_type": "image/png"}
+            content = [
+                {
+                    "kind": "image",
+                    "mime_type": "image/png",
+                    "path": "/tmp/demo.png",
+                    "bytes": len(PNG_BYTES),
+                    "thumbnail_data_url": thumbnail_data_url(PNG_BYTES, max_edge=64),
+                }
+            ]
+        else:
+            result = {"command": tool_name, "result": {"moved": True, "position": [1.0, 0.0, 3.5]}}
+            raw_response = {"kind": "text", "raw_text": '{"moved": true, "position": [1.0, 0.0, 3.5]}'}
+            content = [{"kind": "text", "text": '{"moved": true, "position": [1.0, 0.0, 3.5]}'}]
 
-class FakeMemoryAssemblyStage(LoopStage):
-    name = "memory_assembly"
+        await hub.publish(
+            "unity.command.received",
+            stage=self.name,
+            summary=f"Received {tool_name} response from Unity",
+            payload={
+                "url": "ws://localhost:8080/commands",
+                "command": tool_name,
+                "duration_ms": 412.5,
+                "tool_call": tool_call,
+                "raw_response": raw_response,
+                "normalized_result": result,
+                "content": content,
+            },
+        )
+        await hub.publish(
+            "tool.call.completed",
+            stage=self.name,
+            summary=f"Completed {tool_name}",
+            payload={
+                "call_id": call_id,
+                "tool_name": tool_name,
+                "duration_ms": 415.2,
+                "result": result,
+                "content": content,
+            },
+        )
 
-    async def run(self, context: AgentContext) -> LoopResult:
+    async def _complete_sub_goal(self, context: AgentContext) -> None:
+        hub = context.debug_hub
+        arguments = {"result": FINAL_TEXT, "status": "completed"}
+        arguments_json = json.dumps(arguments)
+        await hub.publish(
+            "tool.call.started",
+            stage=self.name,
+            summary="Called complete_sub_goal",
+            payload={
+                "call_id": "call_3",
+                "tool_name": "complete_sub_goal",
+                "arguments": arguments,
+                "arguments_json": arguments_json,
+            },
+        )
         current = context.current_sub_goal
-        if current is not None and current.status != "completed":
+        if current is not None:
             current.status = "completed"
-            current.result = context.response_text
-        return LoopResult.ADVANCE
+            current.result = FINAL_TEXT
+        await hub.publish(
+            "pipeline.subgoal.completed",
+            stage=self.name,
+            summary=f"Model marked sub-goal {context.current_sub_goal_index + 1} completed",
+            payload={
+                "sub_goal_index": context.current_sub_goal_index,
+                "status": "completed",
+                "result": FINAL_TEXT,
+            },
+        )
+        await hub.publish(
+            "tool.call.completed",
+            stage=self.name,
+            summary="Completed complete_sub_goal",
+            payload={
+                "call_id": "call_3",
+                "tool_name": "complete_sub_goal",
+                "duration_ms": 1.2,
+                "result": {"ok": True, "status": "completed"},
+                "content": [{"kind": "text", "text": '{"ok": true, "status": "completed"}'}],
+            },
+        )
 
 
 def build_loop() -> AgentLoop:
@@ -240,9 +281,8 @@ def build_loop() -> AgentLoop:
         [
             FakeLoadMemoryStage(),
             PlanSubGoalsStage(),
-            FakeRunModelStage(),
-            FakeExecuteToolsStage(),
-            FakeMemoryAssemblyStage(),
+            FakeAgentTurnStage(),
+            MemoryAssemblyStage(),
             EndConditionStage(),
         ],
         max_iterations=40,
@@ -283,13 +323,37 @@ async def main() -> None:
                 prompt = await controller.next_prompt()
                 hub.begin_run()
                 controller.state = "running"
+                controller.clear_stop()
                 await hub.publish(
                     "server.run.accepted",
                     summary="Prompt accepted",
                     payload={"prompt": prompt, "run_id": hub.run_id},
                 )
                 await controller.publish_status()
-                await run_once(hub, prompt)
+                run_task = asyncio.create_task(run_once(hub, prompt))
+                stop_task = asyncio.create_task(controller.wait_for_stop())
+                try:
+                    await asyncio.wait(
+                        {run_task, stop_task},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                finally:
+                    stop_task.cancel()
+                if run_task.done():
+                    run_task.result()
+                else:
+                    run_task.cancel()
+                    try:
+                        await run_task
+                    except asyncio.CancelledError:
+                        pass
+                    await hub.publish(
+                        "run.cancelled",
+                        level="warn",
+                        summary="Run stopped from the debug UI",
+                        payload={"reason": "client_stop"},
+                    )
+                    print("Run stopped from the debug UI.")
         else:
             controller.state = "running"
             await controller.publish_status()

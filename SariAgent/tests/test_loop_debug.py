@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import json
+from typing import Any
+
 import pytest
 
 from sari_agent.context import AgentContext, StageOutput, SubGoal
 from sari_agent.debug import DebugHub
 from sari_agent.loop import (
     AgentLoop,
+    AgentTurnStage,
     EndConditionStage,
-    ExecuteToolsStage,
     LoopResult,
     LoopStage,
 )
+from sari_agent.openai_client import ResponseStreamResult
 from sari_agent.tools.factory import ToolRegistry
 
 
@@ -100,7 +104,7 @@ async def test_end_condition_done_emits_run_summary() -> None:
     context.sub_goals = [SubGoal("only goal")]
     context.run_started_at = 0.0
     context.record_usage("plan_sub_goals", {"input_tokens": 100, "output_tokens": 30, "total_tokens": 130})
-    context.record_usage("run_model", {"input_tokens": 900, "output_tokens": 200, "total_tokens": 1100})
+    context.record_usage("agent_turn", {"input_tokens": 900, "output_tokens": 200, "total_tokens": 1100})
 
     result = await EndConditionStage().run(context)
 
@@ -109,7 +113,7 @@ async def test_end_condition_done_emits_run_summary() -> None:
     assert output is not None
     assert output.kind == "code"
     assert "plan_sub_goals" in output.text
-    assert "run_model" in output.text
+    assert "agent_turn" in output.text
     assert "TOTAL" in output.text
     assert "1,230" in output.text
     assert "Runtime:" in output.text
@@ -143,8 +147,18 @@ async def test_agent_loop_publishes_errors() -> None:
     assert events[-1]["payload"]["error"]["type"] == "RuntimeError"
 
 
+class ScriptedClient:
+    """Minimal ResponsesClient stub returning canned stream results in order."""
+
+    def __init__(self, *results: ResponseStreamResult) -> None:
+        self.results = list(results)
+
+    async def run_streamed(self, **_: Any) -> ResponseStreamResult:
+        return self.results.pop(0)
+
+
 @pytest.mark.asyncio
-async def test_execute_tools_stage_publishes_tool_events() -> None:
+async def test_agent_turn_stage_publishes_tool_events() -> None:
     async def Echo(value: str) -> dict[str, str]:
         return {"echo": value}
 
@@ -152,25 +166,67 @@ async def test_execute_tools_stage_publishes_tool_events() -> None:
     registry.register("Echo", Echo)
     hub = DebugHub(enabled=True, run_id="run", replay_limit=10)
     context = AgentContext(user_input="inspect", debug_hub=hub)
-    context.pending_tool_calls = [
-        {
-            "id": "fc_1",
-            "call_id": "call_1",
-            "name": "Echo",
-            "arguments": {"value": "hi"},
-            "arguments_json": '{"value":"hi"}',
-        }
-    ]
+    context.sub_goals = [SubGoal("inspect")]
+    arguments_json = json.dumps({"value": "hi"})
+    client = ScriptedClient(
+        ResponseStreamResult(
+            tool_calls=[
+                {
+                    "id": "fc_1",
+                    "call_id": "call_1",
+                    "name": "Echo",
+                    "arguments": {"value": "hi"},
+                    "arguments_json": arguments_json,
+                }
+            ],
+            message_items=[
+                {
+                    "type": "function_call",
+                    "id": "fc_1",
+                    "call_id": "call_1",
+                    "name": "Echo",
+                    "arguments": arguments_json,
+                }
+            ],
+        ),
+        ResponseStreamResult(
+            text="done",
+            tool_calls=[
+                {
+                    "id": "fc_2",
+                    "call_id": "call_2",
+                    "name": "complete_sub_goal",
+                    "arguments": {"result": "done"},
+                    "arguments_json": json.dumps({"result": "done"}),
+                }
+            ],
+            message_items=[
+                {
+                    "type": "function_call",
+                    "id": "fc_2",
+                    "call_id": "call_2",
+                    "name": "complete_sub_goal",
+                    "arguments": json.dumps({"result": "done"}),
+                }
+            ],
+        ),
+    )
 
-    result = await ExecuteToolsStage(registry).run(context)
+    result = await AgentTurnStage(client, [], registry).run(context)
     events = [event.to_dict() for event in hub.replay_events()]
 
-    assert result == LoopResult.REPEAT
+    assert result == LoopResult.ADVANCE
     assert [event["type"] for event in events] == [
         "tool.call.started",
+        "tool.call.completed",
+        "tool.call.started",
+        "pipeline.subgoal.completed",
         "tool.call.completed",
     ]
     assert events[0]["payload"]["arguments"] == {"value": "hi"}
     assert events[1]["payload"]["content"] == [
         {"kind": "text", "text": '{"echo": "hi"}'}
     ]
+    assert events[3]["payload"]["status"] == "completed"
+    assert context.sub_goals[0].status == "completed"
+    assert context.sub_goals[0].result == "done"

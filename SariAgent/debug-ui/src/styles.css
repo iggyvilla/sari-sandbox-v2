@@ -73,6 +73,7 @@ body {
 .dot.running { background: var(--accent-bright); }
 .dot.completed { background: var(--ok); }
 .dot.error { background: var(--error); }
+.dot.cancelled { background: var(--warn); }
 
 .pill {
   padding: 1px 9px;
@@ -442,6 +443,17 @@ details.collapsible summary {
 .prompt-bar button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.prompt-bar button.stop {
+  background: transparent;
+  border: 1px solid var(--error);
+  color: var(--error);
+  padding: 8px 17px;
+}
+
+.prompt-bar button.stop:hover:not(:disabled) {
+  background: rgba(176, 87, 79, 0.15);
 }
 
 /* ---------- toasts ---------- */

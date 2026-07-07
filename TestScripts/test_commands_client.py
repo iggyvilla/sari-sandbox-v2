@@ -56,11 +56,11 @@ AGENT_STATE_KEYS = {
 HAND_STATE_KEYS = {
     "current_left_hand_position",
     "current_left_hand_rotation",
-    "left_hand_hovering",
+    "left_hand_can_grab",
     "left_hand_gripping",
     "current_right_hand_position",
     "current_right_hand_rotation",
-    "right_hand_hovering",
+    "right_hand_can_grab",
     "right_hand_gripping",
 }
 
@@ -202,17 +202,25 @@ def expect_hand_state(v1_compatibility):
         expect_keys(state, HAND_STATE_KEYS, "hand state")
         expect_vector(state["current_left_hand_position"], "current_left_hand_position")
         expect_vector(state["current_left_hand_rotation"], "current_left_hand_rotation")
-        if state["left_hand_hovering"] is not None:
+        # The idle left hand is nowhere near an item during this test.
+        if state["left_hand_can_grab"] is not False:
             raise CommandTestError(
-                f"left_hand_hovering must be JSON null, got {state['left_hand_hovering']!r}"
+                f"left_hand_can_grab must be JSON false, got {state['left_hand_can_grab']!r}"
             )
         expect_bool(state["left_hand_gripping"], "left_hand_gripping")
         expect_vector(state["current_right_hand_position"], "current_right_hand_position")
         expect_vector(state["current_right_hand_rotation"], "current_right_hand_rotation")
-        expect_optional_string(state["right_hand_hovering"], "right_hand_hovering")
+        expect_bool(state["right_hand_can_grab"], "right_hand_can_grab")
         expect_bool(state["right_hand_gripping"], "right_hand_gripping")
 
     return validate
+
+
+def expect_grip_state(hand_side, v1_compatibility):
+    if v1_compatibility:
+        return expect_prefix(f"{hand_side} Grip: ")
+
+    return expect_hand_state(False)
 
 
 def parse_json_object(response, label):
@@ -250,11 +258,6 @@ def expect_vector(value, label):
 def expect_bool(value, label):
     if not isinstance(value, bool):
         raise CommandTestError(f"{label} must be a JSON boolean, got {value!r}")
-
-
-def expect_optional_string(value, label):
-    if value is not None and not isinstance(value, str):
-        raise CommandTestError(f"{label} must be a JSON string or null, got {value!r}")
 
 
 def summarize_response(response):
@@ -370,11 +373,11 @@ def run(
 
         tester.send_command(
             "ToggleRightGrip",
-            validator=expect_prefix("Right Grip: "),
+            validator=expect_grip_state("Right", v1_compatibility),
         )
         tester.send_command(
             "ToggleGrip",
-            validator=expect_prefix("Right Grip: "),
+            validator=expect_grip_state("Right", v1_compatibility),
         )
 
         tester.send_command(

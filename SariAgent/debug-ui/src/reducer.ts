@@ -86,6 +86,20 @@ function applyEvent(state: State, event: DebugEvent): void {
       run.currentStage = null;
       break;
 
+    case "run.cancelled":
+      run.status = "cancelled";
+      run.currentStage = null;
+      closeOpenTextItems(run);
+      for (const section of run.sections) {
+        if (section.status === "running") section.status = "cancelled";
+        for (const item of section.items) {
+          if (item.kind === "tool" && item.call.status === "running") {
+            item.call.status = "cancelled";
+          }
+        }
+      }
+      break;
+
     case "pipeline.stage.started": {
       const stage = event.stage ?? "unknown";
       const occurrence =
@@ -123,11 +137,18 @@ function applyEvent(state: State, event: DebugEvent): void {
     }
 
     case "pipeline.subgoals.planned":
+    case "pipeline.subgoals.revised":
       run.subGoals = (payload.sub_goals ?? []).map((goal: any) => ({
         description: goal.description ?? "",
         status: goal.status ?? "pending",
       }));
       break;
+
+    case "pipeline.subgoal.completed": {
+      const goal = run.subGoals[payload.sub_goal_index];
+      if (goal) goal.status = payload.status ?? "completed";
+      break;
+    }
 
     case "pipeline.subgoal.changed":
       run.currentSubGoalIndex = payload.current_sub_goal_index ?? run.currentSubGoalIndex;
@@ -242,10 +263,13 @@ const KNOWN_RUN_EVENTS = new Set([
   "run.started",
   "run.completed",
   "run.error",
+  "run.cancelled",
   "pipeline.stage.started",
   "pipeline.stage.completed",
   "pipeline.stage.error",
   "pipeline.subgoals.planned",
+  "pipeline.subgoals.revised",
+  "pipeline.subgoal.completed",
   "pipeline.subgoal.changed",
   "llm.request.started",
   "llm.reasoning.delta",

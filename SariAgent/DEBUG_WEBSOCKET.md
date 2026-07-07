@@ -42,6 +42,17 @@ With `--serve`, clients may send JSON text frames on the same `/debug` socket:
 { "type": "client.run.start", "prompt": "look around the store" }
 ```
 
+```json
+{ "type": "client.run.stop" }
+```
+
+`client.run.stop` cancels the active run: the agent task is cancelled, which
+aborts any in-flight LLM stream (closing the HTTP connection so the provider
+stops generating tokens) and any pending Unity command. The server publishes
+`run.cancelled` (level `warn`, payload `{"reason": "client_stop"}`) for the
+stopped run and returns to `idle`. A stop received while no run is active, or
+in `cli` mode, is silently ignored.
+
 The server answers through the normal event stream:
 
 - `server.status` — payload `{"state": "idle"|"running", "accepts_prompts": bool, "active_run_id": "..."|null, "mode": "serve"|"cli"}`. Published on every state change, and additionally sent directly (with `seq: 0`) to each client immediately on connect, before replay.
@@ -61,7 +72,7 @@ All websocket messages are JSON objects with this stable envelope:
   "run_id": "0f2d...",
   "timestamp": "2026-07-04T02:15:30.123456Z",
   "type": "tool.call.completed",
-  "stage": "execute_tools",
+  "stage": "agent_turn",
   "level": "info",
   "summary": "Completed RequestScreenshot",
   "payload": {}
@@ -72,14 +83,33 @@ The frontend should sort by `seq` within a `run_id`. Late subscribers receive th
 
 ## Important Event Types
 
-- `run.started`, `run.completed`, `run.error`
+- `run.started`, `run.completed`, `run.error`, `run.cancelled`
 - `pipeline.stage.started`, `pipeline.stage.completed`, `pipeline.stage.error`
-- `pipeline.subgoals.planned`, `pipeline.subgoals.plan_failed`, `pipeline.subgoal.changed`
+- `pipeline.subgoals.planned`, `pipeline.subgoals.plan_failed`, `pipeline.subgoals.revised`, `pipeline.subgoal.changed`
+- `pipeline.subgoal.completed`, `pipeline.subgoal.soft_completed`, `pipeline.subgoal.turn_limit`
 - `llm.request.started`, `llm.raw_event`, `llm.text.delta`, `llm.text.completed`, `llm.reasoning.delta`
 - `tool.call.started`, `tool.call.completed`, `tool.call.error`
 - `unity.command.sent`, `unity.command.received`, `unity.command.error`
 
 `llm.reasoning.delta` is only emitted when the model provider explicitly exposes reasoning or reasoning summaries in streaming events. Hidden model chain-of-thought is not available to this backend.
+
+## Loop Control Tools
+
+The `agent_turn` stage owns the model/tool loop for the current sub-goal. Besides the Unity
+tools, the model always sees two loop-control tools that are intercepted by the agent (they
+never reach Unity) but still emit normal `tool.call.*` events:
+
+- `complete_sub_goal(result, status?)` — marks the current sub-goal `completed` (default) or
+  `failed` and ends the turn loop; emits `pipeline.subgoal.completed`. If the model instead
+  replies with plain text and no tool calls, the sub-goal is soft-completed and
+  `pipeline.subgoal.soft_completed` (level `warning`) is emitted.
+- `revise_sub_goals(sub_goals, reason?)` — replaces every sub-goal after the current one;
+  emits `pipeline.subgoals.revised` with the full updated plan (same `sub_goals` payload
+  shape as `pipeline.subgoals.planned`).
+
+If a sub-goal exhausts its per-sub-goal turn budget (`SARI_MAX_TURNS_PER_SUB_GOAL`, default 8),
+it is marked `failed`, `pipeline.subgoal.turn_limit` (level `warning`) is emitted, and the
+run advances to the next sub-goal.
 
 ## Stage Outputs & Token Accounting
 

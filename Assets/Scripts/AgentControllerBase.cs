@@ -630,6 +630,17 @@ public abstract class AgentControllerBase : MonoBehaviour
         transform.rotation = Quaternion.Euler(euler);
     }
 
+    // Egocentric translation: +z = planar forward, +x = planar right, +y = world up.
+    // Pitch is ignored so looking up/down never steers movement into the floor/ceiling.
+    public Vector3 EgocentricToWorldTranslation(Vector3 localTranslation)
+    {
+        Vector3 forward = GetPlanarDirection(transform.forward, Vector3.forward);
+        Vector3 right = GetPlanarDirection(transform.right, Vector3.right);
+        return right * localTranslation.x
+               + Vector3.up * localTranslation.y
+               + forward * localTranslation.z;
+    }
+
     public Vector3 ClampTranslationToMaximumHeight(Vector3 deltaTranslation)
     {
         float targetHeight = MovementRoot.position.y + _pendingBodyTranslation.y + deltaTranslation.y;

@@ -91,5 +91,12 @@ export function useDebugSocket(onEvents: (events: DebugEvent[]) => void) {
     return true;
   }, []);
 
-  return { connection, sendRunStart };
+  const sendRunStop = useCallback((): boolean => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify({ type: "client.run.stop" }));
+    return true;
+  }, []);
+
+  return { connection, sendRunStart, sendRunStop };
 }

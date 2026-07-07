@@ -37,8 +37,16 @@ def assemble(
     @factory.tool(
         desc="Move the agent by a relative translation and rotation.",
         properties=[
-            _vector_property("translation", "Relative x/y/z translation in Unity units."),
-            _vector_property("rotation", "Relative x/y/z Euler rotation in degrees."),
+            _vector_property(
+                "translation",
+                "Egocentric x/y/z translation in meters relative to current facing: "
+                "+z forward, -z backward, +x strafe right, -x strafe left, +y up.",
+            ),
+            _vector_property(
+                "rotation",
+                "Relative x/y/z Euler rotation in degrees: -y turns left, +y turns "
+                "right, -x pitches view up, +x pitches view down.",
+            ),
         ],
     )
     async def TranslateAgent(translation: list[float], rotation: list[float]) -> dict[str, object]:

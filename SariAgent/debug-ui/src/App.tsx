@@ -25,10 +25,14 @@ export default function App() {
     (events: DebugEvent[]) => dispatch({ type: "events", events }),
     [],
   );
-  const { connection, sendRunStart } = useDebugSocket(onEvents);
+  const { connection, sendRunStart, sendRunStop } = useDebugSocket(onEvents);
 
   const activeRun = state.activeRunId ? state.runs[state.activeRunId] : null;
   const canSend = connection === "open" && state.server.acceptsPrompts;
+  const canStop =
+    connection === "open" &&
+    state.server.mode === "serve" &&
+    state.server.state === "running";
 
   const submit = () => {
     const prompt = draft.trim();
@@ -116,6 +120,15 @@ export default function App() {
               }
             }}
           />
+          <button
+            type="button"
+            className="stop"
+            disabled={!canStop}
+            title="Stop the current run"
+            onClick={() => sendRunStop()}
+          >
+            Stop
+          </button>
           <button type="submit" disabled={!canSend || !draft.trim()}>
             Send
           </button>

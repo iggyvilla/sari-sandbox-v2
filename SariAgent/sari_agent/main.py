@@ -10,12 +10,11 @@ from sari_agent.context import AgentContext
 from sari_agent.debug import DebugHub, DebugWebSocketServer
 from sari_agent.loop import (
     AgentLoop,
+    AgentTurnStage,
     EndConditionStage,
-    ExecuteToolsStage,
     LoadMemoryStage,
     MemoryAssemblyStage,
     PlanSubGoalsStage,
-    RunModelStage,
 )
 from sari_agent.openai_client import ResponsesClient
 from sari_agent.serve import ServeController
@@ -45,8 +44,7 @@ def _build_loop(config: AgentConfig, debug_hub: DebugHub) -> AgentLoop:
         [
             LoadMemoryStage(),
             PlanSubGoalsStage(responses_client),
-            RunModelStage(responses_client, tool_definitions),
-            ExecuteToolsStage(registry),
+            AgentTurnStage(responses_client, tool_definitions, registry),
             MemoryAssemblyStage(),
             EndConditionStage(),
         ]
@@ -84,16 +82,60 @@ async def _serve_forever(
 
         debug_hub.begin_run()
         controller.state = "running"
+        controller.clear_stop()
         await debug_hub.publish(
             "server.run.accepted",
             summary="Prompt accepted",
             payload={"prompt": prompt, "run_id": debug_hub.run_id},
         )
         await controller.publish_status()
+        await _run_until_done_or_stopped(prompt, config, debug_hub, controller, loop)
+
+
+async def _run_until_done_or_stopped(
+    prompt: str,
+    config: AgentConfig,
+    debug_hub: DebugHub,
+    controller: ServeController,
+    loop: AgentLoop,
+) -> None:
+    """Race the run against a client.run.stop request from the debug UI.
+
+    Cancelling the run task aborts whatever it is awaiting — including an
+    in-flight LLM stream, which closes the HTTP connection so the provider
+    stops generating tokens.
+    """
+    run_task = asyncio.create_task(_run_once(prompt, config, debug_hub, loop))
+    stop_task = asyncio.create_task(controller.wait_for_stop())
+    try:
+        await asyncio.wait({run_task, stop_task}, return_when=asyncio.FIRST_COMPLETED)
+    except asyncio.CancelledError:
+        run_task.cancel()
+        raise
+    finally:
+        stop_task.cancel()
+
+    if run_task.done():
         try:
-            await _run_once(prompt, config, debug_hub, loop)
+            run_task.result()
         except Exception as error:  # noqa: BLE001 - run.error is already published
             status(f"Run failed: {error!r}")
+        return
+
+    run_task.cancel()
+    try:
+        await run_task
+    except asyncio.CancelledError:
+        pass
+    except Exception as error:  # noqa: BLE001 - cancellation may surface late errors
+        status(f"Run failed while stopping: {error!r}")
+    status("Run stopped from the debug website.")
+    await debug_hub.publish(
+        "run.cancelled",
+        level="warn",
+        summary="Run stopped from the debug UI",
+        payload={"reason": "client_stop"},
+    )
 
 
 async def async_main(argv: list[str] | None = None) -> int:

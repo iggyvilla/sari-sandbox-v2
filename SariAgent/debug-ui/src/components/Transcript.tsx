@@ -5,14 +5,15 @@ import { LlmRequestRow, ToolCallRow } from "./ToolCallRow";
 function ReasoningBlock({ item }: { item: Extract<ChatItem, { kind: "reasoning" }> }) {
   const [expanded, setExpanded] = useState(false);
   const open = expanded || item.open; // auto-open while streaming, collapse when done
+  const text = item.text.trim();
   return (
     <div className="reasoning-block">
       <div className="reasoning-summary" onClick={() => setExpanded((value) => !value)}>
         <span className="chevron">{open ? "▾" : "▸"}</span>
         <span className="tag">reasoning{item.open ? "…" : ""}</span>
-        {!open && <span className="reasoning-preview">{item.text}</span>}
+        {!open && <span className="reasoning-preview">{text}</span>}
       </div>
-      {open && <div className="reasoning-text">{item.text}</div>}
+      {open && <div className="reasoning-text">{text}</div>}
     </div>
   );
 }
@@ -23,16 +24,18 @@ function ChatItemView({ item }: { item: ChatItem }) {
       return <div className="user-bubble">{item.text}</div>;
     case "reasoning":
       return <ReasoningBlock item={item} />;
-    case "assistant":
-      // Reasoning-only responses can leave an assistant item with no visible
-      // text; render nothing rather than an empty outline.
-      if (!item.text.trim()) return null;
+    case "assistant": {
+      // Models often open with blank lines (and reasoning-only responses can
+      // leave no text at all); trim for display, omit the bubble when empty.
+      const text = item.text.trim();
+      if (!text) return null;
       return (
         <div className="assistant-block">
-          {item.text}
+          {text}
           {item.open && <span className="caret" />}
         </div>
       );
+    }
     case "tool":
       return <ToolCallRow call={item.call} />;
     case "llm_request":
