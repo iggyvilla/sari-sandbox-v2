@@ -574,8 +574,14 @@ def _append_text_value(target: list[str], value: Any) -> None:
             _append_text_value(target, nested)
 
 
-def image_content_block(model: str, mime_type: str, base64_data: str) -> dict[str, Any]:
+def image_content_block(
+    model: str,
+    mime_type: str,
+    base64_data: str,
+    *,
+    api_style: str = "responses",
+) -> dict[str, Any]:
     url = f"data:{mime_type};base64,{base64_data}"
-    if _is_qwen_model(model):
+    if api_style == "chat_completions" or _is_qwen_model(model):
         return {"type": "image_url", "image_url": {"url": url}}
     return {"type": "input_image", "image_url": url}

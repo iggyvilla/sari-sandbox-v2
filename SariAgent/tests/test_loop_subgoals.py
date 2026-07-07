@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 from typing import Any
 
@@ -15,6 +16,9 @@ from sari_agent.loop import (
 )
 from sari_agent.openai_client import ResponseStreamResult
 from sari_agent.tools.factory import ToolRegistry
+
+
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
 
 
 class FakeClient:
@@ -236,6 +240,63 @@ async def test_agent_turn_loops_over_tool_calls_until_text_response() -> None:
     assert outputs[0] in client.calls[1]["input_items"]
     assert context.stage_output is not None
     assert context.stage_output.text.startswith("2 model turn(s), 1 tool call(s)")
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_attaches_screenshot_image_to_next_model_turn(tmp_path) -> None:
+    screenshot_path = tmp_path / "shot.png"
+    screenshot_path.write_bytes(PNG_BYTES)
+
+    async def RequestScreenshot() -> dict[str, Any]:
+        return {
+            "command": "RequestScreenshot",
+            "screenshot": {
+                "path": str(screenshot_path),
+                "bytes": len(PNG_BYTES),
+                "mime_type": "image/png",
+            },
+        }
+
+    registry = ToolRegistry()
+    registry.register("RequestScreenshot", RequestScreenshot)
+    client = FakeClient(tool_call_result("RequestScreenshot", {}), "I can see it")
+    context = AgentContext(user_input="describe view")
+    context.sub_goals = [SubGoal("describe view")]
+
+    await make_turn_stage(client, registry=registry, max_turns=2).run(context)
+
+    expected_data_url = (
+        "data:image/png;base64," + base64.b64encode(PNG_BYTES).decode("ascii")
+    )
+    assert len(client.calls) == 2
+    second_turn_items = client.calls[1]["input_items"]
+    assert second_turn_items[-2] == {
+        "type": "function_call_output",
+        "call_id": "call_1",
+        "output": json.dumps(
+            {
+                "command": "RequestScreenshot",
+                "screenshot": {
+                    "path": str(screenshot_path),
+                    "bytes": len(PNG_BYTES),
+                    "mime_type": "image/png",
+                },
+            }
+        ),
+    }
+    assert second_turn_items[-1] == {
+        "role": "user",
+        "content": [
+            {
+                "type": "input_text",
+                "text": (
+                    "Screenshot captured from the agent's egocentric Unity camera. "
+                    "Use this image for visual observations."
+                ),
+            },
+            {"type": "input_image", "image_url": expected_data_url},
+        ],
+    }
 
 
 @pytest.mark.asyncio

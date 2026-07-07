@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import traceback
 from abc import ABC, abstractmethod
@@ -15,7 +16,7 @@ from sari_agent.debug.images import thumbnail_data_url
 from sari_agent.debug.trace import ToolTraceContext, tool_trace
 from sari_agent.memory.assembler import MemoryAssembler
 from sari_agent.memory.reader import load_markdown_memories
-from sari_agent.openai_client import ResponsesClient
+from sari_agent.openai_client import ResponsesClient, image_content_block
 from sari_agent.tools.factory import ToolRegistry
 
 
@@ -476,10 +477,17 @@ class AgentTurnStage(LoopStage):
                 break
 
             context.pending_tool_calls = result.tool_calls
+            follow_up_messages: list[dict[str, Any]] = []
             for call in result.tool_calls:
-                ends_sub_goal = await self._execute_call(context, registry, call)
+                ends_sub_goal = await self._execute_call(
+                    context,
+                    registry,
+                    call,
+                    follow_up_messages=follow_up_messages,
+                )
                 executed_calls += 1
                 sub_goal_terminal = sub_goal_terminal or ends_sub_goal
+            context.messages.extend(follow_up_messages)
             context.pending_tool_calls = []
             if sub_goal_terminal:
                 break
@@ -522,6 +530,8 @@ class AgentTurnStage(LoopStage):
         context: AgentContext,
         registry: ToolRegistry,
         call: dict[str, Any],
+        *,
+        follow_up_messages: list[dict[str, Any]],
     ) -> bool:
         """Run one tool call, append its output message, and publish debug events.
 
@@ -584,6 +594,7 @@ class AgentTurnStage(LoopStage):
             "output": json.dumps(result),
         }
         context.tool_results.append(item)
+        follow_up_messages.extend(_tool_result_model_messages(context, result))
         content = _tool_result_content_blocks(context, result) if _debug_enabled(context) else []
         await _publish_debug(
             context,
@@ -841,3 +852,47 @@ def _tool_result_content_blocks(context: AgentContext, result: Any) -> list[dict
     else:
         text = json.dumps(result, ensure_ascii=False, default=str)
     return [{"kind": "text", "text": text}]
+
+
+def _tool_result_model_messages(context: AgentContext, result: Any) -> list[dict[str, Any]]:
+    if not isinstance(result, dict) or not isinstance(result.get("screenshot"), dict):
+        return []
+
+    screenshot = result["screenshot"]
+    path = screenshot.get("path")
+    if not path:
+        return []
+
+    try:
+        image_bytes = Path(path).read_bytes()
+    except OSError:
+        return []
+
+    mime_type = screenshot.get("mime_type", "image/png")
+    if not isinstance(mime_type, str) or not mime_type:
+        mime_type = "image/png"
+
+    base64_data = base64.b64encode(image_bytes).decode("ascii")
+    api_style = context.config.openai_api_style
+    content = [
+        _image_context_text_block(
+            (
+                "Screenshot captured from the agent's egocentric Unity camera. "
+                "Use this image for visual observations."
+            ),
+            api_style=api_style,
+        ),
+        image_content_block(
+            context.config.model,
+            mime_type,
+            base64_data,
+            api_style=api_style,
+        ),
+    ]
+    return [{"role": "user", "content": content}]
+
+
+def _image_context_text_block(text: str, *, api_style: str) -> dict[str, str]:
+    if api_style == "chat_completions":
+        return {"type": "text", "text": text}
+    return {"type": "input_text", "text": text}

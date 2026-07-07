@@ -140,6 +140,12 @@ def test_chat_accumulator_captures_usage_only_final_chunk() -> None:
 def test_image_content_block_handles_qwen_and_openai_shapes() -> None:
     qwen = image_content_block("Qwen-VL", "image/jpeg", "abc")
     openai = image_content_block("gpt-4.1", "image/jpeg", "abc")
+    openai_chat = image_content_block(
+        "gpt-4.1",
+        "image/jpeg",
+        "abc",
+        api_style="chat_completions",
+    )
 
     assert qwen == {
         "type": "image_url",
@@ -148,6 +154,10 @@ def test_image_content_block_handles_qwen_and_openai_shapes() -> None:
     assert openai == {
         "type": "input_image",
         "image_url": "data:image/jpeg;base64,abc",
+    }
+    assert openai_chat == {
+        "type": "image_url",
+        "image_url": {"url": "data:image/jpeg;base64,abc"},
     }
 
 
