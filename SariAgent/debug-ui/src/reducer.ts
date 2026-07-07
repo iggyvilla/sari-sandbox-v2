@@ -2,9 +2,11 @@ import type {
   ChatItem,
   DebugEvent,
   Run,
+  StageOutput,
   StageSection,
   State,
   ToolCall,
+  UsageInfo,
 } from "./types";
 
 export const initialState: State = {
@@ -62,6 +64,20 @@ function applyEvent(state: State, event: DebugEvent): void {
       run.status = "completed";
       run.hitIterationLimit = Boolean(payload.hit_iteration_limit);
       run.currentStage = null;
+      if (payload.usage) {
+        run.usage = {
+          perStage: Object.fromEntries(
+            Object.entries(payload.usage.per_stage ?? {}).map(([stage, usage]) => [
+              stage,
+              toUsageInfo(usage) ?? {},
+            ]),
+          ),
+          totals: toUsageInfo(payload.usage.totals) ?? {},
+        };
+      }
+      if (typeof payload.total_runtime_ms === "number") {
+        run.totalRuntimeMs = payload.total_runtime_ms;
+      }
       break;
 
     case "run.error":
@@ -90,6 +106,9 @@ function applyEvent(state: State, event: DebugEvent): void {
       if (section) {
         section.status = "completed";
         section.durationMs = payload.duration_ms;
+        if (payload.output?.text) {
+          section.output = toStageOutput(payload.output);
+        }
       }
       break;
     }
@@ -259,6 +278,24 @@ function applyServerEvent(state: State, event: DebugEvent): void {
       break;
     // server.run.accepted needs no UI state; run.started follows immediately.
   }
+}
+
+function toUsageInfo(raw: any): UsageInfo | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  return {
+    inputTokens: raw.input_tokens,
+    outputTokens: raw.output_tokens,
+    totalTokens: raw.total_tokens,
+  };
+}
+
+function toStageOutput(raw: any): StageOutput {
+  return {
+    kind: raw.kind === "code" ? "code" : "text",
+    text: raw.text ?? "",
+    language: raw.language ?? undefined,
+    usage: toUsageInfo(raw.usage),
+  };
 }
 
 function getOrCreateRun(state: State, runId: string): Run {

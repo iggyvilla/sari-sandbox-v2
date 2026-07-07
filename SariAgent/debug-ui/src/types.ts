@@ -64,12 +64,26 @@ export type ChatItem =
   | { kind: "tool"; call: ToolCall }
   | { kind: "llm_request"; info: LlmRequestInfo };
 
+export interface UsageInfo {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+export interface StageOutput {
+  kind: "text" | "code";
+  text: string;
+  language?: string;
+  usage?: UsageInfo;
+}
+
 export interface StageSection {
   key: string;
   stage: string;
   occurrence: number;
   status: "running" | "completed" | "error";
   durationMs?: number;
+  output?: StageOutput;
   items: ChatItem[];
 }
 
@@ -89,6 +103,8 @@ export interface Run {
   sections: StageSection[];
   error?: ErrorInfo;
   hitIterationLimit?: boolean;
+  usage?: { perStage: Record<string, UsageInfo>; totals: UsageInfo };
+  totalRuntimeMs?: number;
 }
 
 export interface ServerInfo {

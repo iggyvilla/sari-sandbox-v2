@@ -7,6 +7,7 @@ from sari_agent.openai_client import (
     ChatCompletionsStreamAccumulator,
     ResponseStreamAccumulator,
     ResponsesClient,
+    _normalize_usage,
     _to_chat_messages,
     _to_chat_tool,
     image_content_block,
@@ -85,6 +86,55 @@ def test_streamed_function_call_argument_accumulation() -> None:
             "arguments_json": '{"translation":[0,0,0.1],"rotation":[0,0,0]}',
         }
     ]
+
+
+def test_normalize_usage_handles_both_naming_conventions() -> None:
+    assert _normalize_usage({"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}) == {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15,
+    }
+    assert _normalize_usage({"prompt_tokens": 10, "completion_tokens": 5}) == {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15,
+    }
+    assert _normalize_usage(None) is None
+    assert _normalize_usage({"unrelated": "value"}) is None
+
+
+def test_responses_accumulator_captures_usage() -> None:
+    accumulator = ResponseStreamAccumulator()
+    accumulator.process_event({"type": "response.output_text.delta", "delta": "hi"})
+    accumulator.process_event(
+        {
+            "type": "response.completed",
+            "response": {
+                "output": [],
+                "usage": {"input_tokens": 512, "output_tokens": 88, "total_tokens": 600},
+            },
+        }
+    )
+
+    result = accumulator.result()
+
+    assert result.usage == {"input_tokens": 512, "output_tokens": 88, "total_tokens": 600}
+
+
+def test_chat_accumulator_captures_usage_only_final_chunk() -> None:
+    accumulator = ChatCompletionsStreamAccumulator()
+    accumulator.process_event({"choices": [{"delta": {"content": "hello"}}]})
+    accumulator.process_event(
+        {
+            "choices": [],
+            "usage": {"prompt_tokens": 42, "completion_tokens": 7, "total_tokens": 49},
+        }
+    )
+
+    result = accumulator.result()
+
+    assert result.text == "hello"
+    assert result.usage == {"input_tokens": 42, "output_tokens": 7, "total_tokens": 49}
 
 
 def test_image_content_block_handles_qwen_and_openai_shapes() -> None:
@@ -249,6 +299,52 @@ def test_qwen_chat_messages_use_nested_image_url_blocks() -> None:
             ],
         }
     ]
+
+
+class FakeChatCompletions:
+    def __init__(self, events: list[dict[str, object]]) -> None:
+        self.events = events
+        self.create_kwargs: dict[str, object] = {}
+
+    async def create(self, **kwargs):
+        self.create_kwargs = kwargs
+
+        async def _iterate():
+            for event in self.events:
+                yield event
+
+        return _iterate()
+
+
+class FakeChatClient:
+    def __init__(self, events: list[dict[str, object]]) -> None:
+        self.chat = type("Chat", (), {})()
+        self.chat.completions = FakeChatCompletions(events)
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_run_requests_and_returns_usage() -> None:
+    fake = FakeChatClient(
+        [
+            {"choices": [{"delta": {"content": "hello"}}]},
+            {
+                "choices": [],
+                "usage": {"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15},
+            },
+        ]
+    )
+    client = ResponsesClient(model="demo", api_style="chat_completions", client=fake)
+
+    result = await client.run_streamed(
+        input_items=[{"role": "user", "content": "say hello"}],
+        tools=[],
+        stage="run_model",
+    )
+
+    assert fake.chat.completions.create_kwargs["stream_options"] == {"include_usage": True}
+    assert "tools" not in fake.chat.completions.create_kwargs
+    assert result.text == "hello"
+    assert result.usage == {"input_tokens": 12, "output_tokens": 3, "total_tokens": 15}
 
 
 @pytest.mark.asyncio

@@ -24,6 +24,9 @@ function ChatItemView({ item }: { item: ChatItem }) {
     case "reasoning":
       return <ReasoningBlock item={item} />;
     case "assistant":
+      // Reasoning-only responses can leave an assistant item with no visible
+      // text; render nothing rather than an empty outline.
+      if (!item.text.trim()) return null;
       return (
         <div className="assistant-block">
           {item.text}
@@ -40,6 +43,8 @@ function ChatItemView({ item }: { item: ChatItem }) {
 function StageSectionView({ section }: { section: StageSection }) {
   const duration =
     section.durationMs !== undefined ? ` · ${Math.round(section.durationMs)} ms` : "";
+  const tokens = section.output?.usage?.totalTokens;
+  const tokenBadge = tokens !== undefined ? ` · ${tokens.toLocaleString()} tok` : "";
   return (
     <>
       <div className={`stage-header ${section.status === "error" ? "error" : ""}`}>
@@ -48,12 +53,18 @@ function StageSectionView({ section }: { section: StageSection }) {
           {section.occurrence > 1 ? ` — pass ${section.occurrence}` : ""}
         </span>
         <span className="stage-meta">
-          {section.status === "running" ? "running…" : section.status + duration}
+          {section.status === "running" ? "running…" : section.status + duration + tokenBadge}
         </span>
       </div>
       {section.items.map((item, index) => (
         <ChatItemView key={index} item={item} />
       ))}
+      {section.output &&
+        (section.output.kind === "code" ? (
+          <pre className="stage-output code">{section.output.text}</pre>
+        ) : (
+          <div className="stage-output">{section.output.text}</div>
+        ))}
     </>
   );
 }
@@ -86,6 +97,12 @@ function RunView({ run, isActive }: { run: Run; isActive: boolean }) {
           run {run.runId.slice(0, 8)} · {run.status}
           {run.hitIterationLimit ? " (iteration limit)" : ""}
         </span>
+        {run.usage?.totals.totalTokens !== undefined && run.usage.totals.totalTokens > 0 && (
+          <span>· {run.usage.totals.totalTokens.toLocaleString()} tokens total</span>
+        )}
+        {run.totalRuntimeMs !== undefined && (
+          <span>· {(run.totalRuntimeMs / 1000).toFixed(1)}s</span>
+        )}
         {subGoalCount > 0 && (
           <span>
             · sub-goal {Math.min(run.currentSubGoalIndex + 1, subGoalCount)}/{subGoalCount}

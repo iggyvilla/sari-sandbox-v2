@@ -16,6 +16,24 @@ class SubGoal:
 
 
 @dataclass(slots=True)
+class StageOutput:
+    """Definitive per-stage output surfaced on pipeline.stage.completed."""
+
+    kind: str = "text"  # "text" | "code"
+    text: str = ""
+    language: str | None = None
+    usage: dict[str, Any] | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "text": self.text,
+            "language": self.language,
+            "usage": self.usage,
+        }
+
+
+@dataclass(slots=True)
 class AgentStateConfig:
     name: str
     system_prompt_fragments: list[str] = field(default_factory=list)
@@ -43,6 +61,13 @@ class AgentContext:
     # Optional DebugHub used by the embedded websocket backend.  It is typed as
     # Any to keep the context module free of runtime dependencies on debug code.
     debug_hub: Any | None = None
+    # Definitive output set by the current stage; AgentLoop pops it into the
+    # pipeline.stage.completed event after each stage run.
+    stage_output: StageOutput | None = None
+    # Token usage accumulated per stage name across all passes.
+    stage_usage: dict[str, dict[str, int]] = field(default_factory=dict)
+    # perf_counter() value captured when AgentLoop.run starts.
+    run_started_at: float | None = None
 
     @property
     def current_state(self) -> AgentStateConfig:
@@ -58,3 +83,21 @@ class AgentContext:
 
     def allowed_tool_names(self) -> set[str] | None:
         return self.current_state.allowed_tool_names
+
+    def record_usage(self, stage: str, usage: dict[str, Any] | None) -> None:
+        if not usage:
+            return
+        totals = self.stage_usage.setdefault(
+            stage, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        )
+        for key in totals:
+            value = usage.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                totals[key] += int(value)
+
+    def total_usage(self) -> dict[str, int]:
+        totals = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        for usage in self.stage_usage.values():
+            for key in totals:
+                totals[key] += usage.get(key, 0)
+        return totals

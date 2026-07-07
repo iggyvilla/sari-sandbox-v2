@@ -74,12 +74,48 @@ The frontend should sort by `seq` within a `run_id`. Late subscribers receive th
 
 - `run.started`, `run.completed`, `run.error`
 - `pipeline.stage.started`, `pipeline.stage.completed`, `pipeline.stage.error`
-- `pipeline.subgoals.planned`, `pipeline.subgoal.changed`
+- `pipeline.subgoals.planned`, `pipeline.subgoals.plan_failed`, `pipeline.subgoal.changed`
 - `llm.request.started`, `llm.raw_event`, `llm.text.delta`, `llm.text.completed`, `llm.reasoning.delta`
 - `tool.call.started`, `tool.call.completed`, `tool.call.error`
 - `unity.command.sent`, `unity.command.received`, `unity.command.error`
 
 `llm.reasoning.delta` is only emitted when the model provider explicitly exposes reasoning or reasoning summaries in streaming events. Hidden model chain-of-thought is not available to this backend.
+
+## Stage Outputs & Token Accounting
+
+`pipeline.stage.completed.payload` may carry an optional `output` object — the stage's
+definitive product (e.g. the planned sub-goal list) or, for LLM stages, a token summary:
+
+```json
+{
+  "result": "advance",
+  "duration_ms": 123.4,
+  "output": {
+    "kind": "text",
+    "text": "1. Locate the milk section\n2. Pick up a bag of chips",
+    "language": null,
+    "usage": { "input_tokens": 512, "output_tokens": 88, "total_tokens": 600 }
+  }
+}
+```
+
+`kind` is `"text"` or `"code"` (`code` renders monospace; `end_condition` uses it for the
+final run summary table). `usage` is `null` when the stage made no LLM call or the server
+did not report usage. For the `chat_completions` API style, usage capture depends on the
+server honoring `stream_options.include_usage`; servers that ignore it yield `usage: null`.
+
+`run.completed.payload` additionally carries run-wide totals (also present on
+iteration-limit exits, where `end_condition` never emits its DONE summary):
+
+```json
+{
+  "usage": {
+    "per_stage": { "plan_sub_goals": { "input_tokens": 512, "output_tokens": 88, "total_tokens": 600 } },
+    "totals": { "input_tokens": 4722, "output_tokens": 2018, "total_tokens": 6740 }
+  },
+  "total_runtime_ms": 42310.5
+}
+```
 
 ## Rendering Tool Content
 

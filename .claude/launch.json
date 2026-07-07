@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "SariAgent/debug-ui"],
       "port": 5173
+    },
+    {
+      "name": "debug-ui-verify",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "SariAgent/debug-ui", "--", "--port", "5199"],
+      "port": 5199
     }
   ]
 }

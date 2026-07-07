@@ -10,13 +10,28 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
-from sari_agent.context import AgentContext, SubGoal
+from sari_agent.context import AgentContext, StageOutput, SubGoal
 from sari_agent.debug.images import thumbnail_data_url
 from sari_agent.debug.trace import ToolTraceContext, tool_trace
 from sari_agent.memory.assembler import MemoryAssembler
 from sari_agent.memory.reader import load_markdown_memories
 from sari_agent.openai_client import ResponsesClient
 from sari_agent.tools.factory import ToolRegistry
+
+
+SUB_GOAL_PLANNER_INSTRUCTIONS = """You plan work for SARI, an embodied assistant operating a Unity store sandbox.
+Convert the user's request into a short ordered list of sub-goals for the agent to execute.
+
+Return JSON only, with this exact shape:
+{"sub_goals": [{"description": "..."}, {"description": "..."}]}
+
+Rules:
+- Each description must be concise, actionable, and understandable without extra context.
+- Preserve the user's intent and ordering.
+- Do not invent product names, locations, tools, or observations not present in the prompt.
+- Do not include tool names, implementation details, markdown, or explanatory text.
+- Use one sub-goal for simple requests.
+"""
 
 
 class LoopResult(str, Enum):
@@ -44,6 +59,8 @@ class AgentLoop:
         max_iterations = self.max_iterations or context.config.max_loop_iterations
         iterations = 0
         stage_index = 0
+        if context.run_started_at is None:
+            context.run_started_at = perf_counter()
 
         await _publish_debug(
             context,
@@ -68,6 +85,7 @@ class AgentLoop:
                 )
 
                 started_at = perf_counter()
+                context.stage_output = None
                 try:
                     result = await stage.run(context)
                 except Exception as exc:
@@ -87,16 +105,21 @@ class AgentLoop:
 
                 iterations += 1
                 context.metadata["loop_iterations"] = iterations
+                stage_output = context.stage_output
+                context.stage_output = None
+                completed_payload = {
+                    **_pipeline_payload(context, iterations),
+                    "result": result.value,
+                    "duration_ms": _duration_ms(started_at),
+                }
+                if stage_output is not None:
+                    completed_payload["output"] = stage_output.to_payload()
                 await _publish_debug(
                     context,
                     "pipeline.stage.completed",
                     stage=stage.name,
                     summary=f"Completed {stage.name}",
-                    payload={
-                        **_pipeline_payload(context, iterations),
-                        "result": result.value,
-                        "duration_ms": _duration_ms(started_at),
-                    },
+                    payload=completed_payload,
                 )
 
                 if result == LoopResult.DONE:
@@ -137,6 +160,15 @@ class AgentLoop:
                     **_pipeline_payload(context, iterations),
                     "completed": context.completed,
                     "hit_iteration_limit": not context.completed and iterations >= max_iterations,
+                    "usage": {
+                        "per_stage": context.stage_usage,
+                        "totals": context.total_usage(),
+                    },
+                    "total_runtime_ms": (
+                        _duration_ms(context.run_started_at)
+                        if context.run_started_at is not None
+                        else None
+                    ),
                 },
             )
 
@@ -159,20 +191,62 @@ class LoadMemoryStage(LoopStage):
             if name != "SARI.md":
                 fragments.append(f"# Memory: {name}\n\n{body}")
         context.system_prompt = "\n\n".join(fragments)
+        names = list(context.memory_documents)
+        context.stage_output = StageOutput(
+            text=f"Loaded {len(names)} memory document(s): {', '.join(names)}"
+        )
         return LoopResult.ADVANCE
 
 
 class PlanSubGoalsStage(LoopStage):
     name = "plan_sub_goals"
 
+    def __init__(self, client: ResponsesClient | None = None, *, max_sub_goals: int = 6) -> None:
+        self.client = client
+        self.max_sub_goals = max(1, max_sub_goals)
+
     async def run(self, context: AgentContext) -> LoopResult:
         if context.sub_goals:
             return LoopResult.ADVANCE
-        parts = [part.strip() for part in context.user_input.split("\n") if part.strip()]
-        if len(parts) <= 1:
-            context.sub_goals = [SubGoal(description=context.user_input)]
+
+        usage: dict[str, Any] | None = None
+        if self.client is None:
+            context.sub_goals = _fallback_sub_goals(context.user_input)
         else:
-            context.sub_goals = [SubGoal(description=part) for part in parts]
+            result = await self.client.run_streamed(
+                input_items=[
+                    {
+                        "role": "user",
+                        "content": _sub_goal_planner_prompt(context.user_input, self.max_sub_goals),
+                    }
+                ],
+                tools=[],
+                instructions=SUB_GOAL_PLANNER_INSTRUCTIONS,
+                stage=self.name,
+            )
+            usage = result.usage
+            context.record_usage(self.name, usage)
+            sub_goals = _parse_sub_goals(result.text, max_sub_goals=self.max_sub_goals)
+            if sub_goals:
+                context.sub_goals = sub_goals
+            else:
+                context.sub_goals = [SubGoal(description=context.user_input)]
+                await _publish_debug(
+                    context,
+                    "pipeline.subgoals.plan_failed",
+                    stage=self.name,
+                    level="warning",
+                    summary="Sub-goal planner returned no valid sub-goals; using original prompt",
+                    payload={"raw_text": result.text},
+                )
+
+        context.stage_output = StageOutput(
+            text="\n".join(
+                f"{index + 1}. {sub_goal.description}"
+                for index, sub_goal in enumerate(context.sub_goals)
+            ),
+            usage=usage,
+        )
         await _publish_debug(
             context,
             "pipeline.subgoals.planned",
@@ -188,6 +262,89 @@ class PlanSubGoalsStage(LoopStage):
         return LoopResult.ADVANCE
 
 
+def _sub_goal_planner_prompt(user_input: str, max_sub_goals: int) -> str:
+    return (
+        f"User prompt:\n{user_input}\n\n"
+        f"Create between 1 and {max_sub_goals} sub-goals. "
+        "Return only the JSON object."
+    )
+
+
+def _parse_sub_goals(text: str, *, max_sub_goals: int) -> list[SubGoal]:
+    data = _json_from_text(text)
+    if isinstance(data, dict):
+        items = data.get("sub_goals")
+    elif isinstance(data, list):
+        items = data
+    else:
+        return []
+
+    if not isinstance(items, list):
+        return []
+
+    sub_goals: list[SubGoal] = []
+    for item in items:
+        description = _sub_goal_description(item)
+        if not description:
+            continue
+        sub_goals.append(SubGoal(description=description))
+        if len(sub_goals) >= max_sub_goals:
+            break
+    return sub_goals
+
+
+def _json_from_text(text: str) -> Any | None:
+    stripped = _strip_json_fence(text.strip())
+    for candidate in _json_candidates(stripped):
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def _strip_json_fence(text: str) -> str:
+    if not text.startswith("```"):
+        return text
+
+    lines = text.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].startswith("```"):
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def _json_candidates(text: str) -> list[str]:
+    candidates = [text]
+    object_start = text.find("{")
+    object_end = text.rfind("}")
+    if object_start >= 0 and object_end > object_start:
+        candidates.append(text[object_start : object_end + 1])
+
+    array_start = text.find("[")
+    array_end = text.rfind("]")
+    if array_start >= 0 and array_end > array_start:
+        candidates.append(text[array_start : array_end + 1])
+    return candidates
+
+
+def _sub_goal_description(item: Any) -> str:
+    if isinstance(item, str):
+        return item.strip()
+    if not isinstance(item, dict):
+        return ""
+    description = item.get("description")
+    return description.strip() if isinstance(description, str) else ""
+
+
+def _fallback_sub_goals(user_input: str) -> list[SubGoal]:
+    parts = [part.strip() for part in user_input.split("\n") if part.strip()]
+    if len(parts) <= 1:
+        return [SubGoal(description=user_input)]
+    return [SubGoal(description=part) for part in parts]
+
+
 class RunModelStage(LoopStage):
     name = "run_model"
 
@@ -197,8 +354,13 @@ class RunModelStage(LoopStage):
 
     async def run(self, context: AgentContext) -> LoopResult:
         goal = context.current_sub_goal.description if context.current_sub_goal else context.user_input
-        if not context.messages:
+        active_sub_goal_index = context.current_sub_goal_index if context.current_sub_goal else None
+        if (
+            not context.messages
+            or context.metadata.get("active_sub_goal_index") != active_sub_goal_index
+        ):
             context.messages.append({"role": "user", "content": goal})
+            context.metadata["active_sub_goal_index"] = active_sub_goal_index
         input_items = list(context.messages)
 
         result = await self.client.run_streamed(
@@ -210,6 +372,11 @@ class RunModelStage(LoopStage):
         context.response_text = result.text
         context.pending_tool_calls = result.tool_calls
         context.messages.extend(result.message_items)
+        context.record_usage(self.name, result.usage)
+        context.stage_output = StageOutput(
+            text=_token_summary_line(result.usage),
+            usage=result.usage,
+        )
         return LoopResult.ADVANCE
 
     def _allowed_tools(self, context: AgentContext) -> list[dict[str, Any]]:
@@ -304,6 +471,10 @@ class ExecuteToolsStage(LoopStage):
                 )
             else:
                 context.messages.append(item)
+        executed = [call["name"] for call in context.pending_tool_calls]
+        context.stage_output = StageOutput(
+            text=f"Executed {len(executed)} tool call(s): {', '.join(executed)}"
+        )
         context.pending_tool_calls = []
         return LoopResult.REPEAT
 
@@ -320,6 +491,9 @@ class MemoryAssemblyStage(LoopStage):
             current.status = "completed"
             current.result = context.response_text
             await self.assembler.after_sub_goal(context)
+            context.stage_output = StageOutput(
+                text=f"Marked sub-goal {context.current_sub_goal_index + 1} completed"
+            )
         return LoopResult.ADVANCE
 
 
@@ -328,7 +502,18 @@ class EndConditionStage(LoopStage):
 
     async def run(self, context: AgentContext) -> LoopResult:
         if context.current_sub_goal_index + 1 < len(context.sub_goals):
+            context.stage_output = StageOutput(
+                text=(
+                    f"Advancing to sub-goal {context.current_sub_goal_index + 2}"
+                    f"/{len(context.sub_goals)}"
+                )
+            )
             return LoopResult.NEXT_SUB_GOAL
+        context.stage_output = StageOutput(
+            kind="code",
+            text=_format_run_summary(context),
+            usage=context.total_usage() if context.stage_usage else None,
+        )
         return LoopResult.DONE
 
 
@@ -375,6 +560,39 @@ def _pipeline_payload(context: AgentContext, iterations: int) -> dict[str, Any]:
         "sub_goal_count": len(context.sub_goals),
         "pending_tool_call_count": len(context.pending_tool_calls),
     }
+
+
+def _token_summary_line(usage: dict[str, Any] | None) -> str:
+    if not usage:
+        return "Model call: token usage unavailable"
+    return (
+        f"Model call: {usage.get('total_tokens', 0):,} tokens "
+        f"({usage.get('input_tokens', 0):,} in / {usage.get('output_tokens', 0):,} out)"
+    )
+
+
+def _format_run_summary(context: AgentContext) -> str:
+    lines: list[str] = []
+    if context.stage_usage:
+        name_width = max(len("stage"), *(len(name) for name in context.stage_usage))
+        header = f"{'stage':<{name_width}}  {'input':>8}  {'output':>8}  {'total':>8}"
+        lines.append(header)
+        lines.append("-" * len(header))
+        for name, usage in context.stage_usage.items():
+            lines.append(
+                f"{name:<{name_width}}  {usage.get('input_tokens', 0):>8,}"
+                f"  {usage.get('output_tokens', 0):>8,}  {usage.get('total_tokens', 0):>8,}"
+            )
+        totals = context.total_usage()
+        lines.append(
+            f"{'TOTAL':<{name_width}}  {totals['input_tokens']:>8,}"
+            f"  {totals['output_tokens']:>8,}  {totals['total_tokens']:>8,}"
+        )
+    else:
+        lines.append("No token usage recorded.")
+    if context.run_started_at is not None:
+        lines.append(f"Runtime: {(perf_counter() - context.run_started_at):.1f}s")
+    return "\n".join(lines)
 
 
 def _duration_ms(started_at: float) -> float:

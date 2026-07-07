@@ -50,6 +50,35 @@ class ResponseStreamResult:
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     raw_events: list[dict[str, Any]] = field(default_factory=list)
     message_items: list[dict[str, Any]] = field(default_factory=list)
+    usage: dict[str, int] | None = None
+
+
+def _normalize_usage(raw: Any) -> dict[str, int] | None:
+    """Map provider usage objects onto input/output/total token counts."""
+
+    data = _as_dict(raw)
+    if not data:
+        return None
+
+    def _first_int(*keys: str) -> int | None:
+        for key in keys:
+            value = data.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return int(value)
+        return None
+
+    input_tokens = _first_int("input_tokens", "prompt_tokens")
+    output_tokens = _first_int("output_tokens", "completion_tokens")
+    total_tokens = _first_int("total_tokens")
+    if input_tokens is None and output_tokens is None and total_tokens is None:
+        return None
+    if total_tokens is None:
+        total_tokens = (input_tokens or 0) + (output_tokens or 0)
+    return {
+        "input_tokens": input_tokens or 0,
+        "output_tokens": output_tokens or 0,
+        "total_tokens": total_tokens,
+    }
 
 
 class ResponseStreamAccumulator:
@@ -58,6 +87,7 @@ class ResponseStreamAccumulator:
         self.calls: dict[str, StreamedToolCall] = {}
         self.index_to_id: dict[int, str] = {}
         self.raw_events: list[dict[str, Any]] = []
+        self.usage: dict[str, int] | None = None
 
     def process_event(self, event: Any) -> None:
         event_type = _event_get(event, "type", "")
@@ -106,6 +136,7 @@ class ResponseStreamAccumulator:
             tool_calls=[call.to_dict() for call in calls],
             raw_events=self.raw_events,
             message_items=message_items,
+            usage=self.usage,
         )
 
     def _handle_output_item_added(self, event: Any) -> None:
@@ -142,6 +173,8 @@ class ResponseStreamAccumulator:
 
     def _handle_completed(self, event: Any) -> None:
         response = _as_dict(_event_get(event, "response", {}))
+        if response.get("usage"):
+            self.usage = _normalize_usage(response["usage"])
         for output in response.get("output", []) or []:
             if output.get("type") == "message":
                 for content in output.get("content", []) or []:
@@ -260,12 +293,17 @@ class ResponsesClient:
         stage: str | None = None,
     ) -> ResponseStreamResult:
         accumulator = ChatCompletionsStreamAccumulator()
-        stream = await self.client.chat.completions.create(
-            model=self.model,
-            messages=_to_chat_messages(input_items, instructions, model=self.model),
-            tools=[_to_chat_tool(tool) for tool in tools or []],
-            stream=True,
-        )
+        create_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": _to_chat_messages(input_items, instructions, model=self.model),
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        chat_tools = [_to_chat_tool(tool) for tool in tools or []]
+        if chat_tools:
+            create_kwargs["tools"] = chat_tools
+
+        stream = await self.client.chat.completions.create(**create_kwargs)
         async for event in stream:
             await self._publish_stream_event(event, stage=stage, api_style="chat_completions")
             accumulator.process_event(event)
@@ -356,10 +394,15 @@ class ChatCompletionsStreamAccumulator:
         self.text_parts: list[str] = []
         self.calls_by_index: dict[int, StreamedToolCall] = {}
         self.raw_events: list[dict[str, Any]] = []
+        self.usage: dict[str, int] | None = None
 
     def process_event(self, event: Any) -> None:
         event_dict = _as_dict(event)
         self.raw_events.append(event_dict)
+        # With stream_options.include_usage the final chunk carries usage and
+        # has an empty choices list.
+        if event_dict.get("usage"):
+            self.usage = _normalize_usage(event_dict["usage"])
         for choice in event_dict.get("choices", []) or []:
             delta = _as_dict(choice.get("delta", {}))
             content = delta.get("content")
@@ -390,6 +433,7 @@ class ChatCompletionsStreamAccumulator:
             tool_calls=[call.to_dict() for call in calls],
             raw_events=self.raw_events,
             message_items=[message] if text or calls else [],
+            usage=self.usage,
         )
 
     def _handle_tool_call_delta(self, tool_call: dict[str, Any]) -> None:

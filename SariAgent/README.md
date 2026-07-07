@@ -25,7 +25,7 @@ sari-agent --serve                          # no prompt: idle until the debug UI
 
 | Flag | Description |
 |---|---|
-| `prompt` (positional) | User task. Required unless `--serve`. Multi-line prompts become one sub-goal per line. |
+| `prompt` (positional) | User task. Required unless `--serve`. The agent asks the configured model to convert the prompt into concise ordered sub-goals before execution. |
 | `--serve` | Serve mode: implies `--debug`, waits for `client.run.start` messages from the debug UI, runs one agent loop per prompt (fresh `run_id` each), returns to idle after each run. Ctrl-C to stop. |
 | `--model` | Override `SARI_MODEL` (default `gpt-4.1`). |
 | `--api-key` | Override `SARI_OPENAI_API_KEY` / `OPENAI_API_KEY`. |

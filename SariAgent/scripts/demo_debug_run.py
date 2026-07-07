@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sari_agent.context import AgentContext
+from sari_agent.context import AgentContext, StageOutput
 from sari_agent.debug import DebugHub, DebugWebSocketServer
 from sari_agent.debug.images import thumbnail_data_url
 from sari_agent.loop import AgentLoop, EndConditionStage, LoopResult, LoopStage, PlanSubGoalsStage
@@ -44,6 +44,9 @@ class FakeLoadMemoryStage(LoopStage):
 
     async def run(self, context: AgentContext) -> LoopResult:
         await asyncio.sleep(0.2)
+        context.stage_output = StageOutput(
+            text="Loaded 2 memory document(s): SARI.md, store.md"
+        )
         return LoopResult.ADVANCE
 
 
@@ -92,6 +95,20 @@ class FakeRunModelStage(LoopStage):
             stage=self.name,
             summary="LLM text completed",
             payload={"text": text},
+        )
+
+        usage = (
+            {"input_tokens": 850, "output_tokens": 240, "total_tokens": 1090}
+            if first_pass
+            else {"input_tokens": 1420, "output_tokens": 180, "total_tokens": 1600}
+        )
+        context.record_usage(self.name, usage)
+        context.stage_output = StageOutput(
+            text=(
+                f"Model call: {usage['total_tokens']:,} tokens "
+                f"({usage['input_tokens']:,} in / {usage['output_tokens']:,} out)"
+            ),
+            usage=usage,
         )
 
         context.response_text = text
@@ -199,6 +216,10 @@ class FakeExecuteToolsStage(LoopStage):
                     "content": content,
                 },
             )
+        executed = [call["name"] for call in context.pending_tool_calls]
+        context.stage_output = StageOutput(
+            text=f"Executed {len(executed)} tool call(s): {', '.join(executed)}"
+        )
         context.pending_tool_calls = []
         return LoopResult.REPEAT
 
