@@ -61,10 +61,10 @@ Hand commands are in **agent-local space** (unlike body translation): +X is your
 
 - Grab detection is very short-range: the hand must be within about **6 cm** of an item (slightly in front of the palm). The hand-state `*_can_grab` field tells you when an item is grabbable.
 - **The item your hand is hovering over is outlined in white** in your view for as long as the hand stays on it. `*_can_grab` only tells you *that* something is grabbable, not *which* item — the white outline is your only way to know which one. Before gripping, take a screenshot and confirm the white-highlighted item is the one you actually want; if the wrong item is highlighted, reposition the hand and check again.
-- The sandbox never pushes state: `*_can_grab` only arrives in the response to each hand command. To grab an item, move the hand toward it in small steps and check every response until `*_can_grab` is true — then screenshot to verify the white highlight, and `ToggleGrip` picks the item up. Gripping while it is false does nothing useful. The held item's physics are disabled — it moves rigidly with your hand and won't collide with anything.
-- `ToggleGrip` again **releases** the item: physics re-enable and it **falls with gravity** from wherever the hand is. Position the hand low over the target surface (basket, shelf, counter) before releasing, or the item drops to the floor.
+- The sandbox never pushes state: `*_can_grab` only arrives in the response to each hand command. To grab an item, move the hand toward it in small steps and check every response until `*_can_grab` is true — then screenshot to verify the white highlight, and `ToggleLeftHandGrip` or `ToggleRightHandGrip` picks the item up. Gripping while it is false does nothing useful. The held item's physics are disabled — it moves rigidly with your hand and won't collide with anything.
+- `ToggleLeftHandGrip` or `ToggleRightHandGrip` again **releases** the item: physics re-enable and it **falls with gravity** from wherever the hand is. Position the hand low over the target surface (basket, shelf, counter) before releasing, or the item drops to the floor.
 - `IsHoldingItem` reports whether you're currently holding something.
-- Grip also grabs door handles when the hand touches one; move the hand to pull/push the door, then toggle grip to release (the hand resets afterwards).
+- Grip also grabs door handles when the hand touches one; move the hand to pull/push the door, then toggle that hand's grip to release (the hand resets afterwards).
 - `TogglePoke` / `TogglePoint` switches the hand to a pointing pose with a narrow fingertip collider — use it to press buttons and touch UI (buttons trigger on contact). Pointing and gripping are mutually exclusive.
 
 ## General operating procedure

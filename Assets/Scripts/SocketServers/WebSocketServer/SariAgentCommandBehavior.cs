@@ -33,7 +33,7 @@ public class SariAgentCommandBehavior : WebSocketBehavior
     {
         public float[] current_left_hand_position;
         public float[] current_left_hand_rotation;
-        // True when an item is within grab range of the hand, i.e. ToggleGrip would pick it up.
+        // True when an item is within grab range of the hand, i.e. Toggle*HandGrip would pick it up.
         // Deliberately a bool: the item id must not leak to the agent.
         public bool left_hand_can_grab;
         public bool left_hand_gripping;
@@ -179,8 +179,7 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                 session.Send(agent.IsHoldingItem() ? "true" : "false");
                 break;
 
-            case "ToggleRightGrip":
-            case "ToggleGrip":
+            case "ToggleRightHandGrip":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.ToggleGrip(AgentHandSide.Right);
                 if (sariSandboxV1CompatibilityLayer)
@@ -194,7 +193,7 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                     sariSandboxV1CompatibilityLayer));
                 break;
 
-            case "ToggleLeftGrip":
+            case "ToggleLeftHandGrip":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 agent.ToggleGrip(AgentHandSide.Left);
                 if (sariSandboxV1CompatibilityLayer)

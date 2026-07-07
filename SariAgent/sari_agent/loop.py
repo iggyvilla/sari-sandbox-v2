@@ -405,6 +405,14 @@ def _fallback_sub_goals(user_input: str) -> list[SubGoal]:
     return [SubGoal(description=part) for part in parts]
 
 
+def _agent_turn_goal_prompt(context: AgentContext, goal: str) -> str:
+    original = context.user_input.strip()
+    current = goal.strip()
+    if not original or original == current:
+        return goal
+    return f"Original user prompt:\n{context.user_input}\n\nCurrent sub-goal:\n{goal}"
+
+
 class AgentTurnStage(LoopStage):
     """Runs the model/tool loop for the current sub-goal as one atomic stage.
 
@@ -436,7 +444,9 @@ class AgentTurnStage(LoopStage):
             not context.messages
             or context.metadata.get("active_sub_goal_index") != active_sub_goal_index
         ):
-            context.messages.append({"role": "user", "content": goal})
+            context.messages.append(
+                {"role": "user", "content": _agent_turn_goal_prompt(context, goal)}
+            )
             context.metadata["active_sub_goal_index"] = active_sub_goal_index
 
         max_turns = self.max_turns or context.config.max_turns_per_sub_goal

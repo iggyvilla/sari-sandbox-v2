@@ -90,13 +90,13 @@ def assemble(
     async def IsHoldingItem() -> dict[str, object]:
         return await client.command("IsHoldingItem")
 
-    @factory.tool(desc="Toggle the right-hand grip state.", properties=[])
-    async def ToggleRightGrip() -> dict[str, object]:
-        return await client.command("ToggleRightGrip")
+    @factory.tool(desc="Toggle the left-hand grip state.", properties=[])
+    async def ToggleLeftHandGrip() -> dict[str, object]:
+        return await client.command("ToggleLeftHandGrip")
 
-    @factory.tool(desc="Toggle the active grip state.", properties=[])
-    async def ToggleGrip() -> dict[str, object]:
-        return await client.command("ToggleGrip")
+    @factory.tool(desc="Toggle the right-hand grip state.", properties=[])
+    async def ToggleRightHandGrip() -> dict[str, object]:
+        return await client.command("ToggleRightHandGrip")
 
     @factory.tool(desc="Toggle the right-hand poke state.", properties=[])
     async def ToggleRightPoke() -> dict[str, object]:

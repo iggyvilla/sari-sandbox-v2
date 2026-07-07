@@ -193,10 +193,21 @@ async def test_agent_turn_appends_user_message_for_next_sub_goal() -> None:
     context.current_sub_goal_index = 1
     await stage.run(context)
 
-    assert client.calls[0]["input_items"] == [{"role": "user", "content": "first task"}]
+    assert client.calls[0]["input_items"] == [
+        {
+            "role": "user",
+            "content": (
+                "Original user prompt:\ncomplete both tasks\n\n"
+                "Current sub-goal:\nfirst task"
+            ),
+        }
+    ]
     assert client.calls[1]["input_items"][-1] == {
         "role": "user",
-        "content": "second task",
+        "content": (
+            "Original user prompt:\ncomplete both tasks\n\n"
+            "Current sub-goal:\nsecond task"
+        ),
     }
 
 

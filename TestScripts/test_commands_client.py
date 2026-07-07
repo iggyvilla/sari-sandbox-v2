@@ -34,8 +34,8 @@ ACCEPTED_COMMANDS = {
     "TranslateHand",
     "ResetHandPosition",
     "IsHoldingItem",
-    "ToggleRightGrip",
-    "ToggleGrip",
+    "ToggleLeftHandGrip",
+    "ToggleRightHandGrip",
     "ToggleRightPoke",
     "TogglePoke",
     "TogglePoint",
@@ -372,12 +372,12 @@ def run(
         )
 
         tester.send_command(
-            "ToggleRightGrip",
+            "ToggleRightHandGrip",
             validator=expect_grip_state("Right", v1_compatibility),
         )
         tester.send_command(
-            "ToggleGrip",
-            validator=expect_grip_state("Right", v1_compatibility),
+            "ToggleLeftHandGrip",
+            validator=expect_grip_state("Left", v1_compatibility),
         )
 
         tester.send_command(
