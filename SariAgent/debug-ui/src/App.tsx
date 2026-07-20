@@ -25,7 +25,8 @@ export default function App() {
     (events: DebugEvent[]) => dispatch({ type: "events", events }),
     [],
   );
-  const { connection, sendRunStart, sendRunStop } = useDebugSocket(onEvents);
+  const { connection, sendRunStart, sendRunStop, sendQuestionAnswer } =
+    useDebugSocket(onEvents);
 
   const activeRun = state.activeRunId ? state.runs[state.activeRunId] : null;
   const canSend = connection === "open" && state.server.acceptsPrompts;
@@ -93,6 +94,7 @@ export default function App() {
         runs={state.runs}
         runOrder={state.runOrder}
         activeRunId={state.activeRunId}
+        onAnswer={sendQuestionAnswer}
       />
 
       <footer className="prompt-bar">

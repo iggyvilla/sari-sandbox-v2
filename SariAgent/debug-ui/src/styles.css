@@ -146,6 +146,15 @@ body {
   color: var(--text-muted);
 }
 
+.run-notice {
+  align-self: stretch;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  color: var(--warn);
+  padding: 8px 12px;
+  font-size: 12.5px;
+}
+
 .user-bubble {
   align-self: flex-end;
   max-width: 75%;
@@ -203,7 +212,6 @@ body {
   border-radius: 4px;
   color: var(--text-muted);
   font-size: 12px;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
@@ -226,7 +234,6 @@ body {
   border: 1px solid var(--border);
   border-radius: 14px 14px 14px 4px;
   padding: 9px 14px;
-  white-space: pre-wrap;
 }
 
 .assistant-block .caret {
@@ -241,6 +248,119 @@ body {
 
 @keyframes blink {
   50% { opacity: 0; }
+}
+
+/* ---------- markdown ---------- */
+
+.markdown {
+  display: inline;
+}
+
+/* Keep the streaming caret on the same line as the final paragraph. */
+.markdown > p:last-child {
+  display: inline;
+}
+
+.markdown > *:first-child { margin-top: 0; }
+.markdown > *:last-child { margin-bottom: 0; }
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown pre,
+.markdown table {
+  margin: 0.5em 0;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 0.8em 0 0.35em;
+  color: var(--accent-bright);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.markdown h1 { font-size: 1.25em; }
+.markdown h2 { font-size: 1.15em; }
+.markdown h3 { font-size: 1.05em; }
+.markdown h4,
+.markdown h5,
+.markdown h6 { font-size: 1em; }
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.4em;
+}
+
+.markdown li { margin: 0.15em 0; }
+
+.markdown code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+}
+
+.markdown pre {
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow-x: auto;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11.5px;
+}
+
+.markdown blockquote {
+  border-left: 2px solid var(--accent);
+  padding-left: 10px;
+  color: var(--text-muted);
+}
+
+.markdown a {
+  color: var(--accent-bright);
+  text-decoration: underline;
+}
+
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.8em 0;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  text-align: left;
+}
+
+.markdown th {
+  background: var(--bg);
+  color: var(--accent-bright);
+  font-weight: 600;
 }
 
 .reasoning-block {
@@ -385,6 +505,113 @@ details.collapsible summary {
 }
 
 .tool-detail .error-text { color: var(--error); }
+
+/* ---------- question cards ---------- */
+
+.question-card {
+  align-self: stretch;
+  border: 1px solid var(--warn);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: var(--bg-raised);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.question-card.answered {
+  border-color: var(--border);
+  border-left-color: var(--ok);
+}
+
+.question-card .tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--warn);
+}
+
+.question-card.answered .tag { color: var(--text-muted); }
+
+.question-card .question-text {
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+
+.question-card .question-context {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+}
+
+.question-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.question-choice {
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  padding: 7px 14px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 320px;
+}
+
+.question-choice:hover:not(:disabled) {
+  background: var(--bg);
+  border-color: var(--accent-bright);
+}
+
+.question-choice:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.question-choice.selected {
+  opacity: 1;
+  border-color: var(--ok);
+  color: var(--text);
+}
+
+.question-choice .choice-label { font-weight: 600; }
+
+.question-choice .choice-description {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.question-note {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 10px;
+}
+
+.question-note:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.question-answer {
+  font-size: 12px;
+  color: var(--ok);
+  font-family: var(--mono);
+}
 
 /* ---------- prompt bar ---------- */
 

@@ -57,12 +57,30 @@ export interface LlmRequestInfo {
   inputItemCount?: number;
 }
 
+export interface QuestionChoice {
+  id: string;
+  label: string;
+  description?: string | null;
+}
+
+export interface QuestionInfo {
+  questionId: string;
+  question: string;
+  context?: string | null;
+  choices: QuestionChoice[];
+  allowFreeText: boolean;
+  defaultChoiceId?: string;
+  status: "pending" | "answered";
+  answer?: { choiceId: string; text?: string | null; source: string };
+}
+
 export type ChatItem =
   | { kind: "user"; text: string }
   | { kind: "reasoning"; text: string; open: boolean }
   | { kind: "assistant"; text: string; open: boolean }
   | { kind: "tool"; call: ToolCall }
-  | { kind: "llm_request"; info: LlmRequestInfo };
+  | { kind: "llm_request"; info: LlmRequestInfo }
+  | { kind: "question"; question: QuestionInfo };
 
 export interface UsageInfo {
   inputTokens?: number;
@@ -103,6 +121,9 @@ export interface Run {
   sections: StageSection[];
   error?: ErrorInfo;
   hitIterationLimit?: boolean;
+  /** Set when the run was auto-stopped, e.g. "time_limit". */
+  stopReason?: string;
+  timeLimitS?: number;
   usage?: { perStage: Record<string, UsageInfo>; totals: UsageInfo };
   totalRuntimeMs?: number;
 }

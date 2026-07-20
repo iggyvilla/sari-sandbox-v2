@@ -147,6 +147,17 @@ iteration-limit exits, where `end_condition` never emits its DONE summary):
 }
 ```
 
+## Run Time Limit
+
+Runs are hard-capped by wall clock (`SARI_MAX_RUNTIME_SECONDS`, default 2700 = 45 minutes;
+`<= 0` disables). The limit is checked between pipeline stages, so a stage in progress is
+never interrupted. When it trips, `pipeline.run.time_limit` (level `warn`) is emitted,
+followed by a normal `run.completed` whose payload carries `"stop_reason": "time_limit"`
+and `"time_limit_s"` — the UI renders the run as completed with a "time limit" notice.
+On normal completions `stop_reason` is `null`. The old PantryPal CLI agent
+(`debug_bridge.py` side) emits the same `run.completed` payload fields, with its own
+`SARI_RUN_TIME_LIMIT_S` env var checked between timesteps.
+
 ## Rendering Tool Content
 
 `tool.call.completed.payload.content` is the easiest website-facing shape. Text tools use:

@@ -45,7 +45,7 @@ def _build_loop(config: AgentConfig, debug_hub: DebugHub) -> AgentLoop:
             LoadMemoryStage(),
             PlanSubGoalsStage(responses_client),
             AgentTurnStage(responses_client, tool_definitions, registry),
-            MemoryAssemblyStage(),
+            MemoryAssemblyStage(client=responses_client),
             EndConditionStage(),
         ]
     )

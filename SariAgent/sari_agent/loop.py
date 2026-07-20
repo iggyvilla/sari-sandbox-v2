@@ -14,7 +14,7 @@ from typing import Any
 from sari_agent.context import AgentContext, StageOutput, SubGoal
 from sari_agent.debug.images import thumbnail_data_url
 from sari_agent.debug.trace import ToolTraceContext, tool_trace
-from sari_agent.memory.assembler import MemoryAssembler
+from sari_agent.memory.assembler import MemoryAssembler, compact_message_images
 from sari_agent.memory.reader import load_markdown_memories
 from sari_agent.openai_client import ResponsesClient, image_content_block
 from sari_agent.tools.factory import ToolRegistry
@@ -121,8 +121,10 @@ class AgentLoop:
 
     async def run(self, context: AgentContext) -> AgentContext:
         max_iterations = self.max_iterations or context.config.max_loop_iterations
+        max_runtime_s = getattr(context.config, "max_runtime_seconds", None)
         iterations = 0
         stage_index = 0
+        hit_time_limit = False
         if context.run_started_at is None:
             context.run_started_at = perf_counter()
 
@@ -139,6 +141,23 @@ class AgentLoop:
 
         try:
             while not context.completed and iterations < max_iterations:
+                if (
+                    max_runtime_s is not None
+                    and perf_counter() - context.run_started_at >= max_runtime_s
+                ):
+                    hit_time_limit = True
+                    await _publish_debug(
+                        context,
+                        "pipeline.run.time_limit",
+                        level="warn",
+                        summary=f"Run hit the {max_runtime_s // 60}-minute time limit",
+                        payload={
+                            **_pipeline_payload(context, iterations),
+                            "time_limit_s": max_runtime_s,
+                        },
+                    )
+                    break
+
                 stage = self.stages[stage_index]
                 await _publish_debug(
                     context,
@@ -216,11 +235,17 @@ class AgentLoop:
             await _publish_debug(
                 context,
                 "run.completed",
-                summary="SariAgent run completed",
+                summary=(
+                    f"SariAgent run ended: {max_runtime_s // 60}-minute time limit reached"
+                    if hit_time_limit
+                    else "SariAgent run completed"
+                ),
                 payload={
                     **_pipeline_payload(context, iterations),
                     "completed": context.completed,
                     "hit_iteration_limit": not context.completed and iterations >= max_iterations,
+                    "stop_reason": "time_limit" if hit_time_limit else None,
+                    "time_limit_s": max_runtime_s if hit_time_limit else None,
                     "usage": {
                         "per_stage": context.stage_usage,
                         "totals": context.total_usage(),
@@ -432,11 +457,13 @@ class AgentTurnStage(LoopStage):
         registry: ToolRegistry,
         *,
         max_turns: int | None = None,
+        image_keep_count: int = 2,
     ) -> None:
         self.client = client
         self.tools = tools
         self.registry = registry
         self.max_turns = max_turns
+        self.image_keep_count = max(0, image_keep_count)
 
     async def run(self, context: AgentContext) -> LoopResult:
         goal = context.current_sub_goal.description if context.current_sub_goal else context.user_input
@@ -460,6 +487,7 @@ class AgentTurnStage(LoopStage):
 
         while turns < max_turns:
             turns += 1
+            await self._compact_old_images(context)
             result = await self.client.run_streamed(
                 input_items=list(context.messages),
                 tools=self._model_tools(context),
@@ -499,6 +527,7 @@ class AgentTurnStage(LoopStage):
                 executed_calls += 1
                 sub_goal_terminal = sub_goal_terminal or ends_sub_goal
             context.messages.extend(follow_up_messages)
+            await self._compact_old_images(context)
             context.pending_tool_calls = []
             if sub_goal_terminal:
                 break
@@ -539,6 +568,29 @@ class AgentTurnStage(LoopStage):
         else:
             tools = [tool for tool in self.tools if tool.get("name") in allowed]
         return tools + CONTROL_TOOL_DEFINITIONS
+
+    async def _compact_old_images(self, context: AgentContext) -> None:
+        result = compact_message_images(
+            context.messages,
+            api_style=context.config.openai_api_style,
+            image_keep_count=self.image_keep_count,
+        )
+        if result.omitted_image_count <= 0:
+            return
+
+        context.messages = result.messages
+        context.metadata.setdefault("agent_turn_image_compactions", 0)
+        context.metadata["agent_turn_image_compactions"] += 1
+        await _publish_debug(
+            context,
+            "pipeline.agent_turn.images_compacted",
+            stage=self.name,
+            summary="Compacted older screenshot images in active turn context",
+            payload={
+                "retained_image_count": result.retained_image_count,
+                "omitted_image_count": result.omitted_image_count,
+            },
+        )
 
     async def _execute_call(
         self,
@@ -705,18 +757,30 @@ class AgentTurnStage(LoopStage):
 class MemoryAssemblyStage(LoopStage):
     name = "memory_assembly"
 
-    def __init__(self, assembler: MemoryAssembler | None = None) -> None:
-        self.assembler = assembler or MemoryAssembler()
+    def __init__(
+        self,
+        assembler: MemoryAssembler | None = None,
+        *,
+        client: ResponsesClient | None = None,
+    ) -> None:
+        self.assembler = assembler or MemoryAssembler(client=client)
 
     async def run(self, context: AgentContext) -> LoopResult:
         current = context.current_sub_goal
         if current is not None and current.status in {"completed", "failed"}:
-            await self.assembler.after_sub_goal(context)
+            result = await self.assembler.after_sub_goal(context)
+            suffix = ""
+            if result.compacted:
+                suffix = (
+                    f"; compacted context with {result.retained_image_count} retained "
+                    f"image(s)"
+                )
             context.stage_output = StageOutput(
                 text=(
                     f"Assembled memory for sub-goal {context.current_sub_goal_index + 1} "
-                    f"({current.status})"
-                )
+                    f"({current.status}){suffix}"
+                ),
+                usage=result.usage,
             )
         return LoopResult.ADVANCE
 

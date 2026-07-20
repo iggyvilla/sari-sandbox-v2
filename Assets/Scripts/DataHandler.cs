@@ -606,6 +606,7 @@ public class DataHandler : MonoBehaviour
     public void ResetEnvironment()
     {
         ItemPoolingManager.Instance?.ClearPool();
+        ShelfBuilder.DeleteAllPriceTags();
 
         foreach (GameObject obj in GameObject.FindGameObjectsWithTag("RetailItem"))
             Destroy(obj);

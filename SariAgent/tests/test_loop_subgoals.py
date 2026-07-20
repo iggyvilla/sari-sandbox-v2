@@ -14,6 +14,7 @@ from sari_agent.loop import (
     MemoryAssemblyStage,
     PlanSubGoalsStage,
 )
+from sari_agent.memory.assembler import OLDER_IMAGE_MARKER, SUMMARY_PREFIX
 from sari_agent.openai_client import ResponseStreamResult
 from sari_agent.tools.factory import ToolRegistry
 
@@ -62,6 +63,26 @@ class FakeClient:
         return ResponseStreamResult(text=output, message_items=message_items, usage=self.usage)
 
 
+class FailingClient(FakeClient):
+    async def run_streamed(
+        self,
+        *,
+        input_items: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        instructions: str | None = None,
+        stage: str | None = None,
+    ) -> ResponseStreamResult:
+        self.calls.append(
+            {
+                "input_items": input_items,
+                "tools": tools,
+                "instructions": instructions,
+                "stage": stage,
+            }
+        )
+        raise RuntimeError("compaction failed")
+
+
 def tool_call_result(
     name: str,
     arguments: dict[str, Any],
@@ -103,6 +124,32 @@ def make_turn_stage(
     max_turns: int | None = None,
 ) -> AgentTurnStage:
     return AgentTurnStage(client, tools or [], registry or ToolRegistry(), max_turns=max_turns)
+
+
+def image_message(label: str, image_url: str) -> dict[str, Any]:
+    return {
+        "role": "user",
+        "content": [
+            {"type": "input_text", "text": label},
+            {"type": "input_image", "image_url": image_url},
+        ],
+    }
+
+
+def image_block_count(messages: list[dict[str, Any]]) -> int:
+    count = 0
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        count += sum(
+            1
+            for block in content
+            if isinstance(block, dict)
+            and block.get("type") in {"input_image", "image_url"}
+            and "image_url" in block
+        )
+    return count
 
 
 @pytest.mark.asyncio
@@ -311,6 +358,80 @@ async def test_agent_turn_attaches_screenshot_image_to_next_model_turn(tmp_path)
 
 
 @pytest.mark.asyncio
+async def test_agent_turn_compacts_old_screenshot_images_during_turn(tmp_path) -> None:
+    screenshot_paths = []
+    for index in range(3):
+        path = tmp_path / f"shot-{index}.png"
+        path.write_bytes(PNG_BYTES + bytes([index]))
+        screenshot_paths.append(path)
+
+    pending_paths = list(screenshot_paths)
+
+    async def RequestScreenshot() -> dict[str, Any]:
+        path = pending_paths.pop(0)
+        return {
+            "command": "RequestScreenshot",
+            "screenshot": {
+                "path": str(path),
+                "bytes": path.stat().st_size,
+                "mime_type": "image/png",
+            },
+        }
+
+    registry = ToolRegistry()
+    registry.register("RequestScreenshot", RequestScreenshot)
+    tool_calls = []
+    message_items = []
+    for index in range(3):
+        call_id = f"call_{index + 1}"
+        tool_calls.append(
+            {
+                "id": call_id,
+                "call_id": call_id,
+                "name": "RequestScreenshot",
+                "arguments": {},
+                "arguments_json": "{}",
+            }
+        )
+        message_items.append(
+            {
+                "type": "function_call",
+                "id": call_id,
+                "call_id": call_id,
+                "name": "RequestScreenshot",
+                "arguments": "{}",
+            }
+        )
+    client = FakeClient(
+        ResponseStreamResult(tool_calls=tool_calls, message_items=message_items),
+        "I can see the latest screenshots",
+    )
+    context = AgentContext(user_input="inspect shelf")
+    context.sub_goals = [SubGoal("inspect shelf")]
+
+    await make_turn_stage(client, registry=registry, max_turns=2).run(context)
+
+    second_turn_items = client.calls[1]["input_items"]
+    first_data_url = "data:image/png;base64," + base64.b64encode(
+        PNG_BYTES + bytes([0])
+    ).decode("ascii")
+    second_data_url = "data:image/png;base64," + base64.b64encode(
+        PNG_BYTES + bytes([1])
+    ).decode("ascii")
+    third_data_url = "data:image/png;base64," + base64.b64encode(
+        PNG_BYTES + bytes([2])
+    ).decode("ascii")
+    serialized = json.dumps(second_turn_items)
+
+    assert image_block_count(second_turn_items) == 2
+    assert OLDER_IMAGE_MARKER in serialized
+    assert first_data_url not in serialized
+    assert second_data_url in serialized
+    assert third_data_url in serialized
+    assert context.metadata["agent_turn_image_compactions"] == 1
+
+
+@pytest.mark.asyncio
 async def test_agent_turn_soft_completes_on_plain_text() -> None:
     hub = DebugHub(enabled=True, run_id="run", replay_limit=20)
     client = FakeClient("I think I am done here")
@@ -498,3 +619,119 @@ async def test_memory_assembly_stage_assembles_terminal_sub_goals_only() -> None
     await stage.run(context)
     assert context.metadata["memory_assembly_events"] == 1
     assert context.sub_goals[0].result == "model-authored result"
+
+
+@pytest.mark.asyncio
+async def test_memory_assembly_compacts_non_final_sub_goal() -> None:
+    usage = {"input_tokens": 80, "output_tokens": 12, "total_tokens": 92}
+    client = FakeClient("Found milk near the chiller.", usage=usage)
+    context = AgentContext(user_input="find milk, then grab chips")
+    context.sub_goals = [
+        SubGoal("find milk", status="completed", result="Milk is near the chiller."),
+        SubGoal("grab chips"),
+    ]
+    context.messages = [
+        {"role": "user", "content": "Current sub-goal: find milk"},
+        {"role": "assistant", "content": "raw prior details should be compacted"},
+    ]
+
+    await MemoryAssemblyStage(client=client).run(context)
+
+    assert client.calls[0]["tools"] == []
+    assert client.calls[0]["stage"] == "memory_assembly"
+    assert "raw prior details should be compacted" in client.calls[0]["input_items"][0]["content"]
+    assert context.messages == [
+        {"role": "user", "content": f"{SUMMARY_PREFIX}Found milk near the chiller."}
+    ]
+    assert context.stage_usage["memory_assembly"] == usage
+    assert context.stage_output is not None
+    assert context.stage_output.usage == usage
+
+
+@pytest.mark.asyncio
+async def test_next_sub_goal_receives_compacted_summary_not_raw_transcript() -> None:
+    compaction_client = FakeClient("Milk context summarized.")
+    turn_client = FakeClient("second done", include_messages=True)
+    context = AgentContext(user_input="find milk, then grab chips")
+    context.sub_goals = [
+        SubGoal("find milk", status="completed", result="Found milk."),
+        SubGoal("grab chips"),
+    ]
+    context.messages = [
+        {"role": "user", "content": "Current sub-goal: find milk"},
+        {"role": "assistant", "content": "raw transcript that should disappear"},
+    ]
+
+    await MemoryAssemblyStage(client=compaction_client).run(context)
+    context.current_sub_goal_index = 1
+    await make_turn_stage(turn_client).run(context)
+
+    next_items = turn_client.calls[0]["input_items"]
+    assert next_items[0] == {
+        "role": "user",
+        "content": f"{SUMMARY_PREFIX}Milk context summarized.",
+    }
+    assert next_items[-1] == {
+        "role": "user",
+        "content": (
+            "Original user prompt:\nfind milk, then grab chips\n\n"
+            "Current sub-goal:\ngrab chips"
+        ),
+    }
+    assert "raw transcript that should disappear" not in json.dumps(next_items)
+
+
+@pytest.mark.asyncio
+async def test_memory_assembly_retains_only_latest_two_images() -> None:
+    client = FakeClient("Visual context summarized.")
+    context = AgentContext(user_input="inspect the shelf")
+    context.sub_goals = [
+        SubGoal("inspect shelf", status="completed", result="Saw the shelf."),
+        SubGoal("pick item"),
+    ]
+    context.messages = [
+        image_message("first screenshot", "data:image/png;base64,one"),
+        image_message("second screenshot", "data:image/png;base64,two"),
+        image_message("third screenshot", "data:image/png;base64,three"),
+    ]
+
+    await MemoryAssemblyStage(client=client).run(context)
+
+    compaction_items = client.calls[0]["input_items"]
+    assert OLDER_IMAGE_MARKER in compaction_items[0]["content"]
+    assert image_block_count(compaction_items) == 2
+    assert image_block_count(context.messages) == 2
+    assert context.messages[1]["content"][1]["image_url"] == "data:image/png;base64,two"
+    assert context.messages[2]["content"][1]["image_url"] == "data:image/png;base64,three"
+
+
+@pytest.mark.asyncio
+async def test_memory_assembly_skips_final_sub_goal_compaction() -> None:
+    client = FakeClient("should not be called")
+    context = AgentContext(user_input="task")
+    context.sub_goals = [SubGoal("task", status="completed", result="done")]
+    context.messages = [{"role": "assistant", "content": "final raw transcript"}]
+
+    await MemoryAssemblyStage(client=client).run(context)
+
+    assert client.calls == []
+    assert context.messages == [{"role": "assistant", "content": "final raw transcript"}]
+
+
+@pytest.mark.asyncio
+async def test_memory_assembly_falls_back_when_compaction_fails() -> None:
+    client = FailingClient()
+    context = AgentContext(user_input="find milk, then grab chips")
+    context.sub_goals = [
+        SubGoal("find milk", status="completed", result="Milk found by the chiller."),
+        SubGoal("grab chips"),
+    ]
+    context.messages = [{"role": "assistant", "content": "raw transcript"}]
+
+    await MemoryAssemblyStage(client=client).run(context)
+
+    assert client.calls[0]["stage"] == "memory_assembly"
+    assert context.messages[0]["content"].startswith(SUMMARY_PREFIX)
+    assert "Milk found by the chiller." in context.messages[0]["content"]
+    assert context.metadata["last_context_compaction"]["used_fallback"] is True
+    assert "RuntimeError" in context.metadata["last_context_compaction"]["error"]

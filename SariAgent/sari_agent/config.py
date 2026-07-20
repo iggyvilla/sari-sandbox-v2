@@ -133,6 +133,13 @@ class AgentConfig:
     max_turns_per_sub_goal: int = field(
         default_factory=lambda: _env_int("SARI_MAX_TURNS_PER_SUB_GOAL", 8)
     )
+    # Wall-clock cap on the whole run, checked between pipeline stages; a value
+    # <= 0 disables it (None). Defaults to 45 minutes.
+    max_runtime_seconds: int | None = field(
+        default_factory=lambda: _env_optional_positive_int(
+            "SARI_MAX_RUNTIME_SECONDS", 45 * 60
+        )
+    )
     unity_max_message_bytes: int | None = field(
         default_factory=lambda: _env_optional_positive_int(
             "SARI_UNITY_MAX_MESSAGE_BYTES",

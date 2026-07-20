@@ -1,6 +1,75 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChatItem, Run, StageSection } from "../types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import type { ChatItem, QuestionInfo, Run, StageSection } from "../types";
 import { LlmRequestRow, ToolCallRow } from "./ToolCallRow";
+
+function Markdown({ text }: { text: string }) {
+  return (
+    <div className="markdown">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+    </div>
+  );
+}
+
+export type AnswerQuestion = (questionId: string, choiceId: string, text?: string) => boolean;
+
+function QuestionCard({
+  question,
+  onAnswer,
+}: {
+  question: QuestionInfo;
+  onAnswer: AnswerQuestion;
+}) {
+  const [note, setNote] = useState("");
+  const pending = question.status === "pending";
+  const answeredChoice = question.answer
+    ? question.choices.find((choice) => choice.id === question.answer!.choiceId)
+    : undefined;
+
+  return (
+    <div className={`question-card ${pending ? "pending" : "answered"}`}>
+      <span className="tag">{pending ? "awaiting your answer" : "question"}</span>
+      <div className="question-text">{question.question}</div>
+      {question.context && <div className="question-context">{question.context}</div>}
+      <div className="question-choices">
+        {question.choices.map((choice) => {
+          const selected = question.answer?.choiceId === choice.id;
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              className={`question-choice ${selected ? "selected" : ""}`}
+              disabled={!pending}
+              title={choice.description ?? undefined}
+              onClick={() => onAnswer(question.questionId, choice.id, note.trim() || undefined)}
+            >
+              <span className="choice-label">{choice.label}</span>
+              {choice.description && (
+                <span className="choice-description">{choice.description}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {question.allowFreeText && pending && (
+        <input
+          className="question-note"
+          value={note}
+          placeholder="Optional note sent with your answer…"
+          onChange={(event) => setNote(event.target.value)}
+        />
+      )}
+      {question.answer && (
+        <div className="question-answer">
+          answered: {answeredChoice?.label ?? question.answer.choiceId}
+          {question.answer.source !== "ui" ? ` (${question.answer.source})` : ""}
+          {question.answer.text ? ` — “${question.answer.text}”` : ""}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ReasoningBlock({ item }: { item: Extract<ChatItem, { kind: "reasoning" }> }) {
   const [expanded, setExpanded] = useState(false);
@@ -18,7 +87,7 @@ function ReasoningBlock({ item }: { item: Extract<ChatItem, { kind: "reasoning" 
   );
 }
 
-function ChatItemView({ item }: { item: ChatItem }) {
+function ChatItemView({ item, onAnswer }: { item: ChatItem; onAnswer: AnswerQuestion }) {
   switch (item.kind) {
     case "user":
       return <div className="user-bubble">{item.text}</div>;
@@ -31,7 +100,7 @@ function ChatItemView({ item }: { item: ChatItem }) {
       if (!text) return null;
       return (
         <div className="assistant-block">
-          {text}
+          <Markdown text={text} />
           {item.open && <span className="caret" />}
         </div>
       );
@@ -40,10 +109,18 @@ function ChatItemView({ item }: { item: ChatItem }) {
       return <ToolCallRow call={item.call} />;
     case "llm_request":
       return <LlmRequestRow info={item.info} />;
+    case "question":
+      return <QuestionCard question={item.question} onAnswer={onAnswer} />;
   }
 }
 
-function StageSectionView({ section }: { section: StageSection }) {
+function StageSectionView({
+  section,
+  onAnswer,
+}: {
+  section: StageSection;
+  onAnswer: AnswerQuestion;
+}) {
   const duration =
     section.durationMs !== undefined ? ` · ${Math.round(section.durationMs)} ms` : "";
   const tokens = section.output?.usage?.totalTokens;
@@ -60,19 +137,29 @@ function StageSectionView({ section }: { section: StageSection }) {
         </span>
       </div>
       {section.items.map((item, index) => (
-        <ChatItemView key={index} item={item} />
+        <ChatItemView key={index} item={item} onAnswer={onAnswer} />
       ))}
       {section.output &&
         (section.output.kind === "code" ? (
           <pre className="stage-output code">{section.output.text}</pre>
         ) : (
-          <div className="stage-output">{section.output.text}</div>
+          <div className="stage-output">
+            <Markdown text={section.output.text} />
+          </div>
         ))}
     </>
   );
 }
 
-function RunView({ run, isActive }: { run: Run; isActive: boolean }) {
+function RunView({
+  run,
+  isActive,
+  onAnswer,
+}: {
+  run: Run;
+  isActive: boolean;
+  onAnswer: AnswerQuestion;
+}) {
   const [collapsed, setCollapsed] = useState(!isActive);
   useEffect(() => {
     if (isActive) setCollapsed(false);
@@ -99,6 +186,7 @@ function RunView({ run, isActive }: { run: Run; isActive: boolean }) {
         <span>
           run {run.runId.slice(0, 8)} · {run.status}
           {run.hitIterationLimit ? " (iteration limit)" : ""}
+          {run.stopReason === "time_limit" ? " (time limit)" : ""}
         </span>
         {run.usage?.totals.totalTokens !== undefined && run.usage.totals.totalTokens > 0 && (
           <span>· {run.usage.totals.totalTokens.toLocaleString()} tokens total</span>
@@ -114,8 +202,14 @@ function RunView({ run, isActive }: { run: Run; isActive: boolean }) {
       </div>
       {run.userInput && <div className="user-bubble">{run.userInput}</div>}
       {run.sections.map((section) => (
-        <StageSectionView key={section.key} section={section} />
+        <StageSectionView key={section.key} section={section} onAnswer={onAnswer} />
       ))}
+      {run.stopReason === "time_limit" && (
+        <div className="run-notice">
+          Run ended automatically: time limit reached
+          {run.timeLimitS ? ` (${Math.round(run.timeLimitS / 60)} min)` : ""}.
+        </div>
+      )}
       {run.error && (
         <div className="tool-row error">
           <div className="tool-detail">
@@ -140,10 +234,12 @@ export function Transcript({
   runs,
   runOrder,
   activeRunId,
+  onAnswer,
 }: {
   runs: Record<string, Run>;
   runOrder: string[];
   activeRunId: string | null;
+  onAnswer: AnswerQuestion;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
@@ -173,7 +269,12 @@ export function Transcript({
           </div>
         )}
         {runOrder.map((runId) => (
-          <RunView key={runId} run={runs[runId]} isActive={runId === activeRunId} />
+          <RunView
+            key={runId}
+            run={runs[runId]}
+            isActive={runId === activeRunId}
+            onAnswer={onAnswer}
+          />
         ))}
       </div>
     </div>

@@ -1,6 +1,7 @@
 import type {
   ChatItem,
   DebugEvent,
+  QuestionInfo,
   Run,
   StageOutput,
   StageSection,
@@ -63,6 +64,12 @@ function applyEvent(state: State, event: DebugEvent): void {
     case "run.completed":
       run.status = "completed";
       run.hitIterationLimit = Boolean(payload.hit_iteration_limit);
+      if (typeof payload.stop_reason === "string" && payload.stop_reason) {
+        run.stopReason = payload.stop_reason;
+      }
+      if (typeof payload.time_limit_s === "number") {
+        run.timeLimitS = payload.time_limit_s;
+      }
       run.currentStage = null;
       if (payload.usage) {
         run.usage = {
@@ -245,6 +252,39 @@ function applyEvent(state: State, event: DebugEvent): void {
       break;
     }
 
+    case "ui.question.asked":
+      closeOpenTextItems(run);
+      currentSection(run).items.push({
+        kind: "question",
+        question: {
+          questionId: payload.question_id ?? "",
+          question: payload.question ?? "",
+          context: payload.context,
+          choices: (payload.choices ?? []).map((choice: any) => ({
+            id: choice.id ?? "",
+            label: choice.label ?? choice.id ?? "",
+            description: choice.description,
+          })),
+          allowFreeText: Boolean(payload.allow_free_text),
+          defaultChoiceId: payload.default_choice_id,
+          status: "pending",
+        },
+      });
+      break;
+
+    case "ui.question.answered": {
+      const question = findQuestion(run, payload.question_id);
+      if (question) {
+        question.status = "answered";
+        question.answer = {
+          choiceId: payload.choice_id ?? "",
+          text: payload.text,
+          source: payload.source ?? "ui",
+        };
+      }
+      break;
+    }
+
     case "unity.command.error": {
       const call = findToolCall(run, payload.tool_call?.call_id);
       const exchange = call?.unity.find(
@@ -281,6 +321,8 @@ const KNOWN_RUN_EVENTS = new Set([
   "unity.command.sent",
   "unity.command.received",
   "unity.command.error",
+  "ui.question.asked",
+  "ui.question.answered",
 ]);
 
 function applyServerEvent(state: State, event: DebugEvent): void {
@@ -386,6 +428,20 @@ function closeOpenTextItems(run: Run): void {
       item.open = false;
     }
   }
+}
+
+function findQuestion(run: Run, questionId: string | undefined): QuestionInfo | undefined {
+  if (!questionId) return undefined;
+  for (let s = run.sections.length - 1; s >= 0; s--) {
+    const items = run.sections[s].items;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.kind === "question" && item.question.questionId === questionId) {
+        return item.question;
+      }
+    }
+  }
+  return undefined;
 }
 
 function findToolCall(run: Run, callId: string | undefined): ToolCall | undefined {

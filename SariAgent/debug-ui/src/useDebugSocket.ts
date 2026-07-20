@@ -98,5 +98,22 @@ export function useDebugSocket(onEvents: (events: DebugEvent[]) => void) {
     return true;
   }, []);
 
-  return { connection, sendRunStart, sendRunStop };
+  const sendQuestionAnswer = useCallback(
+    (questionId: string, choiceId: string, text?: string): boolean => {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+      ws.send(
+        JSON.stringify({
+          type: "client.question.answer",
+          question_id: questionId,
+          choice_id: choiceId,
+          text: text || undefined,
+        }),
+      );
+      return true;
+    },
+    [],
+  );
+
+  return { connection, sendRunStart, sendRunStop, sendQuestionAnswer };
 }

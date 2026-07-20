@@ -319,14 +319,16 @@ public class SariAgentCommandBehavior : WebSocketBehavior
 
         if (agent == null) yield break;
 
+        Transform reference = agent.ViewTransform;
+
         Transform leftHand = agent.LeftHandTransform;
-        Vector3 leftHandPosition = leftHand != null ? leftHand.position : Vector3.zero;
-        Vector3 leftHandRotation = leftHand != null ? leftHand.rotation.eulerAngles : Vector3.zero;
+        Vector3 leftHandPosition = GetRelativePosition(reference, leftHand);
+        Vector3 leftHandRotation = GetRelativeRotation(reference, leftHand);
         string leftHandHoveredItemId = agent.LeftHandHoveredItemId;
 
         Transform rightHand = agent.RightHandTransform;
-        Vector3 rightHandPosition = rightHand != null ? rightHand.position : Vector3.zero;
-        Vector3 rightHandRotation = rightHand != null ? rightHand.rotation.eulerAngles : Vector3.zero;
+        Vector3 rightHandPosition = GetRelativePosition(reference, rightHand);
+        Vector3 rightHandRotation = GetRelativeRotation(reference, rightHand);
         string rightHandHoveredItemId = agent.RightHandHoveredItemId;
 
         if (!sariSandboxV1CompatibilityLayer)
@@ -358,6 +360,21 @@ public class SariAgentCommandBehavior : WebSocketBehavior
     }
 
     private static float[] Vec3ToArr(Vector3 v) => new float[] { v.x, v.y, v.z };
+
+    private static Vector3 GetRelativePosition(Transform reference, Transform target)
+    {
+        if (target == null) return Vector3.zero;
+        return reference != null ? reference.InverseTransformPoint(target.position) : target.position;
+    }
+
+    private static Vector3 GetRelativeRotation(Transform reference, Transform target)
+    {
+        if (target == null) return Vector3.zero;
+        Quaternion relativeRotation = reference != null
+            ? Quaternion.Inverse(reference.rotation) * target.rotation
+            : target.rotation;
+        return relativeRotation.eulerAngles;
+    }
 
     private static Vector3 ToVec3(float[] arr)
     {

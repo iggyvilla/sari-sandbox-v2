@@ -1,0 +1,8 @@
+openai
+Pillow
+websockets
+rich
+
+[test]
+pytest
+pytest-asyncio
