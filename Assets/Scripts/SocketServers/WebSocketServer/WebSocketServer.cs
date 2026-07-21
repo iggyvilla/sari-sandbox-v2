@@ -7,6 +7,23 @@ using WebSocketSharp.Server;
 
 public class WebSocketHandler : MonoBehaviour
 {
+    [Serializable]
+    public struct LidarCenterSampleResponse
+    {
+        public float distance;
+        public bool hit;
+        public float min_range;
+        public float max_range;
+
+        public LidarCenterSampleResponse(LidarSensor.CenterSample sample)
+        {
+            distance = sample.distance;
+            hit = sample.hit;
+            min_range = sample.minRange;
+            max_range = sample.maxRange;
+        }
+    }
+
     public static WebSocketHandler Instance { get; private set; }
 
     [SerializeField] int port = 8080;
@@ -62,10 +79,39 @@ public class WebSocketHandler : MonoBehaviour
 
     public bool SariSandboxV1CompatibilityLayer => sariSandboxV1CompatibilityLayer;
 
-    public Camera AgentCamera =>
-        agentController != null
-            ? agentController.GetComponentInChildren<Camera>(true)
-            : null;
+    public Camera AgentCamera
+    {
+        get
+        {
+            Camera camera = agentController != null
+                ? agentController.GetComponentInChildren<Camera>(true)
+                : null;
+            if (camera != null) return camera;
+
+            // AgentSandbox binds the VR controller at runtime, while the IK avatar path only
+            // tags and registers its camera. Resolve those valid runtime configurations too.
+            camera = Camera.main;
+            if (camera != null) return camera;
+
+            GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+            if (tracker != null && tracker.MainCamera != null)
+                return tracker.MainCamera;
+
+            AgentControllerBase[] agents = FindObjectsByType<AgentControllerBase>(
+                FindObjectsInactive.Exclude,
+                FindObjectsSortMode.None);
+            for (int i = 0; i < agents.Length; i++)
+            {
+                AgentControllerBase candidate = agents[i];
+                if (candidate == null || candidate.isMultiplayerAgent) continue;
+
+                camera = candidate.GetComponentInChildren<Camera>(true);
+                if (camera != null) return camera;
+            }
+
+            return null;
+        }
+    }
 
     public HumanoidGhostFollower AgentGhost => _agentGhost;
 
@@ -104,6 +150,18 @@ public class WebSocketHandler : MonoBehaviour
         Action<string> errorCallback)
     {
         EnqueueCoroutine(LidarScanRoutine(camera, hiddenGhost, callback, errorCallback));
+    }
+
+    /// <summary>
+    /// Schedules a center-gaze LiDAR sample and returns its distance metadata.
+    /// </summary>
+    public void EnqueueLidarCenterSample(
+        Camera camera,
+        HumanoidGhostFollower hiddenGhost,
+        Action<LidarCenterSampleResponse> callback,
+        Action<string> errorCallback)
+    {
+        EnqueueCoroutine(LidarCenterSampleRoutine(camera, hiddenGhost, callback, errorCallback));
     }
 
     void OnDestroy()
@@ -183,5 +241,29 @@ public class WebSocketHandler : MonoBehaviour
         LidarSensor sensor = LidarSensor.ResolveLevelSensor(camera);
 
         yield return sensor.CaptureScan(camera, hiddenGhost, callback, errorCallback);
+    }
+
+    /// <summary>
+    /// Resolves the level LiDAR sensor, renders its forward face along the camera gaze, and
+    /// forwards the center-pixel distance as a JSON-ready response value.
+    /// </summary>
+    private static IEnumerator LidarCenterSampleRoutine(
+        Camera camera,
+        HumanoidGhostFollower hiddenGhost,
+        Action<LidarCenterSampleResponse> callback,
+        Action<string> errorCallback)
+    {
+        if (camera == null)
+        {
+            errorCallback?.Invoke("Error: no camera found for LiDAR center sample");
+            yield break;
+        }
+
+        LidarSensor sensor = LidarSensor.ResolveLevelSensor(camera);
+        yield return sensor.CaptureCenterSample(
+            camera,
+            hiddenGhost,
+            sample => callback?.Invoke(new LidarCenterSampleResponse(sample)),
+            errorCallback);
     }
 }

@@ -5,6 +5,7 @@ Usage:    python test_multiplayer_client.py [--host localhost] [--port 8080] [--
 """
 
 import json
+import math
 import time
 import argparse
 import base64
@@ -20,9 +21,11 @@ PORT = 8080
 agent_id = None
 received_events = []
 screenshot_count = 0
+lidar_center_samples = []
 screenshot_dir = Path(__file__).resolve().parent / "screenshots"
 connected_event = threading.Event()
 screenshot_condition = threading.Condition()
+lidar_center_condition = threading.Condition()
 
 
 def on_message(ws, message):
@@ -59,6 +62,12 @@ def on_message(ws, message):
         print(f"[recv] AgentLeft: {data['agentId']}")
     elif data.get("type") == "Chat":
         print(f"[recv] Chat: {data['agentId']}: {data.get('message')}")
+    elif set(data) == {"distance", "hit", "min_range", "max_range"}:
+        validate_lidar_center(data)
+        with lidar_center_condition:
+            lidar_center_samples.append(data)
+            lidar_center_condition.notify_all()
+        print(f"[recv] LiDAR center: distance={data['distance']} hit={data['hit']}")
     else:
         print(f"[recv] {message}")
 
@@ -118,6 +127,34 @@ def wait_for_screenshots(expected_count, timeout=5.0):
     return True
 
 
+def validate_lidar_center(sample):
+    for key in ("distance", "min_range", "max_range"):
+        value = sample[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"LiDAR center {key} must be a finite number: {value!r}")
+    if not isinstance(sample["hit"], bool):
+        raise ValueError(f"LiDAR center hit must be a bool: {sample['hit']!r}")
+    if sample["min_range"] >= sample["max_range"]:
+        raise ValueError(f"Invalid LiDAR center range bounds: {sample!r}")
+    if not sample["min_range"] <= sample["distance"] <= sample["max_range"]:
+        raise ValueError(f"LiDAR center distance is outside its range bounds: {sample!r}")
+    if sample["hit"] and sample["distance"] >= sample["max_range"]:
+        raise ValueError(f"LiDAR center hit cannot be at max_range: {sample!r}")
+    if not sample["hit"] and sample["distance"] != sample["max_range"]:
+        raise ValueError(f"LiDAR center miss must equal max_range: {sample!r}")
+
+
+def wait_for_lidar_center_samples(expected_count, timeout=5.0):
+    deadline = time.time() + timeout
+    with lidar_center_condition:
+        while len(lidar_center_samples) < expected_count:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                return False
+            lidar_center_condition.wait(timeout=remaining)
+    return True
+
+
 def run(host, port, output_dir):
     global agent_id, screenshot_count, screenshot_dir
 
@@ -125,6 +162,7 @@ def run(host, port, output_dir):
     screenshot_count = 0
     screenshot_dir = Path(output_dir).expanduser()
     received_events.clear()
+    lidar_center_samples.clear()
     connected_event.clear()
 
     url = f"ws://{host}:{port}/multiplayer"
@@ -219,6 +257,12 @@ def run(host, port, output_dir):
     if not wait_for_screenshots(expected_screenshot_count, timeout=5.0):
         print(f"[error] Timed out waiting for queued screenshots "
               f"({screenshot_count}/{expected_screenshot_count} received)")
+
+    print("Requesting center-gaze LiDAR distance...")
+    expected_lidar_sample_count = len(lidar_center_samples) + 1
+    send(ws, {"command": "RequestLidarCenter"})
+    if not wait_for_lidar_center_samples(expected_lidar_sample_count, timeout=5.0):
+        print("[error] Timed out waiting for LiDAR center sample")
 
     send(ws, {"command": "Chat", "message": "Done! Disconnecting."})
     time.sleep(0.2)

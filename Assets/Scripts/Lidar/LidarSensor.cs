@@ -70,6 +70,14 @@ public class LidarSensor : MonoBehaviour
 
     public bool IsBusy => _isBusy;
 
+    public struct CenterSample
+    {
+        public float distance;
+        public bool hit;
+        public float minRange;
+        public float maxRange;
+    }
+
     /// <summary>
     /// Finds or creates the navigation LiDAR for an agent camera.
     /// Agent scans use a child mount under the movement root so the scan starts at head height
@@ -156,6 +164,97 @@ public class LidarSensor : MonoBehaviour
 
             NativeArray<float> ranges = request.GetData<float>();
             onComplete?.Invoke(BuildPayload(angles, ranges, azimuthSweep));
+        }
+        finally
+        {
+            _excludedHiddenGhostRoot = null;
+            _isBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Renders the forward LiDAR depth face along the source camera's center gaze ray and reads
+    /// the single center pixel. The regular LiDAR scan remains level; this capture follows the
+    /// camera's pitch and yaw only for the duration of this sample. Camera roll cannot change the
+    /// center ray and therefore requires no separate correction.
+    /// </summary>
+    public IEnumerator CaptureCenterSample(
+        Camera sourceCamera,
+        HumanoidGhostFollower hiddenGhost,
+        Action<CenterSample> onComplete,
+        Action<string> onError)
+    {
+        if (_isBusy)
+        {
+            onError?.Invoke("Error: LiDAR scan already in progress");
+            yield break;
+        }
+
+        _isBusy = true;
+        _excludedHiddenGhostRoot = null;
+
+        try
+        {
+            if (!EnsureResources(sourceCamera, out string error))
+            {
+                onError?.Invoke(error);
+                yield break;
+            }
+
+            HumanoidGhostFollower activeHiddenGhost = ResolveHiddenGhost(sourceCamera, hiddenGhost);
+            _excludedHiddenGhostRoot = activeHiddenGhost != null ? activeHiddenGhost.transform : null;
+
+            GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+            tracker?.CullForLidarRange(transform.position, maxRange);
+
+            // Face 4 is the forward cube face. Giving it the source camera rotation makes its
+            // optical center match sourceCamera.transform.forward exactly. Roll only rotates the
+            // surrounding image and has no effect on the center pixel's ray.
+            RenderFace(4, tracker, captureRotation: sourceCamera.transform.rotation);
+
+            int centerPixel = faceResolution / 2;
+            AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(
+                _depthTargets[4],
+                0,
+                centerPixel,
+                1,
+                centerPixel,
+                1,
+                0,
+                1);
+            yield return new WaitUntil(() => request.done);
+
+            if (request.hasError)
+            {
+                onError?.Invoke("Error: LiDAR center GPU readback failed");
+                yield break;
+            }
+
+            NativeArray<float> depthData = request.GetData<float>();
+            if (depthData.Length == 0)
+            {
+                onError?.Invoke("Error: LiDAR center GPU readback returned no data");
+                yield break;
+            }
+
+            float distance = depthData[0];
+            bool valid =
+                !float.IsNaN(distance) &&
+                !float.IsInfinity(distance) &&
+                distance >= minRange &&
+                distance <= maxRange;
+            bool hit = valid && distance < maxRange - RangeMissTolerance;
+
+            if (!hit)
+                distance = maxRange;
+
+            onComplete?.Invoke(new CenterSample
+            {
+                distance = distance,
+                hit = hit,
+                minRange = minRange,
+                maxRange = maxRange
+            });
         }
         finally
         {
@@ -571,12 +670,13 @@ public class LidarSensor : MonoBehaviour
         bool drawScene = true,
         bool drawIndirect = true,
         bool logForwardStats = false,
-        string passLabel = null)
+        string passLabel = null,
+        Quaternion? captureRotation = null)
     {
         Camera faceCamera = _faceCameras[face];
         faceCamera.transform.SetPositionAndRotation(
             transform.position,
-            transform.rotation * _faceLocalRotations[face]);
+            (captureRotation ?? transform.rotation) * _faceLocalRotations[face]);
 
         CommandBuffer cmd = CommandBufferPool.Get("LiDAR Indirect Depth Draws");
         cmd.SetRenderTarget(_depthTargets[face]);

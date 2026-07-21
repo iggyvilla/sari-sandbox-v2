@@ -12,6 +12,7 @@ import argparse
 import base64
 import binascii
 import json
+import math
 import re
 import sys
 import time
@@ -39,6 +40,7 @@ ACCEPTED_COMMANDS = {
     "ToggleRightPoke",
     "TogglePoke",
     "TogglePoint",
+    "RequestLidarCenter",
     "RequestScreenshot",
     "ResetEnvironment",
 }
@@ -62,6 +64,13 @@ HAND_STATE_KEYS = {
     "current_right_hand_rotation",
     "right_hand_can_grab",
     "right_hand_gripping",
+}
+
+LIDAR_CENTER_KEYS = {
+    "distance",
+    "hit",
+    "min_range",
+    "max_range",
 }
 
 
@@ -230,6 +239,29 @@ def expect_reset_hand_state(v1_compatibility):
     return expect_hand_state(False)
 
 
+def expect_lidar_center(response):
+    sample = parse_json_object(response, "LiDAR center sample")
+    expect_keys(sample, LIDAR_CENTER_KEYS, "LiDAR center sample")
+
+    distance = expect_number(sample["distance"], "distance")
+    min_range = expect_number(sample["min_range"], "min_range")
+    max_range = expect_number(sample["max_range"], "max_range")
+    expect_bool(sample["hit"], "hit")
+
+    if min_range >= max_range:
+        raise CommandTestError(
+            f"LiDAR range bounds are invalid: min={min_range}, max={max_range}"
+        )
+    if distance < min_range or distance > max_range:
+        raise CommandTestError(
+            f"LiDAR center distance {distance} is outside {min_range}..{max_range}"
+        )
+    if sample["hit"] and distance >= max_range:
+        raise CommandTestError("LiDAR center hit cannot be at max_range")
+    if not sample["hit"] and distance != max_range:
+        raise CommandTestError("LiDAR center miss must report distance == max_range")
+
+
 def parse_json_object(response, label):
     try:
         value = json.loads(response)
@@ -265,6 +297,12 @@ def expect_vector(value, label):
 def expect_bool(value, label):
     if not isinstance(value, bool):
         raise CommandTestError(f"{label} must be a JSON boolean, got {value!r}")
+
+
+def expect_number(value, label):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise CommandTestError(f"{label} must be a finite JSON number, got {value!r}")
+    return float(value)
 
 
 def summarize_response(response):
@@ -398,6 +436,11 @@ def run(
         tester.send_command(
             "TogglePoint",
             validator=expect_prefix("Right Poke: "),
+        )
+
+        tester.send_command(
+            "RequestLidarCenter",
+            validator=expect_lidar_center,
         )
 
         tester.send_command(
