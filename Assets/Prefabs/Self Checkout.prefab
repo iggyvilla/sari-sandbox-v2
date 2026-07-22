@@ -1583,6 +1583,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   checkoutUI: {fileID: 3454440709600765107}
+  onSuccessfulScan:
+    m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 3454440709600765107}
+        m_TargetAssemblyTypeName: SelfCheckoutUIHandler, Assembly-CSharp
+        m_MethodName: StartScreenButtonPressed
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   beepClip: {fileID: 8300000, guid: a93a3487498bb4cb2842bea3e4feaecf, type: 3}
   scanRange: 1.5
 --- !u!65 &1813276063078073648
@@ -1779,7 +1794,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: cfc173bd1c86c4115a0c971fdb6ca591, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -7.179118
+      value: -7.058
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: cfc173bd1c86c4115a0c971fdb6ca591, type: 3}
       propertyPath: m_LocalPosition.y
@@ -1787,7 +1802,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: cfc173bd1c86c4115a0c971fdb6ca591, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 7.5542545
+      value: 7.406
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: cfc173bd1c86c4115a0c971fdb6ca591, type: 3}
       propertyPath: m_LocalRotation.w

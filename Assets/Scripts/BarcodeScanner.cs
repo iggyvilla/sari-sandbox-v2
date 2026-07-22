@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 
 /// <summary>
 /// Attach to an empty GameObject that also has a BoxCollider (Is Trigger = true).
@@ -12,7 +13,10 @@ using UnityEngine;
 public class BarcodeScanner : MonoBehaviour
 {
     [Header("References")]
-    [SerializeField] private SelfCheckoutUIHandler checkoutUI;
+    public SelfCheckoutUIHandler checkoutUI;
+
+    [Header("Events")]
+    public UnityEvent onSuccessfulScan;
 
     [Header("Audio")]
     [SerializeField] private AudioClip beepClip;
@@ -107,6 +111,7 @@ public class BarcodeScanner : MonoBehaviour
 
     private void RegisterScan(string itemId)
     {
+        onSuccessfulScan?.Invoke();
         checkoutUI.AddScannedItem(itemId);
         PlayBeep();
         StartCoroutine(ScanCooldown());
