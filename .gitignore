@@ -3,7 +3,11 @@ Sari Sandbox V2.sln.DotSettings.user
 ._*
 Assembly-CSharp-Editor.csproj
 Assembly-CSharp.csproj
+OutlineFx.csproj
+OutlineFx.Editor.csproj
 Sari Sandbox V2.sln
+Sari Sandbox V2.slnx
+Assets/Resources/PerformanceTestRun*
 Library
 Logs
 Temp
