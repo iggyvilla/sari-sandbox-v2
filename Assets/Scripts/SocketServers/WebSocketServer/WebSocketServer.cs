@@ -125,13 +125,14 @@ public class WebSocketHandler : MonoBehaviour
     }
 
     /// <summary>
-    /// Binds the command server. Benchmark builds listen on every interface (a remote coordinator
-    /// and remote agents must reach it) on an OS-chosen free port so several sandboxes can share a
-    /// machine; every other build keeps the historical localhost:8080 behaviour untouched.
+    /// Binds the command server on every interface: a remote coordinator, remote agents, and agents
+    /// running inside WSL all have to reach it, and a loopback-only bind refuses anything that does
+    /// not originate on this machine's loopback interface. Benchmark builds additionally take an
+    /// OS-chosen free port so several sandboxes can share a machine; everything else keeps 8080.
     /// </summary>
     private void StartServer()
     {
-        string bindAddress = IsBenchmarkBuild ? "0.0.0.0" : "localhost";
+        const string bindAddress = "0.0.0.0";
 
         for (int attempt = 1; attempt <= PortBindAttempts; attempt++)
         {
