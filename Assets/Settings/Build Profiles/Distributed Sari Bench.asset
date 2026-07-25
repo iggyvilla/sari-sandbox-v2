@@ -36,7 +36,7 @@ MonoBehaviour:
     - line: '|   targetDevice: 2'
     - line: '|   useOnDemandResources: 0'
     - line: '|   accelerometerFrequency: 60'
-    - line: '|   companyName: Sari Sandbox Team'
+    - line: '|   companyName: Sari Sandbox'
     - line: '|   productName: Sari Sandbox V2'
     - line: '|   defaultCursor: {instanceID: 0}'
     - line: '|   cursorHotspot: {x: 0, y: 0}'
@@ -171,10 +171,6 @@ MonoBehaviour:
     - line: '|   preloadedAssets:'
     - line: '|   - {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b,
         type: 3}'
-    - line: '|   - {fileID: -7667832017706059077, guid: 11f66772e152e44c3acafa3d892fb04f,
-        type: 2}'
-    - line: '|   - {fileID: -1918109068775515950, guid: 24c9c54246d1041fe8c491d31b58dcc7,
-        type: 2}'
     - line: '|   metroInputSource: 0'
     - line: '|   wsaTransparentSwapchain: 0'
     - line: '|   m_HolographicPauseOnTrackingLoss: 1'
@@ -874,7 +870,7 @@ MonoBehaviour:
     - line: '|     PS4: DOTWEEN'
     - line: '|     PS5: DOTWEEN'
     - line: '|     QNX: DOTWEEN'
-    - line: '|     Standalone: USE_INPUT_SYSTEM_POSE_CONTROL;USE_STICK_CONTROL_THUMBSTICKS;DOTWEEN;SARI_DISTRIBUTED_BENCH'
+    - line: '|     Standalone: USE_INPUT_SYSTEM_POSE_CONTROL;USE_STICK_CONTROL_THUMBSTICKS;DOTWEEN'
     - line: '|     VisionOS: DOTWEEN'
     - line: '|     WebGL: DOTWEEN'
     - line: '|     Windows Store Apps: USE_INPUT_SYSTEM_POSE_CONTROL;USE_STICK_CONTROL_THUMBSTICKS;DOTWEEN'

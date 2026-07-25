@@ -24,18 +24,6 @@ public class WebSocketHandler : MonoBehaviour
         }
     }
 
-    // Distributed Sari Bench builds self-assign a free port, bind on every interface so a remote
-    // coordinator can reach them, and register with that coordinator on startup. Set via the
-    // SARI_DISTRIBUTED_BENCH scripting define on the benchmark build target only.
-#if SARI_DISTRIBUTED_BENCH
-    public const bool DistributedBenchmarkBuild = true;
-#else
-    public const bool DistributedBenchmarkBuild = false;
-#endif
-
-    /// <summary>Coordinator URL, e.g. ws://coordinator-host:9000/sandbox. Empty disables registration.</summary>
-    public const string CoordinatorEnvVar = "SARI_BENCH_COORDINATOR";
-
     /// <summary>Number of probe/bind attempts before giving up on a self-assigned port.</summary>
     private const int PortBindAttempts = 5;
 
@@ -45,6 +33,13 @@ public class WebSocketHandler : MonoBehaviour
     [SerializeField] AgentController agentController;
     [SerializeField] GameObject ikHumanoidGhostPrefab;
     [SerializeField] private bool sariSandboxV1CompatibilityLayer;
+
+    // Distributed Sari Bench builds self-assign a free port, bind on every interface so a remote
+    // coordinator can reach them, and register with that coordinator on startup. Exposed here as
+    // serialized fields so a Play mode session can join a fleet without a rebuild.
+    [SerializeField] private bool distributedBenchmarkBuild;
+    [SerializeField] private string coordinatorUrl;
+
     public ChatUIManager chatUIManager;
 
     private WebSocketServer _wss;
@@ -68,27 +63,14 @@ public class WebSocketHandler : MonoBehaviour
     public string SandboxId { get; private set; }
 
     /// <summary>
-    /// True when this build participates in a distributed benchmark fleet. The environment
-    /// variable is an escape hatch so a stock editor session can join a fleet without a rebuild.
+    /// True when this sandbox participates in a distributed benchmark fleet. Setting a coordinator
+    /// URL alone is enough to join a fleet, so this works from a stock editor session in Play mode,
+    /// without a rebuild.
     /// </summary>
-    public bool IsBenchmarkBuild =>
-        DistributedBenchmarkBuild || !string.IsNullOrEmpty(CoordinatorUrl);
+    public bool IsBenchmarkBuild => distributedBenchmarkBuild || !string.IsNullOrEmpty(CoordinatorUrl);
 
-    public static string CoordinatorUrl
-    {
-        get
-        {
-            try
-            {
-                return Environment.GetEnvironmentVariable(CoordinatorEnvVar) ?? string.Empty;
-            }
-            catch (Exception)
-            {
-                // Some platforms deny environment access; treat that as "not in a fleet".
-                return string.Empty;
-            }
-        }
-    }
+    /// <summary>Coordinator URL, e.g. ws://coordinator-host:9000/sandbox. Empty disables registration.</summary>
+    public string CoordinatorUrl => coordinatorUrl;
 
     void Awake()
     {
