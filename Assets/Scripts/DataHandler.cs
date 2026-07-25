@@ -646,8 +646,11 @@ public class DataHandler : MonoBehaviour
     /// freshly spawned items fall under physics for up to a couple of seconds afterwards, so a
     /// caller that treats the sync version as "the store is back to normal" is racing it. Every
     /// benchmark attempt runs through this coroutine instead, so no state leaks between tries.
+    ///
+    /// <paramref name="agentYawDegrees"/> optionally picks the facing the agent is left in, so a
+    /// run can start pointed at a particular aisle instead of the default zero heading.
     /// </summary>
-    public IEnumerator ResetEnvironmentRoutine()
+    public IEnumerator ResetEnvironmentRoutine(float? agentYawDegrees = null)
     {
         ItemPoolingManager.Instance?.ClearPool();
         ShelfBuilder.DeleteAllPriceTags();
@@ -660,7 +663,7 @@ public class DataHandler : MonoBehaviour
         // sweeps below, and the item pool re-registers objects that are about to disappear.
         yield return null;
 
-        ResetAgentState();
+        ResetAgentState(agentYawDegrees);
         ChatUIManager.Instance?.ClearLog();
 
         LoadStore();
@@ -672,8 +675,12 @@ public class DataHandler : MonoBehaviour
     /// Returns the agent to its spawn pose and clears every piece of carried state the plain
     /// position reset in <see cref="ResetEnvironment"/> leaves behind: facing, grip, hand pose,
     /// pointing mode, and whether the basket is held up in view.
+    ///
+    /// <paramref name="agentYawDegrees"/> is the absolute world heading the agent is left facing,
+    /// not a delta: 90 always means the same direction however the agent was turned beforehand.
+    /// Null keeps the zero heading resets have always used.
     /// </summary>
-    private void ResetAgentState()
+    private void ResetAgentState(float? agentYawDegrees = null)
     {
         GameObject agent = _activeAgentObject != null ? _activeAgentObject : agentObject;
         if (agent == null) return;
@@ -690,6 +697,15 @@ public class DataHandler : MonoBehaviour
 
         AgentControllerBase controller = agent.GetComponentInChildren<AgentControllerBase>(true);
         if (controller == null) return;
+
+        // Facing lives on the controller's own transform (that is what TranslateAgent turns), which
+        // is a child of the spawned agent root. Writing the heading onto the root alone composes
+        // with whatever local yaw the controller had accumulated, which reads as an offset rather
+        // than an absolute heading - so set it in world space on the view transform itself. The
+        // yaw-only Euler also drops the pitch and roll TranslateAgent may have left behind.
+        Transform view = controller.ViewTransform;
+        if (view != null)
+            view.rotation = Quaternion.Euler(0f, agentYawDegrees ?? 0f, 0f);
 
         // Grip and point are toggles, so releasing means toggling only when currently engaged.
         if (controller.IsGripped) controller.ToggleGrip(AgentHandSide.Right);

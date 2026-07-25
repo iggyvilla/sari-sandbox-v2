@@ -183,8 +183,11 @@ public class WebSocketHandler : MonoBehaviour
     /// <summary>
     /// Resets the environment and reports ready only once it has genuinely settled. Concurrent
     /// calls collapse into the in-flight reset; the callback still fires for each caller.
+    ///
+    /// <paramref name="agentYawDegrees"/> is the facing the agent is left in, or null for the
+    /// default. A caller that collapses into an in-flight reset does not get to change its facing.
     /// </summary>
-    public void BeginReset(Action onComplete)
+    public void BeginReset(Action onComplete, float? agentYawDegrees = null)
     {
         if (_resetInFlight)
         {
@@ -194,10 +197,10 @@ public class WebSocketHandler : MonoBehaviour
 
         _resetInFlight = true;
         SetState(SandboxState.Resetting);
-        EnqueueCoroutine(ResetRoutine(onComplete));
+        EnqueueCoroutine(ResetRoutine(onComplete, agentYawDegrees));
     }
 
-    private IEnumerator ResetRoutine(Action onComplete)
+    private IEnumerator ResetRoutine(Action onComplete, float? agentYawDegrees)
     {
         DataHandler data = DataHandler.Instance;
         if (data == null)
@@ -206,7 +209,7 @@ public class WebSocketHandler : MonoBehaviour
         }
         else
         {
-            yield return data.ResetEnvironmentRoutine();
+            yield return data.ResetEnvironmentRoutine(agentYawDegrees);
         }
 
         _resetInFlight = false;

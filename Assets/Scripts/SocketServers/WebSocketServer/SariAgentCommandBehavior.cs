@@ -18,6 +18,11 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         public float[] leftRotation;
         public float[] rightTranslation;
         public float[] rightRotation;
+
+        // Optional y rotation (in degrees) the agent should face after ResetEnvironment. JsonUtility
+        // leaves fields absent from the payload at their initialised value, so NaN means "not sent"
+        // and the reset falls back to its default facing.
+        public float degrees = float.NaN;
     }
 
     [Serializable]
@@ -327,7 +332,9 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                 // Answered only once the reset has genuinely settled. The old implementation acked
                 // in the same tick, i.e. before Unity had even processed the deferred Destroy()
                 // calls, which let state leak into whatever ran next.
-                handler.BeginReset(() => session.Send("Environment reset"));
+                handler.BeginReset(
+                    () => session.Send("Environment reset"),
+                    float.IsNaN(cmd.degrees) ? (float?)null : cmd.degrees);
                 break;
 
             case "GetStatus":
