@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -178,6 +179,12 @@ public class DataHandler : MonoBehaviour
     public static DataHandler Instance { get; private set; }
 
     public StoreData currentStoreData { get; private set; } = new StoreData();
+
+    /// <summary>
+    /// False when the last <see cref="LoadStore"/> found no store JSON on disk. A sandbox in that
+    /// state is serving an empty room, so the benchmark fleet must not advertise it as usable.
+    /// </summary>
+    public bool StoreLoaded { get; private set; }
 
     [Header("Agent Prefabs")]
     public GameObject agentObject;
@@ -389,7 +396,10 @@ public class DataHandler : MonoBehaviour
         string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
         if (!File.Exists(path))
         {
-            Debug.LogWarning($"No store file found at {path}");
+            // A machine provisioned without its store file would otherwise silently serve an empty
+            // room and report itself healthy to the benchmark coordinator. Fail loudly instead.
+            StoreLoaded = false;
+            Debug.LogError($"No store file found at {path}");
             return;
         }
 
@@ -497,6 +507,8 @@ public class DataHandler : MonoBehaviour
                     interactionController.SummonPropSelectorBox(go);
             }
         }
+
+        StoreLoaded = true;
     }
 
     public void SaveShelfItems(string idString, SaveDataWrapper data)
@@ -624,5 +636,108 @@ public class DataHandler : MonoBehaviour
         }
 
         LoadStore();
+    }
+
+    /// <summary>
+    /// Restores the environment to its pristine state and does not return until it has settled.
+    ///
+    /// Distinct from <see cref="ResetEnvironment"/>, which the Store Builder uses: that one returns
+    /// the instant it has *queued* the work. Unity defers Destroy() to the end of the frame and
+    /// freshly spawned items fall under physics for up to a couple of seconds afterwards, so a
+    /// caller that treats the sync version as "the store is back to normal" is racing it. Every
+    /// benchmark attempt runs through this coroutine instead, so no state leaks between tries.
+    /// </summary>
+    public IEnumerator ResetEnvironmentRoutine()
+    {
+        ItemPoolingManager.Instance?.ClearPool();
+        ShelfBuilder.DeleteAllPriceTags();
+
+        foreach (GameObject obj in GameObject.FindGameObjectsWithTag("RetailItem"))
+            Destroy(obj);
+
+        // Let Unity's end-of-frame destruction pass actually run before LoadStore() repopulates.
+        // Without this the old items are still alive and are picked up by the FindObjectsByType
+        // sweeps below, and the item pool re-registers objects that are about to disappear.
+        yield return null;
+
+        ResetAgentState();
+        ChatUIManager.Instance?.ClearLog();
+
+        LoadStore();
+
+        yield return WaitForItemsToSettle();
+    }
+
+    /// <summary>
+    /// Returns the agent to its spawn pose and clears every piece of carried state the plain
+    /// position reset in <see cref="ResetEnvironment"/> leaves behind: facing, grip, hand pose,
+    /// pointing mode, and whether the basket is held up in view.
+    /// </summary>
+    private void ResetAgentState()
+    {
+        GameObject agent = _activeAgentObject != null ? _activeAgentObject : agentObject;
+        if (agent == null) return;
+
+        agent.transform.position = agentSpawnPosition;
+        agent.transform.rotation = Quaternion.identity;
+
+        Rigidbody rb = agent.GetComponentInChildren<Rigidbody>();
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        AgentControllerBase controller = agent.GetComponentInChildren<AgentControllerBase>(true);
+        if (controller == null) return;
+
+        // Grip and point are toggles, so releasing means toggling only when currently engaged.
+        if (controller.IsGripped) controller.ToggleGrip(AgentHandSide.Right);
+        if (controller.IsLeftGripped) controller.ToggleGrip(AgentHandSide.Left);
+        if (controller.IsPointing) controller.TogglePoint(AgentHandSide.Right);
+        if (controller.IsLeftPointing) controller.TogglePoint(AgentHandSide.Left);
+
+        controller.ResetHandPosition(AgentHandSide.Right);
+        controller.ResetHandPosition(AgentHandSide.Left);
+
+        if (controller.IsBasketInView) controller.ToggleBasketInView();
+    }
+
+    /// <summary>
+    /// Waits until freshly spawned shelf items have come to rest, so a screenshot taken right after
+    /// the reset shows the same store every time. Bounded: a single item wedged against a collider
+    /// must not stall the whole fleet.
+    /// </summary>
+    private IEnumerator WaitForItemsToSettle()
+    {
+        const int minimumFixedUpdates = 10;
+        const float maximumSettleSeconds = 4f;
+        const float pollIntervalSeconds = 0.1f;
+
+        for (int i = 0; i < minimumFixedUpdates; i++)
+            yield return new WaitForFixedUpdate();
+
+        float elapsed = 0f;
+        while (elapsed < maximumSettleSeconds && HasMovingItems())
+        {
+            yield return new WaitForSeconds(pollIntervalSeconds);
+            elapsed += pollIntervalSeconds;
+        }
+
+        if (elapsed >= maximumSettleSeconds)
+            Debug.LogWarning($"Items were still moving {maximumSettleSeconds}s after the reset.");
+
+        yield return null;
+    }
+
+    private static bool HasMovingItems()
+    {
+        foreach (GameObject obj in GameObject.FindGameObjectsWithTag("RetailItem"))
+        {
+            Rigidbody rb = obj.GetComponent<Rigidbody>();
+            if (rb != null && !rb.isKinematic && !rb.IsSleeping()) return true;
+        }
+
+        return false;
     }
 }

@@ -43,6 +43,23 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         public bool right_hand_gripping;
     }
 
+    [Serializable]
+    class SandboxStatusResponse
+    {
+        public string state;
+        public string sandbox_id;
+        public int port;
+        public bool benchmark_build;
+        public bool v1_compatibility;
+    }
+
+    /// <summary>
+    /// Commands answered regardless of readiness. Everything else is parked while the environment
+    /// boots or resets, so an agent that races a reset waits rather than seeing a garbled reply.
+    /// </summary>
+    private static bool IsAlwaysAllowed(string command) =>
+        command == "GetStatus" || command == "ResetEnvironment";
+
     protected override void OnMessage(MessageEventArgs e)
     {
         Debug.Log($"WebSocket recv: {e.Data}");
@@ -55,7 +72,32 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         }
 
         SariAgentCommandBehavior session = this;
-        WebSocketHandler.Instance.Enqueue(() => HandleCommand(cmd, session));
+        WebSocketHandler.Instance.Enqueue(() => Dispatch(cmd, session));
+    }
+
+    private static void Dispatch(CommandData cmd, SariAgentCommandBehavior session)
+    {
+        WebSocketHandler handler = WebSocketHandler.Instance;
+
+        if (IsAlwaysAllowed(cmd.command))
+        {
+            HandleCommand(cmd, session);
+            return;
+        }
+
+        bool parked = handler.ParkOrRun(
+            () => HandleCommand(cmd, session),
+            cmd.command,
+            error => session.Send(error));
+
+        if (!parked)
+        {
+            // The queue is full, so we cannot stay silent - an unanswered command blocks the
+            // agent's recv() indefinitely.
+            session.Send(
+                $"Error: sandbox is {handler.State} and its pending-command queue is full " +
+                $"(command '{cmd.command}' dropped).");
+        }
     }
 
     private static void HandleCommand(CommandData cmd, SariAgentCommandBehavior session)
@@ -282,8 +324,28 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             }
 
             case "ResetEnvironment":
-                DataHandler.Instance.ResetEnvironment();
-                session.Send("Environment reset");
+                // Answered only once the reset has genuinely settled. The old implementation acked
+                // in the same tick, i.e. before Unity had even processed the deferred Destroy()
+                // calls, which let state leak into whatever ran next.
+                handler.BeginReset(() => session.Send("Environment reset"));
+                break;
+
+            case "GetStatus":
+                // Always answered, whatever the state - this is how a benchmark runner polls a
+                // sandbox that is still booting.
+                session.Send(JsonUtility.ToJson(new SandboxStatusResponse
+                {
+                    state = handler.State.ToString(),
+                    sandbox_id = handler.SandboxId,
+                    port = handler.BoundPort,
+                    benchmark_build = handler.IsBenchmarkBuild,
+                    v1_compatibility = sariSandboxV1CompatibilityLayer
+                }));
+                break;
+
+            case "WaitUntilReady":
+                // Parked by Dispatch until the sandbox is ready, so reaching here means it is.
+                session.Send("Ready");
                 break;
 
             default:

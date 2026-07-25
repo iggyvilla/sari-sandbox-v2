@@ -584,6 +584,8 @@ public abstract class AgentControllerBase : MonoBehaviour
         hand.GrabbedDoor.DoorBuilder.ApplyHandForce(tangent * (tangentialAmount * doorHandleForce));
     }
 
+    public bool IsBasketInView => _basketInView;
+
     public void ToggleBasketInView()
     {
         if (agentBasket == null) return;

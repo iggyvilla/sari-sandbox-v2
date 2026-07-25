@@ -1,0 +1,308 @@
+using System;
+using System.Collections;
+using UnityEngine;
+using WebSocketSharp;
+
+/// <summary>
+/// Registers this sandbox with the Distributed Sari Bench coordinator and keeps it in the pool.
+///
+/// The sandbox self-assigns its command port (see <see cref="SandboxNetwork.FindFreePort"/>) and
+/// reports it up; the coordinator learns the reachable host from this connection's peer address, so
+/// nothing here has to guess the machine's own IP. Set SARI_BENCH_ADVERTISED_HOST when the peer
+/// address is wrong - behind NAT or inside a container with a published port.
+/// </summary>
+public class BenchCoordinatorClient : MonoBehaviour
+{
+    public const int SchemaVersion = 1;
+    public const string AdvertisedHostEnvVar = "SARI_BENCH_ADVERTISED_HOST";
+
+    private const float HeartbeatIntervalSeconds = 5f;
+    private const float ReconnectMinSeconds = 1f;
+    private const float ReconnectMaxSeconds = 30f;
+
+#pragma warning disable CS0649 // assigned by JsonUtility
+    [Serializable]
+    private class InboundMessage
+    {
+        public string type;
+        public string lease_id;
+    }
+#pragma warning restore CS0649
+
+    [Serializable]
+    private class HelloMessage
+    {
+        public string type = "sandbox.hello";
+        public int schema_version = SchemaVersion;
+        public string sandbox_id;
+        public string advertised_host;
+        public int port;
+        public string state;
+        public bool store_loaded;
+        public bool v1_compatibility;
+        public string unity_version;
+        public string store_name;
+    }
+
+    [Serializable]
+    private class HeartbeatMessage
+    {
+        public string type = "sandbox.heartbeat";
+        public string sandbox_id;
+    }
+
+    [Serializable]
+    private class StateMessage
+    {
+        public string type = "sandbox.state";
+        public string sandbox_id;
+        public string state;
+        public bool store_loaded;
+        public string lease_id;
+    }
+
+    private WebSocket _socket;
+    private WebSocketHandler _handler;
+    private string _url;
+    private float _reconnectDelay = ReconnectMinSeconds;
+    private bool _connected;
+    private bool _shuttingDown;
+    private string _activeLeaseId = string.Empty;
+
+    /// <summary>
+    /// Attaches a client to <paramref name="handler"/> unless this build is not part of a fleet or
+    /// no coordinator URL was configured.
+    /// </summary>
+    public static BenchCoordinatorClient AttachIfConfigured(WebSocketHandler handler)
+    {
+        string url = WebSocketHandler.CoordinatorUrl;
+        if (string.IsNullOrEmpty(url))
+        {
+            if (WebSocketHandler.DistributedBenchmarkBuild)
+                Debug.LogWarning(
+                    $"This is a distributed benchmark build but {WebSocketHandler.CoordinatorEnvVar} " +
+                    "is unset, so the sandbox will not join a fleet.");
+            return null;
+        }
+
+        BenchCoordinatorClient client = handler.gameObject.AddComponent<BenchCoordinatorClient>();
+        client._handler = handler;
+        client._url = url;
+        return client;
+    }
+
+    void Start()
+    {
+        if (_handler == null || string.IsNullOrEmpty(_url))
+        {
+            enabled = false;
+            return;
+        }
+
+        _handler.StateChanged += OnSandboxStateChanged;
+        StartCoroutine(ConnectionLoop());
+        StartCoroutine(HeartbeatLoop());
+    }
+
+    void OnDestroy()
+    {
+        _shuttingDown = true;
+        if (_handler != null) _handler.StateChanged -= OnSandboxStateChanged;
+        CloseSocket();
+    }
+
+    /// <summary>
+    /// Keeps a connection to the coordinator up, reconnecting with backoff. A coordinator restart
+    /// or a network blip must not take the sandbox permanently out of the pool.
+    /// </summary>
+    private IEnumerator ConnectionLoop()
+    {
+        while (!_shuttingDown)
+        {
+            if (!_connected)
+            {
+                Connect();
+                yield return new WaitForSeconds(_reconnectDelay);
+                if (!_connected)
+                    _reconnectDelay = Mathf.Min(_reconnectDelay * 2f, ReconnectMaxSeconds);
+            }
+            else
+            {
+                yield return new WaitForSeconds(1f);
+            }
+        }
+    }
+
+    private void Connect()
+    {
+        CloseSocket();
+
+        try
+        {
+            _socket = new WebSocket(_url);
+        }
+        catch (Exception error)
+        {
+            Debug.LogError($"Invalid coordinator URL '{_url}': {error.Message}");
+            enabled = false;
+            return;
+        }
+
+        // WebSocketSharp raises these on its own threads, so nothing here may touch Unity state
+        // directly - everything hops back through the handler's main-thread queue.
+        _socket.OnOpen += (_, __) => _handler.Enqueue(OnSocketOpen);
+        _socket.OnMessage += (_, e) => _handler.Enqueue(() => OnSocketMessage(e.Data));
+        _socket.OnClose += (_, e) => _handler.Enqueue(() => OnSocketClosed(e.Reason));
+        _socket.OnError += (_, e) => _handler.Enqueue(() => Debug.LogWarning(
+            $"Coordinator socket error: {e.Message}"));
+
+        _socket.ConnectAsync();
+    }
+
+    private void OnSocketOpen()
+    {
+        _connected = true;
+        _reconnectDelay = ReconnectMinSeconds;
+        Debug.Log($"Registered with benchmark coordinator at {_url}");
+
+        DataHandler data = DataHandler.Instance;
+        Send(new HelloMessage
+        {
+            sandbox_id = _handler.SandboxId,
+            advertised_host = ReadEnv(AdvertisedHostEnvVar),
+            port = _handler.BoundPort,
+            state = _handler.State.ToString(),
+            store_loaded = data != null && data.StoreLoaded,
+            v1_compatibility = _handler.SariSandboxV1CompatibilityLayer,
+            unity_version = Application.unityVersion,
+            store_name = data != null ? data.storeName : string.Empty
+        });
+    }
+
+    private void OnSocketClosed(string reason)
+    {
+        if (!_connected) return;
+
+        _connected = false;
+        Debug.LogWarning($"Coordinator connection closed ({reason}); will reconnect.");
+    }
+
+    private void OnSocketMessage(string payload)
+    {
+        InboundMessage message;
+        try
+        {
+            message = JsonUtility.FromJson<InboundMessage>(payload);
+        }
+        catch (Exception error)
+        {
+            Debug.LogWarning($"Unparseable coordinator message: {error.Message}");
+            return;
+        }
+
+        if (message == null || string.IsNullOrEmpty(message.type)) return;
+
+        switch (message.type)
+        {
+            case "coord.welcome":
+                break;
+
+            case "coord.lease":
+                _activeLeaseId = message.lease_id ?? string.Empty;
+                _handler.SetLeased(true);
+                break;
+
+            case "coord.reset":
+                // The coordinator resets on release, so this is what guarantees the next attempt
+                // starts clean even when the previous agent process died mid-run.
+                _activeLeaseId = message.lease_id ?? string.Empty;
+                _handler.SetLeased(false);
+                _handler.BeginReset(() =>
+                {
+                    _activeLeaseId = string.Empty;
+                    PublishState();
+                });
+                break;
+
+            case "coord.release":
+                _activeLeaseId = string.Empty;
+                _handler.SetLeased(false);
+                break;
+
+            default:
+                Debug.LogWarning($"Unknown coordinator message type: {message.type}");
+                break;
+        }
+    }
+
+    private IEnumerator HeartbeatLoop()
+    {
+        WaitForSeconds interval = new WaitForSeconds(HeartbeatIntervalSeconds);
+        while (!_shuttingDown)
+        {
+            if (_connected)
+                Send(new HeartbeatMessage { sandbox_id = _handler.SandboxId });
+
+            yield return interval;
+        }
+    }
+
+    private void OnSandboxStateChanged(SandboxState state) => PublishState();
+
+    private void PublishState()
+    {
+        if (!_connected) return;
+
+        DataHandler data = DataHandler.Instance;
+        Send(new StateMessage
+        {
+            sandbox_id = _handler.SandboxId,
+            state = _handler.State.ToString(),
+            store_loaded = data != null && data.StoreLoaded,
+            lease_id = _activeLeaseId
+        });
+    }
+
+    private void Send(object message)
+    {
+        if (_socket == null || _socket.ReadyState != WebSocketState.Open) return;
+
+        try
+        {
+            _socket.Send(JsonUtility.ToJson(message));
+        }
+        catch (Exception error)
+        {
+            Debug.LogWarning($"Failed to send to coordinator: {error.Message}");
+        }
+    }
+
+    private void CloseSocket()
+    {
+        if (_socket == null) return;
+
+        try
+        {
+            _socket.Close();
+        }
+        catch (Exception)
+        {
+            // Closing an already-dead socket is not worth surfacing.
+        }
+
+        _socket = null;
+        _connected = false;
+    }
+
+    private static string ReadEnv(string name)
+    {
+        try
+        {
+            return Environment.GetEnvironmentVariable(name) ?? string.Empty;
+        }
+        catch (Exception)
+        {
+            return string.Empty;
+        }
+    }
+}

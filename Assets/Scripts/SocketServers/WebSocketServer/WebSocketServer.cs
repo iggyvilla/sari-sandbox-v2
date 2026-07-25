@@ -24,6 +24,21 @@ public class WebSocketHandler : MonoBehaviour
         }
     }
 
+    // Distributed Sari Bench builds self-assign a free port, bind on every interface so a remote
+    // coordinator can reach them, and register with that coordinator on startup. Set via the
+    // SARI_DISTRIBUTED_BENCH scripting define on the benchmark build target only.
+#if SARI_DISTRIBUTED_BENCH
+    public const bool DistributedBenchmarkBuild = true;
+#else
+    public const bool DistributedBenchmarkBuild = false;
+#endif
+
+    /// <summary>Coordinator URL, e.g. ws://coordinator-host:9000/sandbox. Empty disables registration.</summary>
+    public const string CoordinatorEnvVar = "SARI_BENCH_COORDINATOR";
+
+    /// <summary>Number of probe/bind attempts before giving up on a self-assigned port.</summary>
+    private const int PortBindAttempts = 5;
+
     public static WebSocketHandler Instance { get; private set; }
 
     [SerializeField] int port = 8080;
@@ -35,29 +50,183 @@ public class WebSocketHandler : MonoBehaviour
     private WebSocketServer _wss;
     private readonly ConcurrentQueue<Action> _mainThreadActions = new();
     private readonly Queue<IEnumerator> _queuedCoroutines = new();
+    private readonly PendingCommandQueue _parkedCommands = new();
     private HumanoidGhostFollower _agentGhost;
     private bool _isRunningQueuedCoroutines;
+    private SandboxState _state = SandboxState.Booting;
+    private bool _resetInFlight;
+
+    /// <summary>Fires on the main thread whenever the sandbox changes readiness.</summary>
+    public event Action<SandboxState> StateChanged;
+
+    public SandboxState State => _state;
+
+    /// <summary>The port the command server actually bound to. Self-assigned in benchmark builds.</summary>
+    public int BoundPort => port;
+
+    /// <summary>Stable id this sandbox reports to the benchmark coordinator.</summary>
+    public string SandboxId { get; private set; }
+
+    /// <summary>
+    /// True when this build participates in a distributed benchmark fleet. The environment
+    /// variable is an escape hatch so a stock editor session can join a fleet without a rebuild.
+    /// </summary>
+    public bool IsBenchmarkBuild =>
+        DistributedBenchmarkBuild || !string.IsNullOrEmpty(CoordinatorUrl);
+
+    public static string CoordinatorUrl
+    {
+        get
+        {
+            try
+            {
+                return Environment.GetEnvironmentVariable(CoordinatorEnvVar) ?? string.Empty;
+            }
+            catch (Exception)
+            {
+                // Some platforms deny environment access; treat that as "not in a fleet".
+                return string.Empty;
+            }
+        }
+    }
 
     void Awake()
     {
         Instance = this;
+        SandboxId = SandboxNetwork.LoadOrCreateSandboxId();
     }
 
     void Start()
     {
         SetAgent(agentController);
+        StartServer();
 
-        _wss = new WebSocketServer($"ws://localhost:{port}");
-        _wss.AddWebSocketService<SariAgentCommandBehavior>("/commands");
-        _wss.AddWebSocketService<SariMultiplayerBehavior>("/multiplayer");
-        _wss.Start();
-        Debug.Log($"WebSocket server started on ws://localhost:{port}/commands and /multiplayer");
+        if (IsBenchmarkBuild)
+        {
+            BenchCoordinatorClient.AttachIfConfigured(this);
+
+            // Never advertise readiness off a scene that has not been through a full reset - the
+            // very first lease must see the same pristine store every later lease does.
+            BeginReset(null);
+        }
+        else
+        {
+            SetState(SandboxState.Ready);
+        }
     }
 
     void Update()
     {
         while (_mainThreadActions.TryDequeue(out Action action))
             action?.Invoke();
+
+        if (_state != SandboxState.Ready && _state != SandboxState.Leased)
+            _parkedCommands.ExpireStale();
+    }
+
+    /// <summary>
+    /// Binds the command server. Benchmark builds listen on every interface (a remote coordinator
+    /// and remote agents must reach it) on an OS-chosen free port so several sandboxes can share a
+    /// machine; every other build keeps the historical localhost:8080 behaviour untouched.
+    /// </summary>
+    private void StartServer()
+    {
+        string bindAddress = IsBenchmarkBuild ? "0.0.0.0" : "localhost";
+
+        for (int attempt = 1; attempt <= PortBindAttempts; attempt++)
+        {
+            if (IsBenchmarkBuild) port = SandboxNetwork.FindFreePort();
+
+            try
+            {
+                WebSocketServer server = new WebSocketServer($"ws://{bindAddress}:{port}");
+                server.AddWebSocketService<SariAgentCommandBehavior>("/commands");
+                server.AddWebSocketService<SariMultiplayerBehavior>("/multiplayer");
+                server.Start();
+                _wss = server;
+                Debug.Log(
+                    $"WebSocket server started on ws://{bindAddress}:{port}/commands and /multiplayer");
+                return;
+            }
+            catch (Exception error)
+            {
+                // Probing for a free port then binding it is not atomic: another process can claim
+                // it in between. Only a self-assigned port is worth retrying.
+                if (!IsBenchmarkBuild || attempt == PortBindAttempts) throw;
+                Debug.LogWarning(
+                    $"Port {port} was taken between probe and bind (attempt {attempt}/{PortBindAttempts}): " +
+                    error.Message);
+            }
+        }
+    }
+
+    private void SetState(SandboxState next)
+    {
+        if (_state == next) return;
+
+        _state = next;
+        if (next == SandboxState.Ready) _parkedCommands.DrainAll();
+        StateChanged?.Invoke(next);
+    }
+
+    /// <summary>
+    /// Marks the sandbox as leased by a benchmark run. Purely advisory - it does not gate commands,
+    /// it only stops the coordinator handing this sandbox to a second runner.
+    /// </summary>
+    public void SetLeased(bool leased)
+    {
+        if (leased) SetState(SandboxState.Leased);
+        else if (_state == SandboxState.Leased) SetState(SandboxState.Ready);
+    }
+
+    /// <summary>
+    /// Resets the environment and reports ready only once it has genuinely settled. Concurrent
+    /// calls collapse into the in-flight reset; the callback still fires for each caller.
+    /// </summary>
+    public void BeginReset(Action onComplete)
+    {
+        if (_resetInFlight)
+        {
+            if (onComplete != null) ParkOrRun(() => onComplete());
+            return;
+        }
+
+        _resetInFlight = true;
+        SetState(SandboxState.Resetting);
+        EnqueueCoroutine(ResetRoutine(onComplete));
+    }
+
+    private IEnumerator ResetRoutine(Action onComplete)
+    {
+        DataHandler data = DataHandler.Instance;
+        if (data == null)
+        {
+            Debug.LogError("Cannot reset the environment: DataHandler.Instance is null.");
+        }
+        else
+        {
+            yield return data.ResetEnvironmentRoutine();
+        }
+
+        _resetInFlight = false;
+        SetState(SandboxState.Ready);
+        onComplete?.Invoke();
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> now if the sandbox is ready, otherwise parks it until it is.
+    /// Returns false only when the parking queue is full, so the caller can answer the client
+    /// itself rather than leaving it blocked forever.
+    /// </summary>
+    public bool ParkOrRun(Action action, string command = "", Action<string> onTimeout = null)
+    {
+        if (_state == SandboxState.Ready || _state == SandboxState.Leased)
+        {
+            action?.Invoke();
+            return true;
+        }
+
+        return _parkedCommands.Park(command, action, onTimeout);
     }
 
     public void Enqueue(Action action) => _mainThreadActions.Enqueue(action);
