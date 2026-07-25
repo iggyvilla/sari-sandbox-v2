@@ -75,7 +75,7 @@ public class WebSocketHandler : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        SandboxId = SandboxNetwork.LoadOrCreateSandboxId();
+        SandboxId = SandboxNetwork.LoadOrCreateSandboxId(persist: !IsBenchmarkBuild);
     }
 
     void Start()

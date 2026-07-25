@@ -135,9 +135,17 @@ public static class SandboxNetwork
     /// <summary>
     /// Stable per-installation sandbox id, so a sim that crashes and restarts re-registers as the
     /// same sandbox rather than leaking a phantom entry in the coordinator's pool.
+    ///
+    /// Distributed bench fleets run several copies of the same build on one machine, and
+    /// <see cref="Application.persistentDataPath"/> is keyed on company/product name rather than
+    /// process or install location, so every copy would otherwise share one file and register with
+    /// the same id. Bench sandboxes are disposable, so for them we skip persistence and just hand
+    /// back a fresh id per process instead.
     /// </summary>
-    public static string LoadOrCreateSandboxId()
+    public static string LoadOrCreateSandboxId(bool persist = true)
     {
+        if (!persist) return Guid.NewGuid().ToString("N");
+
         string path = System.IO.Path.Combine(Application.persistentDataPath, "sandbox_id.txt");
         try
         {
