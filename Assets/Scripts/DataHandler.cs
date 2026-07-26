@@ -652,6 +652,7 @@ public class DataHandler : MonoBehaviour
     /// </summary>
     public IEnumerator ResetEnvironmentRoutine(float? agentYawDegrees = null)
     {
+        Debug.Log("ResetEnvironment: clearing pooled and runtime items.");
         ItemPoolingManager.Instance?.ClearPool();
         ShelfBuilder.DeleteAllPriceTags();
 
@@ -663,12 +664,15 @@ public class DataHandler : MonoBehaviour
         // sweeps below, and the item pool re-registers objects that are about to disappear.
         yield return null;
 
+        Debug.Log("ResetEnvironment: resetting agent and rebuilding store.");
         ResetAgentState(agentYawDegrees);
         ChatUIManager.Instance?.ClearLog();
 
         LoadStore();
 
+        Debug.Log("ResetEnvironment: waiting for spawned items to settle.");
         yield return WaitForItemsToSettle();
+        Debug.Log("ResetEnvironment: settled.");
     }
 
     /// <summary>
@@ -733,14 +737,13 @@ public class DataHandler : MonoBehaviour
         for (int i = 0; i < minimumFixedUpdates; i++)
             yield return new WaitForFixedUpdate();
 
-        float elapsed = 0f;
-        while (elapsed < maximumSettleSeconds && HasMovingItems())
+        float startedAt = Time.realtimeSinceStartup;
+        while (Time.realtimeSinceStartup - startedAt < maximumSettleSeconds && HasMovingItems())
         {
-            yield return new WaitForSeconds(pollIntervalSeconds);
-            elapsed += pollIntervalSeconds;
+            yield return new WaitForSecondsRealtime(pollIntervalSeconds);
         }
 
-        if (elapsed >= maximumSettleSeconds)
+        if (Time.realtimeSinceStartup - startedAt >= maximumSettleSeconds)
             Debug.LogWarning($"Items were still moving {maximumSettleSeconds}s after the reset.");
 
         yield return null;

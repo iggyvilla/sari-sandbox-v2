@@ -235,9 +235,19 @@ public class BenchCoordinatorClient : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Beats every <see cref="HeartbeatIntervalSeconds"/> of wall-clock time. Unscaled deliberately:
+    /// a reset that parks timeScale would otherwise stop the beat and get this sandbox evicted for
+    /// being busy rather than for being dead.
+    ///
+    /// This still rides the main thread, so a long frame hitch pauses the beat - which is the point.
+    /// A heartbeat that kept ticking from a background thread would attest to a Unity instance that
+    /// may be wedged. The coordinator's timeout carries the slack for a legitimately slow frame
+    /// (see HEARTBEAT_TIMEOUT_SECONDS in protocol.py); it is not this loop's job to hide one.
+    /// </summary>
     private IEnumerator HeartbeatLoop()
     {
-        WaitForSeconds interval = new WaitForSeconds(HeartbeatIntervalSeconds);
+        WaitForSecondsRealtime interval = new WaitForSecondsRealtime(HeartbeatIntervalSeconds);
         while (!_shuttingDown)
         {
             if (_connected)

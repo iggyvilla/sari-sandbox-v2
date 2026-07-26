@@ -45,11 +45,20 @@ public class WebSocketHandler : MonoBehaviour
     private WebSocketServer _wss;
     private readonly ConcurrentQueue<Action> _mainThreadActions = new();
     private readonly Queue<IEnumerator> _queuedCoroutines = new();
+    private readonly List<Action> _resetCompletionCallbacks = new();
     private readonly PendingCommandQueue _parkedCommands = new();
     private HumanoidGhostFollower _agentGhost;
     private bool _isRunningQueuedCoroutines;
+    private Coroutine _queuedCoroutineRunner;
+    private Coroutine _activeQueuedCoroutine;
+    private Coroutine _resetCoroutine;
     private SandboxState _state = SandboxState.Booting;
     private bool _resetInFlight;
+    private bool _resetWatchdogReported;
+    private float _resetStartedAtRealtime;
+    private string _resetPhase = "idle";
+
+    private const float ResetWatchdogSeconds = 30f;
 
     /// <summary>Fires on the main thread whenever the sandbox changes readiness.</summary>
     public event Action<SandboxState> StateChanged;
@@ -104,6 +113,16 @@ public class WebSocketHandler : MonoBehaviour
 
         if (_state != SandboxState.Ready && _state != SandboxState.Leased)
             _parkedCommands.ExpireStale();
+
+        if (_resetInFlight &&
+            !_resetWatchdogReported &&
+            Time.realtimeSinceStartup - _resetStartedAtRealtime >= ResetWatchdogSeconds)
+        {
+            _resetWatchdogReported = true;
+            Debug.LogError(
+                $"Sandbox reset has not completed after {ResetWatchdogSeconds}s " +
+                $"(phase: {_resetPhase}). It will remain unavailable rather than being leased dirty.");
+        }
     }
 
     /// <summary>
@@ -171,19 +190,27 @@ public class WebSocketHandler : MonoBehaviour
     /// </summary>
     public void BeginReset(Action onComplete, float? agentYawDegrees = null)
     {
-        if (_resetInFlight)
-        {
-            if (onComplete != null) ParkOrRun(() => onComplete());
-            return;
-        }
+        if (onComplete != null)
+            _resetCompletionCallbacks.Add(onComplete);
 
+        if (_resetInFlight)
+            return;
+
+        // Reset is recovery-critical and must never sit behind a screenshot, LiDAR readback, or
+        // movement coroutine left by the attempt that just ended. Cancel that disposable work and
+        // run reset on its own coroutine lane.
+        CancelQueuedCoroutinesForReset();
         _resetInFlight = true;
+        _resetWatchdogReported = false;
+        _resetStartedAtRealtime = Time.realtimeSinceStartup;
+        _resetPhase = "starting";
         SetState(SandboxState.Resetting);
-        EnqueueCoroutine(ResetRoutine(onComplete, agentYawDegrees));
+        _resetCoroutine = StartCoroutine(ResetRoutine(agentYawDegrees));
     }
 
-    private IEnumerator ResetRoutine(Action onComplete, float? agentYawDegrees)
+    private IEnumerator ResetRoutine(float? agentYawDegrees)
     {
+        Debug.Log("Sandbox reset started.");
         DataHandler data = DataHandler.Instance;
         if (data == null)
         {
@@ -191,12 +218,51 @@ public class WebSocketHandler : MonoBehaviour
         }
         else
         {
+            _resetPhase = "rebuilding environment";
             yield return data.ResetEnvironmentRoutine(agentYawDegrees);
         }
 
+        _resetPhase = "publishing ready";
+        _resetCoroutine = null;
         _resetInFlight = false;
+        _resetWatchdogReported = false;
         SetState(SandboxState.Ready);
-        onComplete?.Invoke();
+        Debug.Log(
+            $"Sandbox reset completed in " +
+            $"{Time.realtimeSinceStartup - _resetStartedAtRealtime:0.0}s.");
+        _resetPhase = "idle";
+
+        Action[] callbacks = _resetCompletionCallbacks.ToArray();
+        _resetCompletionCallbacks.Clear();
+        foreach (Action callback in callbacks)
+        {
+            try
+            {
+                callback?.Invoke();
+            }
+            catch (Exception error)
+            {
+                Debug.LogError($"Sandbox reset completion callback failed: {error}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Abandons queued work owned by the attempt that just ended. Reset has its own coroutine lane,
+    /// so a wedged GPU readback or a backlog of physics replies cannot strand lifecycle recovery.
+    /// </summary>
+    private void CancelQueuedCoroutinesForReset()
+    {
+        Coroutine active = _activeQueuedCoroutine;
+        Coroutine runner = _queuedCoroutineRunner;
+
+        _queuedCoroutines.Clear();
+        _activeQueuedCoroutine = null;
+        _queuedCoroutineRunner = null;
+        _isRunningQueuedCoroutines = false;
+
+        if (active != null) StopCoroutine(active);
+        if (runner != null) StopCoroutine(runner);
     }
 
     /// <summary>
@@ -227,7 +293,7 @@ public class WebSocketHandler : MonoBehaviour
         if (_isRunningQueuedCoroutines) return;
 
         _isRunningQueuedCoroutines = true;
-        StartCoroutine(RunQueuedCoroutines());
+        _queuedCoroutineRunner = StartCoroutine(RunQueuedCoroutines());
     }
 
     public AgentController Agent => agentController;
@@ -333,10 +399,16 @@ public class WebSocketHandler : MonoBehaviour
         try
         {
             while (_queuedCoroutines.Count > 0)
-                yield return StartCoroutine(_queuedCoroutines.Dequeue());
+            {
+                _activeQueuedCoroutine = StartCoroutine(_queuedCoroutines.Dequeue());
+                yield return _activeQueuedCoroutine;
+                _activeQueuedCoroutine = null;
+            }
         }
         finally
         {
+            _activeQueuedCoroutine = null;
+            _queuedCoroutineRunner = null;
             _isRunningQueuedCoroutines = false;
         }
     }
