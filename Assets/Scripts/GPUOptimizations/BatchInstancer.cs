@@ -143,6 +143,51 @@ public class BatchInstancer : MonoBehaviour
 
     private bool _ready = false;
     private bool _buffersDirty = false;
+    private Bounds _cullingBounds;
+    private Bounds _drawBounds;
+    private uint _lastMainCullVersion = uint.MaxValue;
+    private bool _hasMainCullResults;
+    private int _visibleMainLodMask;
+
+    public int InstanceCount => instances.Count;
+
+    public string GetPositionDiagnosticSummary()
+    {
+        if (instances.Count == 0)
+            return $"{itemId}: no instances";
+
+        float minLod0Y = float.PositiveInfinity;
+        float maxLod0Y = float.NegativeInfinity;
+        float minLod1DeltaY = float.PositiveInfinity;
+        float maxLod1DeltaY = float.NegativeInfinity;
+        for (int i = 0; i < instances.Count; i++)
+        {
+            InstanceData instance = instances[i];
+            minLod0Y = Mathf.Min(minLod0Y, instance.lod0.position.y);
+            maxLod0Y = Mathf.Max(maxLod0Y, instance.lod0.position.y);
+            float lod1DeltaY = instance.lod1.position.y - instance.lod0.position.y;
+            minLod1DeltaY = Mathf.Min(minLod1DeltaY, lod1DeltaY);
+            maxLod1DeltaY = Mathf.Max(maxLod1DeltaY, lod1DeltaY);
+        }
+
+        return
+            $"{itemId}: instances={instances.Count}, " +
+            $"lod0Y={minLod0Y:F3}..{maxLod0Y:F3}, " +
+            $"lod1MinusLod0Y={minLod1DeltaY:F3}..{maxLod1DeltaY:F3}";
+    }
+
+    public int IndirectDrawCommandCount
+    {
+        get
+        {
+            if (_subMeshPerLOD == null) return 0;
+
+            int count = 0;
+            for (int i = 0; i < _subMeshPerLOD.Length; i++)
+                count += _subMeshPerLOD[i]?.Length ?? 0;
+            return count;
+        }
+    }
 
     public void Init()
     {
@@ -217,12 +262,25 @@ public class BatchInstancer : MonoBehaviour
         if (!_ready) return;
 
         if (_buffersDirty && instances.Count > 0)
+        {
             RebuildBuffers();
+            _hasMainCullResults = false;
+        }
 
         if (instances.Count == 0) return;
+        if (!IntersectsMainCameraFrustum()) return;
 
-        CullForMainCamera();
-        DrawVisibleBuffers(_visibleIndexBuffers);
+        GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+        uint cullingVersion = tracker != null ? tracker.MainCameraCullingVersion : 0;
+        bool needsCull = !_hasMainCullResults || _lastMainCullVersion != cullingVersion;
+        if (needsCull)
+        {
+            CullForMainCamera();
+            _lastMainCullVersion = cullingVersion;
+            _hasMainCullResults = true;
+        }
+
+        DrawVisibleBuffers(_visibleIndexBuffers, needsCull, _visibleMainLodMask);
     }
 
     void OnDestroy()
@@ -297,6 +355,7 @@ public class BatchInstancer : MonoBehaviour
             }
         }
 
+        RecalculateDrawBounds();
         _positionBuffer.SetData(positions);
 
         if (_lodTransformBuffers != null)
@@ -396,6 +455,7 @@ public class BatchInstancer : MonoBehaviour
                 ? DataHandler.Instance.AgentPosition
                 : (agentCamera != null ? agentCamera.transform.position : transform.position);
 
+        _visibleMainLodMask = CalculateVisibleLodMask(planes, agentPos);
         DispatchCulling(_visibleIndexBuffers, false, planes, agentPos, 0f);
     }
 
@@ -434,26 +494,81 @@ public class BatchInstancer : MonoBehaviour
         Profiler.EndSample();
     }
 
-    private void DrawVisibleBuffers(ComputeBuffer[] visibleBuffers)
+    private void DrawVisibleBuffers(
+        ComputeBuffer[] visibleBuffers,
+        bool updateInstanceCounts,
+        int visibleLodMask)
     {
         for (int i = 0; i < lods.Length; i++)
         {
+            if ((visibleLodMask & (1 << i)) == 0) continue;
             if (_subMeshPerLOD[i] == null || lods[i].mesh == null) continue;
             for (int s = 0; s < _subMeshPerLOD[i].Length; s++)
             {
                 SubMeshInstance subMesh = _subMeshPerLOD[i][s];
                 BindMaterialBuffers(subMesh.material, visibleBuffers[i], i);
-                subMesh.UpdateInstanceCountBuf(visibleBuffers[i]);
+                if (updateInstanceCounts)
+                    subMesh.UpdateInstanceCountBuf(visibleBuffers[i]);
 
                 Graphics.DrawMeshInstancedIndirect(
                     lods[i].mesh,
                     s,
                     subMesh.material,
-                    new Bounds(Vector3.zero, Vector3.one * 1000f),
-                    subMesh.argsBuffer
+                    _drawBounds,
+                    subMesh.argsBuffer,
+                    0,
+                    null,
+                    ShadowCastingMode.Off,
+                    true
                 );
             }
         }
+    }
+
+    private int CalculateVisibleLodMask(SimplePlane[] planes, Vector3 agentPos)
+    {
+        int mask = 0;
+        float hardCullDistanceSq =
+            lods[lods.Length - 1].maxDistance * lods[lods.Length - 1].maxDistance;
+
+        for (int instanceIndex = 0; instanceIndex < instances.Count; instanceIndex++)
+        {
+            Vector3 cullPosition = instances[instanceIndex].lod0.position;
+            bool insideFrustum = true;
+            for (int planeIndex = 0; planeIndex < 6; planeIndex++)
+            {
+                SimplePlane plane = planes[planeIndex];
+                if (Vector3.Dot(plane.normal, cullPosition) + plane.distance < -0.2f)
+                {
+                    insideFrustum = false;
+                    break;
+                }
+            }
+
+            if (!insideFrustum)
+                continue;
+
+            float distanceSq = (cullPosition - agentPos).sqrMagnitude;
+            if (distanceSq >= hardCullDistanceSq)
+                continue;
+
+            int lodIndex = lods.Length - 1;
+            for (int i = 0; i < lods.Length - 1; i++)
+            {
+                float threshold = lods[i].maxDistance;
+                if (distanceSq < threshold * threshold)
+                {
+                    lodIndex = i;
+                    break;
+                }
+            }
+
+            mask |= 1 << lodIndex;
+            if (mask == (1 << lods.Length) - 1)
+                break;
+        }
+
+        return mask;
     }
 
     private void AddDrawCommands(CommandBuffer cmd, ComputeBuffer[] visibleBuffers)
@@ -515,5 +630,86 @@ public class BatchInstancer : MonoBehaviour
             case 3: return instance.lod3;
             default: return instance.lod0;
         }
+    }
+
+    private bool IntersectsMainCameraFrustum()
+    {
+        SimplePlane[] planes = GPUInstanceTracker.Instance?.cameraFrustumPlanes;
+        if (planes == null || planes.Length < 6)
+            return false;
+
+        Vector3 min = _cullingBounds.min;
+        Vector3 max = _cullingBounds.max;
+
+        for (int i = 0; i < 6; i++)
+        {
+            SimplePlane plane = planes[i];
+            Vector3 positiveVertex = new Vector3(
+                plane.normal.x >= 0f ? max.x : min.x,
+                plane.normal.y >= 0f ? max.y : min.y,
+                plane.normal.z >= 0f ? max.z : min.z);
+
+            if (Vector3.Dot(plane.normal, positiveVertex) + plane.distance < 0f)
+                return false;
+        }
+
+        return true;
+    }
+
+    private void RecalculateDrawBounds()
+    {
+        bool initialized = false;
+        Bounds combined = default;
+
+        for (int instanceIndex = 0; instanceIndex < instances.Count; instanceIndex++)
+        {
+            InstanceData instance = instances[instanceIndex];
+            for (int lodIndex = 0; lodIndex < lods.Length; lodIndex++)
+            {
+                Mesh mesh = lods[lodIndex].mesh;
+                if (mesh == null) continue;
+
+                LodTransform transformData = GetLodTransform(instance, lodIndex);
+                Quaternion rotation = new Quaternion(
+                    transformData.rotation.x,
+                    transformData.rotation.y,
+                    transformData.rotation.z,
+                    transformData.rotation.w);
+                Vector3 absoluteScale = new Vector3(
+                    Mathf.Abs(transformData.scale.x),
+                    Mathf.Abs(transformData.scale.y),
+                    Mathf.Abs(transformData.scale.z));
+                Vector3 center = transformData.position +
+                                 rotation * Vector3.Scale(mesh.bounds.center, transformData.scale);
+                float radius = Vector3.Scale(mesh.bounds.extents, absoluteScale).magnitude;
+                Bounds instanceBounds = new Bounds(center, Vector3.one * (radius * 2f));
+
+                if (!initialized)
+                {
+                    combined = instanceBounds;
+                    initialized = true;
+                }
+                else
+                {
+                    combined.Encapsulate(instanceBounds);
+                }
+            }
+        }
+
+        _cullingBounds = initialized
+            ? combined
+            : new Bounds(transform.position, Vector3.one);
+        _cullingBounds.Expand(0.4f);
+
+        // The procedural shader multiplies its TRS by Unity's indirect-draw object matrix.
+        // Keep the bounds passed to Graphics centered at the world origin so that matrix stays
+        // identity; a non-zero bounds center translates an entire product batch a second time.
+        Vector3 min = _cullingBounds.min;
+        Vector3 max = _cullingBounds.max;
+        float originRadius = Mathf.Max(
+            Mathf.Abs(min.x), Mathf.Abs(max.x),
+            Mathf.Abs(min.y), Mathf.Abs(max.y),
+            Mathf.Abs(min.z), Mathf.Abs(max.z));
+        _drawBounds = new Bounds(Vector3.zero, Vector3.one * (originRadius * 2f + 0.4f));
     }
 }
