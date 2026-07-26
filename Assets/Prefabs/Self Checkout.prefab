@@ -105,6 +105,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -284,6 +285,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -547,6 +549,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -683,6 +686,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -947,6 +951,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -1083,6 +1088,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -1599,6 +1605,7 @@ MonoBehaviour:
           m_BoolArgument: 0
         m_CallState: 2
   beepClip: {fileID: 8300000, guid: a93a3487498bb4cb2842bea3e4feaecf, type: 3}
+  scanCooldownDuration: 3
   scanRange: 1.5
 --- !u!65 &1813276063078073648
 BoxCollider:
@@ -1619,8 +1626,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.27, y: 0.04, z: 0.13}
-  m_Center: {x: 0, y: 0, z: 0.08}
+  m_Size: {x: 0.27366185, y: 0.13394177, z: 0.21394527}
+  m_Center: {x: -0.0018309355, y: -0.01527077, z: 0.12197262}
 --- !u!1 &8050058614423980284
 GameObject:
   m_ObjectHideFlags: 0

@@ -5,7 +5,7 @@ public class ItemPoolingManager : MonoBehaviour
 {
     public static ItemPoolingManager Instance { get; private set; }
 
-    private const float ItemMaxDepenetrationVelocity = 2f;
+    private const float ItemMaxDepenetrationVelocity = 0.25f;
     private const int ItemSolverIterations = 12;
     private const int ItemSolverVelocityIterations = 4;
     private const float SpawnOverlapPadding = 0.002f;
@@ -68,6 +68,12 @@ public class ItemPoolingManager : MonoBehaviour
         if (bc != null) bc.enabled = true;
 
         // ResolveSpawnOverlaps(obj);
+
+        // Physics previews should remain at their authored shelf pose until something
+        // physically touches them. Clearing velocity before activation is not enough:
+        // the solver can still create linear and angular velocity while resolving tiny
+        // initial overlaps with the shelf or neighboring products.
+        rb?.Sleep();
 
         return obj;
     }

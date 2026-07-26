@@ -38,7 +38,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     [SerializeField] private float physicsActivationRadius = 0.4f;
 
     [Header("Manual Hand Control")]
-    public float handMoveRange = 0.5f;
+    public float handMoveRange = 1f;
     public float handMoveSpeed = 1f;
     public float gripSpeed = 2f;
     public float doorHandleForce = 5f;
@@ -583,6 +583,8 @@ public abstract class AgentControllerBase : MonoBehaviour
 
         hand.GrabbedDoor.DoorBuilder.ApplyHandForce(tangent * (tangentialAmount * doorHandleForce));
     }
+
+    public bool IsBasketInView => _basketInView;
 
     public void ToggleBasketInView()
     {

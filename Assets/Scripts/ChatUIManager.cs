@@ -60,6 +60,16 @@ public class ChatUIManager : MonoBehaviour
         return DataHandler.Instance.mainAgentController;
     }
 
+    /// <summary>
+    /// Clears the transcript agents read back through RequestChatLog. The on-screen message
+    /// history is deliberately left alone - nothing reads it programmatically, and rebuilding the
+    /// scroll content would mean re-deriving the layout state Log() accumulates.
+    /// </summary>
+    public void ClearLog()
+    {
+        ChatLog = string.Empty;
+    }
+
     public void Log(string message)
     {
         ChatLog += $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n";

@@ -1,0 +1,10 @@
+[project]
+name = "testscripts"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "websocket-client>=1.9.0",
+    "websockets>=16.1.1",
+]

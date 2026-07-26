@@ -70,6 +70,8 @@ public partial class ShelfBuilder
         {
             Destroy(instance.gameObject);
         }
+
+        BakedPriceTag.ReleaseCachedSprites();
     }
 
     public static void DespawnAllItemsInScene()

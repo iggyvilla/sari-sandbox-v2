@@ -726,6 +726,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -1162,17 +1163,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
---- !u!114 &436825745 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 3454440709600765107, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-  m_PrefabInstance: {fileID: 4781873894624229142}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2b2c5780476b54dcfb9a2df0c71efbfe, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &506404666
 GameObject:
   m_ObjectHideFlags: 0
@@ -1840,7 +1830,7 @@ MonoBehaviour:
       m_Calls: []
   m_text: Toggle WASD Controls
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 2f7116f10747a67409388e93052ae222, type: 2}
+  m_fontAsset: {fileID: 0}
   m_sharedMaterial: {fileID: -6055507529455485361, guid: 2f7116f10747a67409388e93052ae222, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
@@ -1876,6 +1866,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -2012,6 +2003,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -2379,6 +2371,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -2743,6 +2736,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -2879,6 +2873,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -3170,6 +3165,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -3416,8 +3412,10 @@ MonoBehaviour:
   port: 8080
   agentController: {fileID: 2075032117}
   ikHumanoidGhostPrefab: {fileID: 7456162950078149447, guid: 91147938a35b74fbdb1356d28a996d49, type: 3}
-  sariSandboxV1CompatibilityLayer: 0
-  chatUIManager: {fileID: 0}
+  sariSandboxV1CompatibilityLayer: 1
+  distributedBenchmarkBuild: 1
+  coordinatorUrl: ws://127.0.0.1:9000/sandbox
+  chatUIManager: {fileID: 845791648}
 --- !u!114 &1456967139
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4065,6 +4063,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -4791,10 +4790,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: Self Checkout
       objectReference: {fileID: 0}
-    - target: {fileID: 3971200100898294774, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 4348042779708461388, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
       propertyPath: m_LocalPosition.x
       value: -7.058
@@ -4834,34 +4829,6 @@ PrefabInstance:
     - target: {fileID: 4348042779708461388, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6682729579827722956, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-      propertyPath: onSuccessfulScan.m_PersistentCalls.m_Calls.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6682729579827722956, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-      propertyPath: onSuccessfulScan.m_PersistentCalls.m_Calls.Array.data[0].m_Mode
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6682729579827722956, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-      propertyPath: onSuccessfulScan.m_PersistentCalls.m_Calls.Array.data[0].m_Target
-      value: 
-      objectReference: {fileID: 436825745}
-    - target: {fileID: 6682729579827722956, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-      propertyPath: onSuccessfulScan.m_PersistentCalls.m_Calls.Array.data[0].m_CallState
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 6682729579827722956, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-      propertyPath: onSuccessfulScan.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
-      value: StartScreenButtonPressed
-      objectReference: {fileID: 0}
-    - target: {fileID: 6682729579827722956, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-      propertyPath: onSuccessfulScan.m_PersistentCalls.m_Calls.Array.data[0].m_TargetAssemblyTypeName
-      value: SelfCheckoutUIHandler, Assembly-CSharp
-      objectReference: {fileID: 0}
-    - target: {fileID: 6682729579827722956, guid: a01d49a9242c240c3916d882f6192f64, type: 3}
-      propertyPath: onSuccessfulScan.m_PersistentCalls.m_Calls.Array.data[0].m_Arguments.m_ObjectArgumentAssemblyTypeName
-      value: UnityEngine.Object, UnityEngine
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

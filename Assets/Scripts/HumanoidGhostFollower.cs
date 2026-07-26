@@ -2,6 +2,14 @@ using UnityEngine;
 
 public class HumanoidGhostFollower : MonoBehaviour
 {
+    private static readonly int SpeedParameter = Animator.StringToHash("Speed");
+    private static readonly int GripParameter = Animator.StringToHash("Grip");
+    private static readonly int TriggerParameter = Animator.StringToHash("Trigger");
+    private static readonly int IsWalkingParameter = Animator.StringToHash("isWalking");
+    private static readonly int IsWalkingBackwardParameter = Animator.StringToHash("isWalkingBackward");
+    private static readonly int IsWalkingLeftParameter = Animator.StringToHash("isWalkingLeft");
+    private static readonly int IsWalkingRightParameter = Animator.StringToHash("isWalkingRight");
+
     private AgentControllerBase _authority;
     private Animator _bodyAnimator;
     private Transform _headJoint;
@@ -14,6 +22,13 @@ public class HumanoidGhostFollower : MonoBehaviour
     private Quaternion _leftHandRotationOffset;
     private Vector3 _lastPosition;
     private int _captureSuppressionDepth;
+    private bool _hasSpeedParameter;
+    private bool _hasGripParameter;
+    private bool _hasTriggerParameter;
+    private bool _hasIsWalkingParameter;
+    private bool _hasIsWalkingBackwardParameter;
+    private bool _hasIsWalkingLeftParameter;
+    private bool _hasIsWalkingRightParameter;
 
     public AgentControllerBase Authority => _authority;
 
@@ -26,6 +41,7 @@ public class HumanoidGhostFollower : MonoBehaviour
         _leftHandTarget = humanoidController.LeftHandTarget;
         _lookAtTarget = humanoidController.LookAtTarget;
 
+        CacheAnimatorParameters();
         SanitizePresentationOnlyGhost();
 
         Transform sourceHand = _authority.HandTransform;
@@ -118,13 +134,51 @@ public class HumanoidGhostFollower : MonoBehaviour
         _lastPosition = transform.position;
 
         Vector3 localVelocity = transform.InverseTransformDirection(worldVelocity);
-        _bodyAnimator.SetFloat("Speed", worldVelocity.magnitude);
-        _bodyAnimator.SetFloat("Grip", _authority.GripAmount);
-        _bodyAnimator.SetFloat("Trigger", _authority.TriggerAmount);
-        _bodyAnimator.SetBool("isWalking", localVelocity.z > 0.01f);
-        _bodyAnimator.SetBool("isWalkingBackward", localVelocity.z < -0.01f);
-        _bodyAnimator.SetBool("isWalkingLeft", localVelocity.x < -0.01f);
-        _bodyAnimator.SetBool("isWalkingRight", localVelocity.x > 0.01f);
+        if (_hasSpeedParameter)
+            _bodyAnimator.SetFloat(SpeedParameter, worldVelocity.magnitude);
+        if (_hasGripParameter)
+            _bodyAnimator.SetFloat(GripParameter, _authority.GripAmount);
+        if (_hasTriggerParameter)
+            _bodyAnimator.SetFloat(TriggerParameter, _authority.TriggerAmount);
+        if (_hasIsWalkingParameter)
+            _bodyAnimator.SetBool(IsWalkingParameter, localVelocity.z > 0.01f);
+        if (_hasIsWalkingBackwardParameter)
+            _bodyAnimator.SetBool(IsWalkingBackwardParameter, localVelocity.z < -0.01f);
+        if (_hasIsWalkingLeftParameter)
+            _bodyAnimator.SetBool(IsWalkingLeftParameter, localVelocity.x < -0.01f);
+        if (_hasIsWalkingRightParameter)
+            _bodyAnimator.SetBool(IsWalkingRightParameter, localVelocity.x > 0.01f);
+    }
+
+    private void CacheAnimatorParameters()
+    {
+        _hasSpeedParameter = false;
+        _hasGripParameter = false;
+        _hasTriggerParameter = false;
+        _hasIsWalkingParameter = false;
+        _hasIsWalkingBackwardParameter = false;
+        _hasIsWalkingLeftParameter = false;
+        _hasIsWalkingRightParameter = false;
+
+        if (_bodyAnimator == null) return;
+
+        foreach (AnimatorControllerParameter parameter in _bodyAnimator.parameters)
+        {
+            if (parameter.nameHash == SpeedParameter && parameter.type == AnimatorControllerParameterType.Float)
+                _hasSpeedParameter = true;
+            else if (parameter.nameHash == GripParameter && parameter.type == AnimatorControllerParameterType.Float)
+                _hasGripParameter = true;
+            else if (parameter.nameHash == TriggerParameter && parameter.type == AnimatorControllerParameterType.Float)
+                _hasTriggerParameter = true;
+            else if (parameter.nameHash == IsWalkingParameter && parameter.type == AnimatorControllerParameterType.Bool)
+                _hasIsWalkingParameter = true;
+            else if (parameter.nameHash == IsWalkingBackwardParameter && parameter.type == AnimatorControllerParameterType.Bool)
+                _hasIsWalkingBackwardParameter = true;
+            else if (parameter.nameHash == IsWalkingLeftParameter && parameter.type == AnimatorControllerParameterType.Bool)
+                _hasIsWalkingLeftParameter = true;
+            else if (parameter.nameHash == IsWalkingRightParameter && parameter.type == AnimatorControllerParameterType.Bool)
+                _hasIsWalkingRightParameter = true;
+        }
     }
 
     private void SanitizePresentationOnlyGhost()

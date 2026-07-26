@@ -21,6 +21,10 @@ public class BarcodeScanner : MonoBehaviour
     [Header("Audio")]
     [SerializeField] private AudioClip beepClip;
 
+    [Header("Scanning")]
+    [Tooltip("Seconds to wait after a scan before another one can register.")]
+    [SerializeField] private float scanCooldownDuration = 0.5f;
+
     [Header("Hard Settings")]
     [Tooltip("Max raycast distance used in Hard difficulty.")]
     [SerializeField] private float scanRange = 1.5f;
@@ -126,7 +130,7 @@ public class BarcodeScanner : MonoBehaviour
     private System.Collections.IEnumerator ScanCooldown()
     {
         scanCooldown = true;
-        yield return new WaitForSeconds(0.5f);
+        yield return new WaitForSeconds(scanCooldownDuration);
         scanCooldown = false;
     }
 

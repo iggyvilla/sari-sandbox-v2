@@ -24,40 +24,261 @@ public class WebSocketHandler : MonoBehaviour
         }
     }
 
+    /// <summary>Number of probe/bind attempts before giving up on a self-assigned port.</summary>
+    private const int PortBindAttempts = 5;
+
     public static WebSocketHandler Instance { get; private set; }
 
     [SerializeField] int port = 8080;
     [SerializeField] AgentController agentController;
     [SerializeField] GameObject ikHumanoidGhostPrefab;
     [SerializeField] private bool sariSandboxV1CompatibilityLayer;
+
+    // Distributed Sari Bench builds self-assign a free port, bind on every interface so a remote
+    // coordinator can reach them, and register with that coordinator on startup. Exposed here as
+    // serialized fields so a Play mode session can join a fleet without a rebuild.
+    [SerializeField] private bool distributedBenchmarkBuild;
+    [SerializeField] private string coordinatorUrl;
+
     public ChatUIManager chatUIManager;
 
     private WebSocketServer _wss;
     private readonly ConcurrentQueue<Action> _mainThreadActions = new();
     private readonly Queue<IEnumerator> _queuedCoroutines = new();
+    private readonly List<Action> _resetCompletionCallbacks = new();
+    private readonly PendingCommandQueue _parkedCommands = new();
     private HumanoidGhostFollower _agentGhost;
     private bool _isRunningQueuedCoroutines;
+    private Coroutine _queuedCoroutineRunner;
+    private Coroutine _activeQueuedCoroutine;
+    private Coroutine _resetCoroutine;
+    private SandboxState _state = SandboxState.Booting;
+    private bool _resetInFlight;
+    private bool _resetWatchdogReported;
+    private float _resetStartedAtRealtime;
+    private string _resetPhase = "idle";
+
+    private const float ResetWatchdogSeconds = 30f;
+
+    /// <summary>Fires on the main thread whenever the sandbox changes readiness.</summary>
+    public event Action<SandboxState> StateChanged;
+
+    public SandboxState State => _state;
+
+    /// <summary>The port the command server actually bound to. Self-assigned in benchmark builds.</summary>
+    public int BoundPort => port;
+
+    /// <summary>Stable id this sandbox reports to the benchmark coordinator.</summary>
+    public string SandboxId { get; private set; }
+
+    /// <summary>
+    /// True when this sandbox participates in a distributed benchmark fleet. Setting a coordinator
+    /// URL alone is enough to join a fleet, so this works from a stock editor session in Play mode,
+    /// without a rebuild.
+    /// </summary>
+    public bool IsBenchmarkBuild => distributedBenchmarkBuild || !string.IsNullOrEmpty(CoordinatorUrl);
+
+    /// <summary>Coordinator URL, e.g. ws://coordinator-host:9000/sandbox. Empty disables registration.</summary>
+    public string CoordinatorUrl => coordinatorUrl;
 
     void Awake()
     {
         Instance = this;
+        SandboxId = SandboxNetwork.LoadOrCreateSandboxId(persist: !IsBenchmarkBuild);
     }
 
     void Start()
     {
         SetAgent(agentController);
+        StartServer();
 
-        _wss = new WebSocketServer($"ws://localhost:{port}");
-        _wss.AddWebSocketService<SariAgentCommandBehavior>("/commands");
-        _wss.AddWebSocketService<SariMultiplayerBehavior>("/multiplayer");
-        _wss.Start();
-        Debug.Log($"WebSocket server started on ws://localhost:{port}/commands and /multiplayer");
+        if (IsBenchmarkBuild)
+        {
+            BenchCoordinatorClient.AttachIfConfigured(this);
+
+            // Never advertise readiness off a scene that has not been through a full reset - the
+            // very first lease must see the same pristine store every later lease does.
+            BeginReset(null);
+        }
+        else
+        {
+            SetState(SandboxState.Ready);
+        }
     }
 
     void Update()
     {
         while (_mainThreadActions.TryDequeue(out Action action))
             action?.Invoke();
+
+        if (_state != SandboxState.Ready && _state != SandboxState.Leased)
+            _parkedCommands.ExpireStale();
+
+        if (_resetInFlight &&
+            !_resetWatchdogReported &&
+            Time.realtimeSinceStartup - _resetStartedAtRealtime >= ResetWatchdogSeconds)
+        {
+            _resetWatchdogReported = true;
+            Debug.LogError(
+                $"Sandbox reset has not completed after {ResetWatchdogSeconds}s " +
+                $"(phase: {_resetPhase}). It will remain unavailable rather than being leased dirty.");
+        }
+    }
+
+    /// <summary>
+    /// Binds the command server on every interface: a remote coordinator, remote agents, and agents
+    /// running inside WSL all have to reach it, and a loopback-only bind refuses anything that does
+    /// not originate on this machine's loopback interface. Benchmark builds additionally take an
+    /// OS-chosen free port so several sandboxes can share a machine; everything else keeps 8080.
+    /// </summary>
+    private void StartServer()
+    {
+        const string bindAddress = "0.0.0.0";
+
+        for (int attempt = 1; attempt <= PortBindAttempts; attempt++)
+        {
+            if (IsBenchmarkBuild) port = SandboxNetwork.FindFreePort();
+
+            try
+            {
+                WebSocketServer server = new WebSocketServer($"ws://{bindAddress}:{port}");
+                server.AddWebSocketService<SariAgentCommandBehavior>("/commands");
+                server.AddWebSocketService<SariMultiplayerBehavior>("/multiplayer");
+                server.Start();
+                _wss = server;
+                Debug.Log(
+                    $"WebSocket server started on ws://{bindAddress}:{port}/commands and /multiplayer");
+                return;
+            }
+            catch (Exception error)
+            {
+                // Probing for a free port then binding it is not atomic: another process can claim
+                // it in between. Only a self-assigned port is worth retrying.
+                if (!IsBenchmarkBuild || attempt == PortBindAttempts) throw;
+                Debug.LogWarning(
+                    $"Port {port} was taken between probe and bind (attempt {attempt}/{PortBindAttempts}): " +
+                    error.Message);
+            }
+        }
+    }
+
+    private void SetState(SandboxState next)
+    {
+        if (_state == next) return;
+
+        _state = next;
+        if (next == SandboxState.Ready) _parkedCommands.DrainAll();
+        StateChanged?.Invoke(next);
+    }
+
+    /// <summary>
+    /// Marks the sandbox as leased by a benchmark run. Purely advisory - it does not gate commands,
+    /// it only stops the coordinator handing this sandbox to a second runner.
+    /// </summary>
+    public void SetLeased(bool leased)
+    {
+        if (leased) SetState(SandboxState.Leased);
+        else if (_state == SandboxState.Leased) SetState(SandboxState.Ready);
+    }
+
+    /// <summary>
+    /// Resets the environment and reports ready only once it has genuinely settled. Concurrent
+    /// calls collapse into the in-flight reset; the callback still fires for each caller.
+    ///
+    /// <paramref name="agentYawDegrees"/> is the facing the agent is left in, or null for the
+    /// default. A caller that collapses into an in-flight reset does not get to change its facing.
+    /// </summary>
+    public void BeginReset(Action onComplete, float? agentYawDegrees = null)
+    {
+        if (onComplete != null)
+            _resetCompletionCallbacks.Add(onComplete);
+
+        if (_resetInFlight)
+            return;
+
+        // Reset is recovery-critical and must never sit behind a screenshot, LiDAR readback, or
+        // movement coroutine left by the attempt that just ended. Cancel that disposable work and
+        // run reset on its own coroutine lane.
+        CancelQueuedCoroutinesForReset();
+        _resetInFlight = true;
+        _resetWatchdogReported = false;
+        _resetStartedAtRealtime = Time.realtimeSinceStartup;
+        _resetPhase = "starting";
+        SetState(SandboxState.Resetting);
+        _resetCoroutine = StartCoroutine(ResetRoutine(agentYawDegrees));
+    }
+
+    private IEnumerator ResetRoutine(float? agentYawDegrees)
+    {
+        Debug.Log("Sandbox reset started.");
+        DataHandler data = DataHandler.Instance;
+        if (data == null)
+        {
+            Debug.LogError("Cannot reset the environment: DataHandler.Instance is null.");
+        }
+        else
+        {
+            _resetPhase = "rebuilding environment";
+            yield return data.ResetEnvironmentRoutine(agentYawDegrees);
+        }
+
+        _resetPhase = "publishing ready";
+        _resetCoroutine = null;
+        _resetInFlight = false;
+        _resetWatchdogReported = false;
+        SetState(SandboxState.Ready);
+        Debug.Log(
+            $"Sandbox reset completed in " +
+            $"{Time.realtimeSinceStartup - _resetStartedAtRealtime:0.0}s.");
+        _resetPhase = "idle";
+
+        Action[] callbacks = _resetCompletionCallbacks.ToArray();
+        _resetCompletionCallbacks.Clear();
+        foreach (Action callback in callbacks)
+        {
+            try
+            {
+                callback?.Invoke();
+            }
+            catch (Exception error)
+            {
+                Debug.LogError($"Sandbox reset completion callback failed: {error}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Abandons queued work owned by the attempt that just ended. Reset has its own coroutine lane,
+    /// so a wedged GPU readback or a backlog of physics replies cannot strand lifecycle recovery.
+    /// </summary>
+    private void CancelQueuedCoroutinesForReset()
+    {
+        Coroutine active = _activeQueuedCoroutine;
+        Coroutine runner = _queuedCoroutineRunner;
+
+        _queuedCoroutines.Clear();
+        _activeQueuedCoroutine = null;
+        _queuedCoroutineRunner = null;
+        _isRunningQueuedCoroutines = false;
+
+        if (active != null) StopCoroutine(active);
+        if (runner != null) StopCoroutine(runner);
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> now if the sandbox is ready, otherwise parks it until it is.
+    /// Returns false only when the parking queue is full, so the caller can answer the client
+    /// itself rather than leaving it blocked forever.
+    /// </summary>
+    public bool ParkOrRun(Action action, string command = "", Action<string> onTimeout = null)
+    {
+        if (_state == SandboxState.Ready || _state == SandboxState.Leased)
+        {
+            action?.Invoke();
+            return true;
+        }
+
+        return _parkedCommands.Park(command, action, onTimeout);
     }
 
     public void Enqueue(Action action) => _mainThreadActions.Enqueue(action);
@@ -72,7 +293,7 @@ public class WebSocketHandler : MonoBehaviour
         if (_isRunningQueuedCoroutines) return;
 
         _isRunningQueuedCoroutines = true;
-        StartCoroutine(RunQueuedCoroutines());
+        _queuedCoroutineRunner = StartCoroutine(RunQueuedCoroutines());
     }
 
     public AgentController Agent => agentController;
@@ -178,10 +399,16 @@ public class WebSocketHandler : MonoBehaviour
         try
         {
             while (_queuedCoroutines.Count > 0)
-                yield return StartCoroutine(_queuedCoroutines.Dequeue());
+            {
+                _activeQueuedCoroutine = StartCoroutine(_queuedCoroutines.Dequeue());
+                yield return _activeQueuedCoroutine;
+                _activeQueuedCoroutine = null;
+            }
         }
         finally
         {
+            _activeQueuedCoroutine = null;
+            _queuedCoroutineRunner = null;
             _isRunningQueuedCoroutines = false;
         }
     }

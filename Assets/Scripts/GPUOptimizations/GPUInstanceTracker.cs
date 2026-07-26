@@ -19,6 +19,13 @@ public class GPUInstanceTracker : MonoBehaviour
     [SerializeField] private Shader proceduralUrpLitShader;
     private Dictionary<string, BatchInstancer> trackers = new();
     public SimplePlane[] cameraFrustumPlanes;
+    private readonly Plane[] _unityFrustumPlanes = new Plane[6];
+    [SerializeField, Min(1f)] private float maxCullingUpdatesPerSecond = 30f;
+    private Matrix4x4 _lastCullingMatrix;
+    private bool _hasCullingMatrix;
+    private float _nextCullingUpdateTime;
+
+    public uint MainCameraCullingVersion { get; private set; }
 
     // LOD2/LOD3 are disabled until their mesh scales are fixed. Flip to true (here or in
     // the Inspector) to restore all 4 LODs — no other code change needed.
@@ -41,7 +48,30 @@ public class GPUInstanceTracker : MonoBehaviour
 
     void Update()
     {
-        cameraFrustumPlanes = GetFrustumPlanes(mainCamera);
+        if (mainCamera == null)
+        {
+            mainCamera = Camera.main;
+            if (mainCamera == null) return;
+
+            foreach (BatchInstancer bi in GetComponents<BatchInstancer>())
+                bi.agentCamera = mainCamera;
+        }
+
+        Matrix4x4 currentCullingMatrix =
+            mainCamera.projectionMatrix * mainCamera.worldToCameraMatrix;
+        if (_hasCullingMatrix &&
+            MatricesApproximatelyEqual(currentCullingMatrix, _lastCullingMatrix))
+            return;
+
+        if (_hasCullingMatrix && Time.unscaledTime < _nextCullingUpdateTime)
+            return;
+
+        _lastCullingMatrix = currentCullingMatrix;
+        _hasCullingMatrix = true;
+        _nextCullingUpdateTime =
+            Time.unscaledTime + 1f / Mathf.Max(1f, maxCullingUpdatesPerSecond);
+        UpdateFrustumPlanes(mainCamera);
+        MainCameraCullingVersion++;
     }
 
     public BatchInstancer GetBatchInstancerFromId(string itemId)
@@ -56,6 +86,7 @@ public class GPUInstanceTracker : MonoBehaviour
     public void SetCamera(Camera cam)
     {
         mainCamera = cam;
+        _hasCullingMatrix = false;
         foreach (BatchInstancer bi in GetComponents<BatchInstancer>())
             bi.agentCamera = cam;
     }
@@ -89,19 +120,30 @@ public class GPUInstanceTracker : MonoBehaviour
             kvp.Value.ClearAllDrawData();
     }
 
-    private SimplePlane[] GetFrustumPlanes(Camera camera)
+    private void UpdateFrustumPlanes(Camera camera)
     {
-        Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
-        SimplePlane[] simplePlanes = new SimplePlane[6];
+        GeometryUtility.CalculateFrustumPlanes(camera, _unityFrustumPlanes);
+        cameraFrustumPlanes ??= new SimplePlane[6];
+
         for (int i = 0; i < 6; i++)
         {
-            simplePlanes[i] = new SimplePlane
+            cameraFrustumPlanes[i] = new SimplePlane
             {
-                distance = planes[i].distance,
-                normal   = planes[i].normal
+                distance = _unityFrustumPlanes[i].distance,
+                normal   = _unityFrustumPlanes[i].normal
             };
         }
-        return simplePlanes;
+    }
+
+    private static bool MatricesApproximatelyEqual(Matrix4x4 left, Matrix4x4 right)
+    {
+        for (int i = 0; i < 16; i++)
+        {
+            if (Mathf.Abs(left[i] - right[i]) > 0.00001f)
+                return false;
+        }
+
+        return true;
     }
 
     public void AddToInstance(string itemId, GameObject obj, InstanceData instanceData)

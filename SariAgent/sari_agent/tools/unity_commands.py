@@ -114,8 +114,21 @@ def assemble(
     async def RequestScreenshot() -> dict[str, object]:
         return await client.command("RequestScreenshot")
 
-    @factory.tool(desc="Reset the Unity environment.", properties=[])
-    async def ResetEnvironment() -> dict[str, object]:
-        return await client.command("ResetEnvironment")
+    @factory.tool(
+        desc="Reset the Unity environment.",
+        properties=[
+            Property(
+                name="degrees",
+                schema_type="number",
+                description="Optional y rotation in degrees for the agent after the reset. "
+                "Omit it to leave the agent at the default zero heading.",
+                required=False,
+            ),
+        ],
+    )
+    async def ResetEnvironment(degrees: float | None = None) -> dict[str, object]:
+        if degrees is None:
+            return await client.command("ResetEnvironment")
+        return await client.command("ResetEnvironment", degrees=float(degrees))
 
     return factory.assemble()
