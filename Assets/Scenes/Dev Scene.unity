@@ -2154,6 +2154,7 @@ MonoBehaviour:
   mainCamera: {fileID: 2075032115}
   frustumCullingShader: {fileID: 7200000, guid: d5463ca6d0b334167b75bd90351fcb44, type: 3}
   proceduralUrpLitShader: {fileID: -6465566751694194690, guid: 8006f7beaf2004d31a1813a124fd0cf0, type: 3}
+  maxCullingUpdatesPerSecond: 30
   enableLod2AndLod3: 0
 --- !u!4 &669521194
 Transform:
@@ -3413,7 +3414,7 @@ MonoBehaviour:
   agentController: {fileID: 2075032117}
   ikHumanoidGhostPrefab: {fileID: 7456162950078149447, guid: 91147938a35b74fbdb1356d28a996d49, type: 3}
   sariSandboxV1CompatibilityLayer: 1
-  distributedBenchmarkBuild: 1
+  distributedBenchmarkBuild: 0
   coordinatorUrl: ws://127.0.0.1:9000/sandbox
   chatUIManager: {fileID: 845791648}
 --- !u!114 &1456967139

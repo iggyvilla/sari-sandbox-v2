@@ -14,6 +14,8 @@ public class WebSocketHandler : MonoBehaviour
         public bool hit;
         public float min_range;
         public float max_range;
+        public float pitch_deg;
+        public float camera_height;
 
         public LidarCenterSampleResponse(LidarSensor.CenterSample sample)
         {
@@ -21,6 +23,8 @@ public class WebSocketHandler : MonoBehaviour
             hit = sample.hit;
             min_range = sample.minRange;
             max_range = sample.maxRange;
+            pitch_deg = sample.pitchDeg;
+            camera_height = sample.cameraHeight;
         }
     }
 
@@ -65,7 +69,7 @@ public class WebSocketHandler : MonoBehaviour
 
     public SandboxState State => _state;
 
-    /// <summary>The port the command server actually bound to. Self-assigned in benchmark builds.</summary>
+    /// <summary>The port the command server actually bound to. Self-assigned in distributed builds.</summary>
     public int BoundPort => port;
 
     /// <summary>Stable id this sandbox reports to the benchmark coordinator.</summary>
@@ -80,6 +84,14 @@ public class WebSocketHandler : MonoBehaviour
 
     /// <summary>Coordinator URL, e.g. ws://coordinator-host:9000/sandbox. Empty disables registration.</summary>
     public string CoordinatorUrl => coordinatorUrl;
+
+    /// <summary>
+    /// True only for a distributed fleet build, where several sandboxes share a machine and so
+    /// cannot all take the serialized port. A single-sandbox session - including one that joins a
+    /// coordinator from Play mode - keeps the port it was configured with, so a client can reach it
+    /// without first asking the coordinator where it landed.
+    /// </summary>
+    private bool SelfAssignsPort => distributedBenchmarkBuild;
 
     void Awake()
     {
@@ -128,8 +140,9 @@ public class WebSocketHandler : MonoBehaviour
     /// <summary>
     /// Binds the command server on every interface: a remote coordinator, remote agents, and agents
     /// running inside WSL all have to reach it, and a loopback-only bind refuses anything that does
-    /// not originate on this machine's loopback interface. Benchmark builds additionally take an
-    /// OS-chosen free port so several sandboxes can share a machine; everything else keeps 8080.
+    /// not originate on this machine's loopback interface. Distributed fleet builds additionally
+    /// take an OS-chosen free port so several sandboxes can share a machine; everything else keeps
+    /// the serialized port.
     /// </summary>
     private void StartServer()
     {
@@ -137,7 +150,7 @@ public class WebSocketHandler : MonoBehaviour
 
         for (int attempt = 1; attempt <= PortBindAttempts; attempt++)
         {
-            if (IsBenchmarkBuild) port = SandboxNetwork.FindFreePort();
+            if (SelfAssignsPort) port = SandboxNetwork.FindFreePort();
 
             try
             {
@@ -154,7 +167,7 @@ public class WebSocketHandler : MonoBehaviour
             {
                 // Probing for a free port then binding it is not atomic: another process can claim
                 // it in between. Only a self-assigned port is worth retrying.
-                if (!IsBenchmarkBuild || attempt == PortBindAttempts) throw;
+                if (!SelfAssignsPort || attempt == PortBindAttempts) throw;
                 Debug.LogWarning(
                     $"Port {port} was taken between probe and bind (attempt {attempt}/{PortBindAttempts}): " +
                     error.Message);
