@@ -2154,6 +2154,7 @@ MonoBehaviour:
   mainCamera: {fileID: 2075032115}
   frustumCullingShader: {fileID: 7200000, guid: d5463ca6d0b334167b75bd90351fcb44, type: 3}
   proceduralUrpLitShader: {fileID: -6465566751694194690, guid: 8006f7beaf2004d31a1813a124fd0cf0, type: 3}
+  maxCullingUpdatesPerSecond: 30
   enableLod2AndLod3: 0
 --- !u!4 &669521194
 Transform:
