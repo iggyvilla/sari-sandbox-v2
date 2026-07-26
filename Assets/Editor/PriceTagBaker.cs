@@ -11,6 +11,7 @@ public static class PriceTagBaker
     private const string PriceDataPath = "Assets/Resources/Data/PriceData.json";
     private const string PriceTagPrefabPath = "Assets/Prefabs/Paper Price Tag (Plane).prefab";
     private const string OutputDirectory = "Assets/Resources/Generated/PriceTags";
+    private const string DebugOutputDirectory = "Assets/Editor/Generated/PriceTags";
     private const string AtlasPath = "Assets/Resources/Generated/PriceTags.spriteatlas";
 
     [MenuItem("Tools/Price Tags/Bake All Price Tags")]
@@ -95,7 +96,7 @@ public static class PriceTagBaker
 
         if (!ValidatePriceTagPrefab(prefab)) return;
 
-        System.IO.Directory.CreateDirectory(OutputDirectory);
+        System.IO.Directory.CreateDirectory(DebugOutputDirectory);
 
         Scene previewScene = EditorSceneManager.NewPreviewScene();
         PrefabSpriteBaker.BakeSetup setup = default;
@@ -116,7 +117,7 @@ public static class PriceTagBaker
             Bounds bounds = setup.BackingRenderer.bounds;
             PrefabSpriteBaker.PositionCameraAndLight(setup, bounds);
 
-            string outputPath = $"{OutputDirectory}/__DEBUG_SAMPLE.png";
+            string outputPath = $"{DebugOutputDirectory}/__DEBUG_SAMPLE.png";
             PrefabSpriteBaker.RenderPng(setup.Camera, ref renderTexture, bounds, outputPath);
             PrefabSpriteBaker.ConfigureSpriteImport(outputPath);
             AssetDatabase.Refresh();

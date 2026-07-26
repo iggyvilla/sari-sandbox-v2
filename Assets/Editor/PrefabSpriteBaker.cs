@@ -14,7 +14,8 @@ public static class PrefabSpriteBaker
 {
     public const int PreviewLayer = 22;
 
-    private const int TextureHeight = 512;
+    private const int TextureHeight = 256;
+    private const int CompressionBlockSize = 4;
     private const float PixelsPerUnit = 1024f;
     private const float CameraDistance = 2f;
     private static readonly Vector3 PreviewPosition = new(-250f, -250f, -250f);
@@ -253,7 +254,20 @@ public static class PrefabSpriteBaker
         importer.spritePixelsPerUnit = PixelsPerUnit;
         importer.alphaIsTransparency = true;
         importer.mipmapEnabled = false;
+        importer.npotScale = TextureImporterNPOTScale.None;
+        importer.maxTextureSize = 1024;
         importer.textureCompression = TextureImporterCompression.CompressedHQ;
+
+        TextureImporterPlatformSettings standaloneSettings =
+            importer.GetPlatformTextureSettings("Standalone");
+        standaloneSettings.name = "Standalone";
+        standaloneSettings.overridden = true;
+        standaloneSettings.maxTextureSize = 1024;
+        standaloneSettings.format = TextureImporterFormat.BC7;
+        standaloneSettings.textureCompression = TextureImporterCompression.CompressedHQ;
+        standaloneSettings.compressionQuality = 100;
+        standaloneSettings.crunchedCompression = false;
+        importer.SetPlatformTextureSettings(standaloneSettings);
         importer.SaveAndReimport();
     }
 
@@ -292,6 +306,18 @@ public static class PrefabSpriteBaker
         textureSettings.sRGB = true;
         textureSettings.filterMode = FilterMode.Bilinear;
         atlas.SetTextureSettings(textureSettings);
+
+        var standaloneSettings = new TextureImporterPlatformSettings
+        {
+            name = "Standalone",
+            overridden = true,
+            maxTextureSize = 2048,
+            format = TextureImporterFormat.BC7,
+            textureCompression = TextureImporterCompression.CompressedHQ,
+            compressionQuality = 100,
+            crunchedCompression = false
+        };
+        SpriteAtlasExtensions.SetPlatformSettings(atlas, standaloneSettings);
 
         EditorUtility.SetDirty(atlas);
         AssetDatabase.SaveAssets();
@@ -358,24 +384,34 @@ public static class PrefabSpriteBaker
             );
         }
 
-        double textureWidth = Math.Ceiling(TextureHeight * (double)bounds.size.x / bounds.size.y);
+        int textureWidth = AlignToCompressionBlock(
+            (int)Math.Ceiling(TextureHeight * (double)bounds.size.x / bounds.size.y)
+        );
         int maxTextureSize = SystemInfo.maxTextureSize;
         int effectiveMaxDimension = maxTextureDimension > 0
             ? Math.Min(maxTextureDimension, maxTextureSize)
             : maxTextureSize;
-        double largestDimension = Math.Max(textureWidth, TextureHeight);
+        int textureHeight = TextureHeight;
+        int largestDimension = Math.Max(textureWidth, textureHeight);
         if (largestDimension > effectiveMaxDimension)
         {
             double scale = effectiveMaxDimension / largestDimension;
-            textureWidth *= scale;
+            textureWidth = AlignToCompressionBlock((int)Math.Floor(textureWidth * scale));
+            textureHeight = AlignToCompressionBlock((int)Math.Floor(textureHeight * scale));
 
             return new Vector2Int(
-                Math.Max(1, (int)Math.Round(textureWidth)),
-                Math.Max(1, (int)Math.Round(TextureHeight * scale))
+                Math.Max(CompressionBlockSize, textureWidth),
+                Math.Max(CompressionBlockSize, textureHeight)
             );
         }
 
-        return new Vector2Int(Math.Max(1, (int)textureWidth), TextureHeight);
+        return new Vector2Int(Math.Max(CompressionBlockSize, textureWidth), textureHeight);
+    }
+
+    private static int AlignToCompressionBlock(int dimension)
+    {
+        int clamped = Math.Max(CompressionBlockSize, dimension);
+        return (clamped + CompressionBlockSize - 1) / CompressionBlockSize * CompressionBlockSize;
     }
 
     private static string SanitizeAssetFileName(string fileName)
