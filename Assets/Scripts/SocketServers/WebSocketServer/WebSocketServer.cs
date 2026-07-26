@@ -14,6 +14,8 @@ public class WebSocketHandler : MonoBehaviour
         public bool hit;
         public float min_range;
         public float max_range;
+        public float pitch_deg;
+        public float camera_height;
 
         public LidarCenterSampleResponse(LidarSensor.CenterSample sample)
         {
@@ -21,6 +23,8 @@ public class WebSocketHandler : MonoBehaviour
             hit = sample.hit;
             min_range = sample.minRange;
             max_range = sample.maxRange;
+            pitch_deg = sample.pitchDeg;
+            camera_height = sample.cameraHeight;
         }
     }
 

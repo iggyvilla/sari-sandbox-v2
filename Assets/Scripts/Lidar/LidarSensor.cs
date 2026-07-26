@@ -76,6 +76,8 @@ public class LidarSensor : MonoBehaviour
         public bool hit;
         public float minRange;
         public float maxRange;
+        public float pitchDeg;
+        public float cameraHeight;
     }
 
     /// <summary>
@@ -212,6 +214,14 @@ public class LidarSensor : MonoBehaviour
             // surrounding image and has no effect on the center pixel's ray.
             RenderFace(4, tracker, captureRotation: sourceCamera.transform.rotation);
 
+            Camera centerCamera = _faceCameras[4];
+            Ray centerRay = centerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            Vector3 direction = centerRay.direction;
+            float pitchDeg = Mathf.Atan2(
+                -direction.y,
+                Mathf.Sqrt(direction.x * direction.x + direction.z * direction.z)) * Mathf.Rad2Deg;
+            float cameraHeight = centerRay.origin.y;
+
             int centerPixel = faceResolution / 2;
             AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(
                 _depthTargets[4],
@@ -253,7 +263,9 @@ public class LidarSensor : MonoBehaviour
                 distance = distance,
                 hit = hit,
                 minRange = minRange,
-                maxRange = maxRange
+                maxRange = maxRange,
+                pitchDeg = IsFinite(pitchDeg) ? pitchDeg : 0f,
+                cameraHeight = IsFinite(cameraHeight) ? cameraHeight : 0f
             });
         }
         finally
@@ -261,6 +273,11 @@ public class LidarSensor : MonoBehaviour
             _excludedHiddenGhostRoot = null;
             _isBusy = false;
         }
+    }
+
+    private static bool IsFinite(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 
     /// <summary>
