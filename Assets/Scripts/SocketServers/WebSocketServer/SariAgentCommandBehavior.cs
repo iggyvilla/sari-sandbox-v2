@@ -245,6 +245,16 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                     sariSandboxV1CompatibilityLayer));
                 break;
 
+            case "ResetHands":
+                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                agent.ResetHandPosition(AgentHandSide.Left);
+                agent.ResetHandPosition(AgentHandSide.Right);
+                handler.EnqueueCoroutine(SendHandStateAfterPhysics(
+                    agent,
+                    session,
+                    sariSandboxV1CompatibilityLayer));
+                break;
+
             case "IsHoldingItem":
                 if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
                 session.Send(agent.IsHoldingItem() ? "true" : "false");

@@ -34,6 +34,7 @@ ACCEPTED_COMMANDS = {
     "TranslateAgent",
     "TranslateHand",
     "ResetHandPosition",
+    "ResetHands",
     "IsHoldingItem",
     "ToggleLeftHandGrip",
     "ToggleRightHandGrip",
@@ -410,6 +411,10 @@ def run(
         tester.send_command(
             "ResetHandPosition",
             validator=expect_reset_hand_state(v1_compatibility),
+        )
+        tester.send_command(
+            "ResetHands",
+            validator=expect_hand_state(v1_compatibility),
         )
         tester.send_command(
             "IsHoldingItem",
