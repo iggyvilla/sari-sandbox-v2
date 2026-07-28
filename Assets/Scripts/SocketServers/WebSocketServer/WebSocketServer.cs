@@ -39,8 +39,9 @@ public class WebSocketHandler : MonoBehaviour
     [SerializeField] private bool sariSandboxV1CompatibilityLayer;
 
     // Distributed Sari Bench builds self-assign a free port, bind on every interface so a remote
-    // coordinator can reach them, and register with that coordinator on startup. Exposed here as
-    // serialized fields so a Play mode session can join a fleet without a rebuild.
+    // coordinator can reach them, and register with that coordinator on startup. The build flag is
+    // the authoritative opt-in; retaining a coordinator URL in a normal scene must not silently
+    // enable fleet lifecycle behavior.
     [SerializeField] private bool distributedBenchmarkBuild;
     [SerializeField] private string coordinatorUrl;
 
@@ -76,20 +77,19 @@ public class WebSocketHandler : MonoBehaviour
     public string SandboxId { get; private set; }
 
     /// <summary>
-    /// True when this sandbox participates in a distributed benchmark fleet. Setting a coordinator
-    /// URL alone is enough to join a fleet, so this works from a stock editor session in Play mode,
-    /// without a rebuild.
+    /// True when this sandbox participates in a distributed benchmark fleet. The explicit build
+    /// flag is authoritative so a stale or preconfigured coordinator URL cannot trigger startup
+    /// resets and remote lifecycle commands in a normal single-sandbox session.
     /// </summary>
-    public bool IsBenchmarkBuild => distributedBenchmarkBuild || !string.IsNullOrEmpty(CoordinatorUrl);
+    public bool IsBenchmarkBuild => distributedBenchmarkBuild;
 
     /// <summary>Coordinator URL, e.g. ws://coordinator-host:9000/sandbox. Empty disables registration.</summary>
     public string CoordinatorUrl => coordinatorUrl;
 
     /// <summary>
     /// True only for a distributed fleet build, where several sandboxes share a machine and so
-    /// cannot all take the serialized port. A single-sandbox session - including one that joins a
-    /// coordinator from Play mode - keeps the port it was configured with, so a client can reach it
-    /// without first asking the coordinator where it landed.
+    /// cannot all take the serialized port. A normal single-sandbox session keeps the port it was
+    /// configured with, regardless of whether a coordinator URL remains serialized in the scene.
     /// </summary>
     private bool SelfAssignsPort => distributedBenchmarkBuild;
 

@@ -75,13 +75,15 @@ public class BenchCoordinatorClient : MonoBehaviour
     /// </summary>
     public static BenchCoordinatorClient AttachIfConfigured(WebSocketHandler handler)
     {
+        if (!handler.IsBenchmarkBuild)
+            return null;
+
         string url = handler.CoordinatorUrl;
         if (string.IsNullOrEmpty(url))
         {
-            if (handler.IsBenchmarkBuild)
-                Debug.LogWarning(
-                    "This sandbox is flagged as a distributed benchmark build but no coordinator " +
-                    "URL is set, so it will not join a fleet.");
+            Debug.LogWarning(
+                "This sandbox is flagged as a distributed benchmark build but no coordinator " +
+                "URL is set, so it will not join a fleet.");
             return null;
         }
 
