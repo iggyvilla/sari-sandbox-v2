@@ -20,7 +20,14 @@ import websocket
 
 HOST = "localhost"
 PORT = 8080
-EXPECTED_KEYS = {"distance", "hit", "min_range", "max_range"}
+EXPECTED_KEYS = {
+    "distance",
+    "hit",
+    "min_range",
+    "max_range",
+    "pitch_deg",
+    "camera_height",
+}
 
 
 class LidarCenterClientError(RuntimeError):
@@ -71,6 +78,8 @@ def validate_sample(sample):
     distance = require_finite_number(sample["distance"], "distance")
     min_range = require_finite_number(sample["min_range"], "min_range")
     max_range = require_finite_number(sample["max_range"], "max_range")
+    require_finite_number(sample["pitch_deg"], "pitch_deg")
+    require_finite_number(sample["camera_height"], "camera_height")
     hit = sample["hit"]
 
     if not isinstance(hit, bool):
@@ -113,7 +122,8 @@ def run(host, port, timeout, count, delay):
             print(
                 f"[pass] sample {index + 1}/{count}: "
                 f"distance={sample['distance']:.6f} m, "
-                f"status={status}, range={sample['min_range']}..{sample['max_range']} m"
+                f"status={status}, range={sample['min_range']}..{sample['max_range']} m, "
+                f"pitch={sample['pitch_deg']:.2f} deg, camera_height={sample['camera_height']:.3f} m"
             )
 
             if delay > 0 and index + 1 < count:
