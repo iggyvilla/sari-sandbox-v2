@@ -42,10 +42,14 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         // Deliberately a bool: the item id must not leak to the agent.
         public bool left_hand_can_grab;
         public bool left_hand_gripping;
+        // Separate physical attachment from the grip toggle. A closed hand can be empty after a
+        // failed grab or an unexpected detach; treating that as occupied deadlocks later grabs.
+        public bool left_hand_holding_item;
         public float[] current_right_hand_position;
         public float[] current_right_hand_rotation;
         public bool right_hand_can_grab;
         public bool right_hand_gripping;
+        public bool right_hand_holding_item;
     }
 
     [Serializable]
@@ -430,10 +434,12 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                 current_left_hand_rotation = Vec3ToArr(leftHandRotation),
                 left_hand_can_grab = !string.IsNullOrEmpty(leftHandHoveredItemId),
                 left_hand_gripping = agent.IsLeftGripped,
+                left_hand_holding_item = agent.IsHoldingItem(AgentHandSide.Left),
                 current_right_hand_position = Vec3ToArr(rightHandPosition),
                 current_right_hand_rotation = Vec3ToArr(rightHandRotation),
                 right_hand_can_grab = !string.IsNullOrEmpty(rightHandHoveredItemId),
-                right_hand_gripping = agent.IsGripped
+                right_hand_gripping = agent.IsGripped,
+                right_hand_holding_item = agent.IsHoldingItem(AgentHandSide.Right)
             }));
             yield break;
         }
@@ -447,7 +453,9 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             "\nCurrent right hand position: " + rightHandPosition +
             "\nCurrent right hand rotation: " + rightHandRotation +
             "\nRight hand hovering: " + (rightHandHoveredItemId ?? "null") +
-            "\nRight hand gripping: " + agent.IsGripped);
+            "\nRight hand gripping: " + agent.IsGripped +
+            "\nLeft hand holding item: " + agent.IsHoldingItem(AgentHandSide.Left) +
+            "\nRight hand holding item: " + agent.IsHoldingItem(AgentHandSide.Right));
     }
 
     private static float[] Vec3ToArr(Vector3 v) => new float[] { v.x, v.y, v.z };
