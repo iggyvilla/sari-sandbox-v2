@@ -9,6 +9,8 @@ public class HandCollisionDetector : MonoBehaviour
 
     [SerializeField] private float grabRadius = 0.06f;
     [SerializeField] private float grabForwardBias = 0.05f;
+    [SerializeField] private float grabUpBias = 0f;
+    [SerializeField] private float grabLeftBias = 0f;
 
     private OutlineController _itemOutlineController;
     private int _shelfDoorOverlapCount;
@@ -37,6 +39,12 @@ public class HandCollisionDetector : MonoBehaviour
         if (DetectedDoorHandle != null) DetectedDoorHandle.OutlineController.OnGaze();
     }
 
+    private Vector3 GrabCenter =>
+        transform.position
+        + transform.forward * grabForwardBias
+        + transform.up * grabUpBias
+        + -transform.right * grabLeftBias;
+
     private void UpdateNearestItem()
     {
         if (_shelfDoorOverlapCount > 0)
@@ -45,9 +53,10 @@ public class HandCollisionDetector : MonoBehaviour
             return;
         }
 
+        Vector3 grabCenter = GrabCenter;
+
         Collider[] hits = Physics.OverlapSphere(
-            transform.position
-            + transform.forward * grabForwardBias,
+            grabCenter,
             grabRadius,
             _itemBBoxMask,
             QueryTriggerInteraction.Collide);
@@ -56,7 +65,6 @@ public class HandCollisionDetector : MonoBehaviour
         float nearestDist = float.MaxValue;
         bool nearestIsPhysics = false;
 
-        Vector3 grabCenter = transform.position + transform.forward * grabForwardBias;
         foreach (Collider hit in hits)
         {
             float dist = Vector3.Distance(grabCenter, hit.ClosestPoint(transform.position));
@@ -100,11 +108,7 @@ public class HandCollisionDetector : MonoBehaviour
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(
-            transform.position
-            + transform.forward * grabForwardBias, 
-            grabRadius
-        );
+        Gizmos.DrawWireSphere(GrabCenter, grabRadius);
     }
 
     private void OnTriggerEnter(Collider other)
