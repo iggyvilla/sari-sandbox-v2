@@ -53,6 +53,13 @@ public struct LodRenderData
     public Vector4 scale;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct InstanceWorldAabb
+{
+    public Vector4 minimum;
+    public Vector4 maximum;
+}
+
 // Describes one LOD level: the mesh, its cloned instancing materials, and the max distance
 // at which this LOD is used. Switch to the next (lower-quality) LOD when dist >= maxDistance.
 // maxDistance is unused on the last entry (it's the catch-all farthest LOD).
@@ -117,7 +124,11 @@ public class BatchInstancer : MonoBehaviour
 
     // One visible-index AppendBuffer per active LOD; _dummyBuffer fills unused named HLSL slots
     private ComputeBuffer[] _visibleIndexBuffers;
+    private ComputeBuffer[] _frustumCandidateBuffers;
     private ComputeBuffer[] _lidarVisibleIndexBuffers;
+    private ComputeBuffer _worldBoundsBuffer;
+    private ComputeBuffer _occlusionHistoryBuffer;
+    private ComputeBuffer _candidateCountBuffer;
     private ComputeBuffer _dummyBuffer;
     private SubMeshInstance[][] _subMeshPerLOD;
 
@@ -146,7 +157,11 @@ public class BatchInstancer : MonoBehaviour
     private Bounds _cullingBounds;
     private Bounds _drawBounds;
     private uint _lastMainCullVersion = uint.MaxValue;
+    private uint _lastOcclusionCullVersion = uint.MaxValue;
+    private uint _lastOcclusionStateVersion = uint.MaxValue;
     private bool _hasMainCullResults;
+    private bool _mainCullUsesOcclusion;
+    private bool _occlusionHistoryResetPending = true;
     private int _visibleMainLodMask;
 
     public int InstanceCount => instances.Count;
@@ -272,15 +287,26 @@ public class BatchInstancer : MonoBehaviour
 
         GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
         uint cullingVersion = tracker != null ? tracker.MainCameraCullingVersion : 0;
-        bool needsCull = !_hasMainCullResults || _lastMainCullVersion != cullingVersion;
+        bool useOcclusion =
+            tracker != null &&
+            tracker.OcclusionMode != OcclusionCullingMode.Disabled &&
+            GPUOcclusionRendererFeature.IsOcclusionSupported(agentCamera);
+        bool needsCull =
+            !_hasMainCullResults ||
+            _lastMainCullVersion != cullingVersion ||
+            _mainCullUsesOcclusion != useOcclusion;
         if (needsCull)
         {
-            CullForMainCamera();
+            CullForMainCamera(useOcclusion);
             _lastMainCullVersion = cullingVersion;
             _hasMainCullResults = true;
+            _mainCullUsesOcclusion = useOcclusion;
         }
 
-        DrawVisibleBuffers(_visibleIndexBuffers, needsCull, _visibleMainLodMask);
+        DrawVisibleBuffers(
+            _visibleIndexBuffers,
+            needsCull && !useOcclusion,
+            _visibleMainLodMask);
     }
 
     void OnDestroy()
@@ -291,11 +317,17 @@ public class BatchInstancer : MonoBehaviour
                     foreach (var sub in lodSubs) sub.Release();
 
         _positionBuffer?.Release();
+        _worldBoundsBuffer?.Release();
+        _occlusionHistoryBuffer?.Release();
+        _candidateCountBuffer?.Release();
         _simplePlaneBuffer?.Release();
         _dummyBuffer?.Release();
 
         if (_visibleIndexBuffers != null)
             foreach (var buf in _visibleIndexBuffers) buf?.Release();
+
+        if (_frustumCandidateBuffers != null)
+            foreach (var buf in _frustumCandidateBuffers) buf?.Release();
 
         if (_lidarVisibleIndexBuffers != null)
             foreach (var buf in _lidarVisibleIndexBuffers) buf?.Release();
@@ -335,6 +367,7 @@ public class BatchInstancer : MonoBehaviour
         _positionBuffer = new ComputeBuffer(instances.Count, _positionDataSize);
 
         Vector4[] positions = new Vector4[instances.Count];
+        InstanceWorldAabb[] worldBounds = new InstanceWorldAabb[instances.Count];
         LodRenderData[][] lodTransforms = new LodRenderData[lods.Length][];
         for (int i = 0; i < lods.Length; i++)
             lodTransforms[i] = new LodRenderData[instances.Count];
@@ -343,6 +376,12 @@ public class BatchInstancer : MonoBehaviour
         {
             InstanceData instance = instances[i];
             positions[i] = new Vector4(instance.lod0.position.x, instance.lod0.position.y, instance.lod0.position.z, 0f);
+            Bounds bounds = GPUOcclusionCulling.UnionInstanceBounds(instance, lods);
+            worldBounds[i] = new InstanceWorldAabb
+            {
+                minimum = new Vector4(bounds.min.x, bounds.min.y, bounds.min.z, 0f),
+                maximum = new Vector4(bounds.max.x, bounds.max.y, bounds.max.z, 0f)
+            };
 
             for (int lod = 0; lod < lods.Length; lod++)
             {
@@ -357,6 +396,22 @@ public class BatchInstancer : MonoBehaviour
 
         RecalculateDrawBounds();
         _positionBuffer.SetData(positions);
+
+        _worldBoundsBuffer?.Release();
+        _worldBoundsBuffer = new ComputeBuffer(
+            instances.Count,
+            Marshal.SizeOf<InstanceWorldAabb>());
+        _worldBoundsBuffer.SetData(worldBounds);
+
+        _occlusionHistoryBuffer?.Release();
+        _occlusionHistoryBuffer = new ComputeBuffer(instances.Count, sizeof(uint));
+        _occlusionHistoryBuffer.SetData(new uint[instances.Count]);
+
+        _candidateCountBuffer?.Release();
+        _candidateCountBuffer = new ComputeBuffer(
+            1,
+            sizeof(uint),
+            ComputeBufferType.Raw);
 
         if (_lodTransformBuffers != null)
             foreach (var buf in _lodTransformBuffers) buf?.Release();
@@ -378,6 +433,14 @@ public class BatchInstancer : MonoBehaviour
             frustumCullingShader.SetBuffer(_fKernelId, _fLodBufIds[i], _visibleIndexBuffers[i]);
         }
 
+        if (_frustumCandidateBuffers != null)
+            foreach (var buf in _frustumCandidateBuffers) buf?.Release();
+
+        _frustumCandidateBuffers = new ComputeBuffer[lods.Length];
+        for (int i = 0; i < lods.Length; i++)
+            _frustumCandidateBuffers[i] =
+                new ComputeBuffer(instances.Count, _visibleIndexSize, ComputeBufferType.Append);
+
         if (_lidarVisibleIndexBuffers != null)
             foreach (var buf in _lidarVisibleIndexBuffers) buf?.Release();
 
@@ -388,6 +451,9 @@ public class BatchInstancer : MonoBehaviour
         frustumCullingShader.SetInt(_fNumToDrawId, instances.Count);
         frustumCullingShader.SetBuffer(_fKernelId, _fPositionBufferId, _positionBuffer);
 
+        _occlusionHistoryResetPending = true;
+        _lastOcclusionCullVersion = uint.MaxValue;
+        _lastOcclusionStateVersion = uint.MaxValue;
         _buffersDirty = false;
     }
 
@@ -445,7 +511,7 @@ public class BatchInstancer : MonoBehaviour
         return stats;
     }
 
-    private void CullForMainCamera()
+    private void CullForMainCamera(bool useOcclusion)
     {
         SimplePlane[] planes = GPUInstanceTracker.Instance.cameraFrustumPlanes;
         if (planes == null) return;
@@ -456,7 +522,179 @@ public class BatchInstancer : MonoBehaviour
                 : (agentCamera != null ? agentCamera.transform.position : transform.position);
 
         _visibleMainLodMask = CalculateVisibleLodMask(planes, agentPos);
-        DispatchCulling(_visibleIndexBuffers, false, planes, agentPos, 0f);
+        DispatchCulling(
+            useOcclusion ? _frustumCandidateBuffers : _visibleIndexBuffers,
+            false,
+            planes,
+            agentPos,
+            0f);
+
+        if (!useOcclusion)
+        {
+            _occlusionHistoryResetPending = true;
+            _lastOcclusionCullVersion = uint.MaxValue;
+        }
+    }
+
+    public bool NeedsOcclusionUpdate(uint cullingVersion)
+    {
+        return _ready &&
+               instances.Count > 0 &&
+               _mainCullUsesOcclusion &&
+               _frustumCandidateBuffers != null &&
+               _visibleIndexBuffers != null &&
+               _worldBoundsBuffer != null &&
+               _occlusionHistoryBuffer != null &&
+               _candidateCountBuffer != null &&
+               _lastMainCullVersion == cullingVersion &&
+               _lastOcclusionCullVersion != cullingVersion;
+    }
+
+    public void AddOcclusionCullingCommands(
+        CommandBuffer cmd,
+        ComputeShader shader,
+        int resetHistoryKernel,
+        int occlusionKernel,
+        int threadGroupSizeX,
+        Texture depthSource,
+        Matrix4x4 viewProjection,
+        Matrix4x4 worldToCamera,
+        Vector4 zBufferParams,
+        Vector2Int depthSize,
+        int pyramidMipCount,
+        OcclusionCullingMode mode,
+        uint cullingVersion,
+        uint occlusionStateVersion)
+    {
+        if (!NeedsOcclusionUpdate(cullingVersion))
+            return;
+
+        if (_lastOcclusionStateVersion != occlusionStateVersion)
+        {
+            _occlusionHistoryResetPending = true;
+            _lastOcclusionStateVersion = occlusionStateVersion;
+        }
+
+        cmd.BeginSample("Occlusion Culling");
+
+        if (_occlusionHistoryResetPending)
+        {
+            cmd.SetComputeIntParam(shader, "_InstanceCount", instances.Count);
+            cmd.SetComputeBufferParam(
+                shader,
+                resetHistoryKernel,
+                "_OcclusionHistory",
+                _occlusionHistoryBuffer);
+            cmd.DispatchCompute(
+                shader,
+                resetHistoryKernel,
+                Mathf.CeilToInt(instances.Count / (float)threadGroupSizeX),
+                1,
+                1);
+            _occlusionHistoryResetPending = false;
+        }
+
+        OcclusionQualitySettings quality = GPUOcclusionCulling.GetQualitySettings(mode);
+        cmd.SetComputeIntParam(shader, "_InstanceCount", instances.Count);
+        cmd.SetComputeIntParam(shader, "_SamplePattern", quality.samplePattern);
+        cmd.SetComputeIntParam(
+            shader,
+            "_OccludedUpdatesBeforeRemoval",
+            quality.occludedUpdatesBeforeRemoval);
+        cmd.SetComputeIntParam(shader, "_DepthMipCount", pyramidMipCount);
+        cmd.SetComputeFloatParam(shader, "_DepthBiasMeters", quality.depthBiasMeters);
+        cmd.SetComputeVectorParam(
+            shader,
+            "_DepthSize",
+            new Vector4(depthSize.x, depthSize.y, 1f / depthSize.x, 1f / depthSize.y));
+        cmd.SetComputeVectorParam(shader, "_OcclusionZBufferParams", zBufferParams);
+        cmd.SetComputeMatrixParam(shader, "_ViewProjection", viewProjection);
+        cmd.SetComputeMatrixParam(shader, "_WorldToCamera", worldToCamera);
+        cmd.SetComputeTextureParam(shader, occlusionKernel, "_OcclusionDepth", depthSource);
+        cmd.SetComputeBufferParam(
+            shader,
+            occlusionKernel,
+            "_WorldBounds",
+            _worldBoundsBuffer);
+        cmd.SetComputeBufferParam(
+            shader,
+            occlusionKernel,
+            "_OcclusionHistory",
+            _occlusionHistoryBuffer);
+        cmd.SetComputeBufferParam(
+            shader,
+            occlusionKernel,
+            "_CandidateCount",
+            _candidateCountBuffer);
+
+        for (int lodIndex = 0; lodIndex < lods.Length; lodIndex++)
+        {
+            cmd.SetBufferCounterValue(_visibleIndexBuffers[lodIndex], 0);
+            cmd.CopyCounterValue(
+                _frustumCandidateBuffers[lodIndex],
+                _candidateCountBuffer,
+                0);
+            cmd.SetComputeBufferParam(
+                shader,
+                occlusionKernel,
+                "_CandidateIndices",
+                _frustumCandidateBuffers[lodIndex]);
+            cmd.SetComputeBufferParam(
+                shader,
+                occlusionKernel,
+                "_VisibleIndices",
+                _visibleIndexBuffers[lodIndex]);
+            cmd.DispatchCompute(
+                shader,
+                occlusionKernel,
+                Mathf.CeilToInt(instances.Count / (float)threadGroupSizeX),
+                1,
+                1);
+
+            if (_subMeshPerLOD[lodIndex] == null)
+                continue;
+            for (int subMeshIndex = 0;
+                 subMeshIndex < _subMeshPerLOD[lodIndex].Length;
+                 subMeshIndex++)
+            {
+                _subMeshPerLOD[lodIndex][subMeshIndex]
+                    .UpdateInstanceCountBuf(cmd, _visibleIndexBuffers[lodIndex]);
+            }
+        }
+
+        cmd.EndSample("Occlusion Culling");
+        _lastOcclusionCullVersion = cullingVersion;
+    }
+
+    public void AddFrustumFallbackCommands(CommandBuffer cmd)
+    {
+        if (!_ready ||
+            instances.Count == 0 ||
+            !_mainCullUsesOcclusion ||
+            _frustumCandidateBuffers == null)
+        {
+            return;
+        }
+
+        for (int lodIndex = 0; lodIndex < lods.Length; lodIndex++)
+        {
+            if (_subMeshPerLOD[lodIndex] == null)
+                continue;
+
+            for (int subMeshIndex = 0;
+                 subMeshIndex < _subMeshPerLOD[lodIndex].Length;
+                 subMeshIndex++)
+            {
+                SubMeshInstance subMesh = _subMeshPerLOD[lodIndex][subMeshIndex];
+                BindMaterialBuffers(
+                    subMesh.material,
+                    _frustumCandidateBuffers[lodIndex],
+                    lodIndex);
+                subMesh.UpdateInstanceCountBuf(
+                    cmd,
+                    _frustumCandidateBuffers[lodIndex]);
+            }
+        }
     }
 
     private void DispatchCulling(
@@ -519,7 +757,8 @@ public class BatchInstancer : MonoBehaviour
                     0,
                     null,
                     ShadowCastingMode.Off,
-                    true
+                    true,
+                    GPUOcclusionCulling.ProductLayer
                 );
             }
         }
@@ -670,19 +909,8 @@ public class BatchInstancer : MonoBehaviour
                 if (mesh == null) continue;
 
                 LodTransform transformData = GetLodTransform(instance, lodIndex);
-                Quaternion rotation = new Quaternion(
-                    transformData.rotation.x,
-                    transformData.rotation.y,
-                    transformData.rotation.z,
-                    transformData.rotation.w);
-                Vector3 absoluteScale = new Vector3(
-                    Mathf.Abs(transformData.scale.x),
-                    Mathf.Abs(transformData.scale.y),
-                    Mathf.Abs(transformData.scale.z));
-                Vector3 center = transformData.position +
-                                 rotation * Vector3.Scale(mesh.bounds.center, transformData.scale);
-                float radius = Vector3.Scale(mesh.bounds.extents, absoluteScale).magnitude;
-                Bounds instanceBounds = new Bounds(center, Vector3.one * (radius * 2f));
+                Bounds instanceBounds =
+                    GPUOcclusionCulling.TransformBounds(mesh.bounds, transformData);
 
                 if (!initialized)
                 {

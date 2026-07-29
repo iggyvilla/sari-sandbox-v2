@@ -1,0 +1,206 @@
+#pragma kernel CopyLinearDepth
+#pragma kernel ReduceMaxDepth
+#pragma kernel ResetHistory
+#pragma kernel OcclusionCull
+
+Texture2D<float> _RawDepth;
+RWTexture2D<float> _LinearDepthOutput;
+Texture2D<float> _DepthReduceInput;
+RWTexture2D<float> _DepthReduceOutput;
+float4 _SourceSize;
+float4 _OcclusionZBufferParams;
+
+struct WorldAabb
+{
+    float4 minimum;
+    float4 maximum;
+};
+
+StructuredBuffer<WorldAabb> _WorldBounds;
+StructuredBuffer<uint> _CandidateIndices;
+ByteAddressBuffer _CandidateCount;
+AppendStructuredBuffer<uint> _VisibleIndices;
+RWStructuredBuffer<uint> _OcclusionHistory;
+Texture2D<float> _OcclusionDepth;
+
+float4x4 _ViewProjection;
+float4x4 _WorldToCamera;
+float4 _DepthSize;
+float _NearClip;
+float _DepthBiasMeters;
+int _DepthMipCount;
+int _SamplePattern;
+int _OccludedUpdatesBeforeRemoval;
+int _UsesLinearDepthPyramid;
+int _InstanceCount;
+
+float LinearEyeDepth(float rawDepth)
+{
+    return rcp(_OcclusionZBufferParams.z * rawDepth + _OcclusionZBufferParams.w);
+}
+
+[numthreads(8, 8, 1)]
+void CopyLinearDepth(uint3 id : SV_DispatchThreadID)
+{
+    uint width;
+    uint height;
+    _LinearDepthOutput.GetDimensions(width, height);
+    if (id.x >= width || id.y >= height)
+        return;
+
+    _LinearDepthOutput[id.xy] = LinearEyeDepth(_RawDepth.Load(int3(id.xy, 0)));
+}
+
+[numthreads(8, 8, 1)]
+void ReduceMaxDepth(uint3 id : SV_DispatchThreadID)
+{
+    uint destinationWidth;
+    uint destinationHeight;
+    _DepthReduceOutput.GetDimensions(destinationWidth, destinationHeight);
+    if (id.x >= destinationWidth || id.y >= destinationHeight)
+        return;
+
+    int2 sourceSize = int2(_SourceSize.xy);
+    int2 source = int2(id.xy) * 2;
+    float maximumDepth = 0.0;
+    [unroll]
+    for (int y = 0; y < 2; y++)
+    {
+        [unroll]
+        for (int x = 0; x < 2; x++)
+        {
+            int2 samplePosition = min(source + int2(x, y), sourceSize - 1);
+            maximumDepth = max(
+                maximumDepth,
+                _DepthReduceInput.Load(int3(samplePosition, 0)));
+        }
+    }
+    _DepthReduceOutput[id.xy] = maximumDepth;
+}
+
+[numthreads(64, 1, 1)]
+void ResetHistory(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < (uint)_InstanceCount)
+        _OcclusionHistory[id.x] = 0;
+}
+
+float SampleEyeDepth(float2 uv, int mip)
+{
+    int2 mipSize = max(int2(_DepthSize.xy) >> mip, 1);
+    int2 pixel = clamp(int2(uv * mipSize), 0, mipSize - 1);
+    float depth = _OcclusionDepth.Load(int3(pixel, mip));
+    return _UsesLinearDepthPyramid != 0 ? depth : LinearEyeDepth(depth);
+}
+
+bool IsSafelyOccluded(float2 uv, int mip, float nearestEyeDepth)
+{
+    float occluderDepth = SampleEyeDepth(uv, mip);
+    return nearestEyeDepth > occluderDepth + _DepthBiasMeters;
+}
+
+[numthreads(64, 1, 1)]
+void OcclusionCull(uint3 id : SV_DispatchThreadID)
+{
+    uint candidateCount = _CandidateCount.Load(0);
+    if (id.x >= candidateCount)
+        return;
+
+    uint instanceIndex = _CandidateIndices[id.x];
+    WorldAabb bounds = _WorldBounds[instanceIndex];
+    float3 minimum = bounds.minimum.xyz;
+    float3 maximum = bounds.maximum.xyz;
+    float2 uvMinimum = float2(2.0, 2.0);
+    float2 uvMaximum = float2(-1.0, -1.0);
+    float nearestEyeDepth = 3.402823466e+38F;
+    bool crossesNearPlane = false;
+
+    [unroll]
+    for (uint cornerIndex = 0; cornerIndex < 8; cornerIndex++)
+    {
+        float3 corner = float3(
+            (cornerIndex & 1) != 0 ? maximum.x : minimum.x,
+            (cornerIndex & 2) != 0 ? maximum.y : minimum.y,
+            (cornerIndex & 4) != 0 ? maximum.z : minimum.z);
+        float eyeDepth = -mul(_WorldToCamera, float4(corner, 1.0)).z;
+        crossesNearPlane = crossesNearPlane || eyeDepth <= _NearClip;
+        nearestEyeDepth = min(nearestEyeDepth, eyeDepth);
+
+        float4 clip = mul(_ViewProjection, float4(corner, 1.0));
+        if (clip.w <= 0.0)
+        {
+            crossesNearPlane = true;
+            continue;
+        }
+
+        float2 uv = clip.xy / clip.w * 0.5 + 0.5;
+        uvMinimum = min(uvMinimum, uv);
+        uvMaximum = max(uvMaximum, uv);
+    }
+
+    // Bounds that touch the near plane or a screen edge cannot be proven fully covered.
+    if (crossesNearPlane ||
+        uvMinimum.x <= 0.0 || uvMinimum.y <= 0.0 ||
+        uvMaximum.x >= 1.0 || uvMaximum.y >= 1.0)
+    {
+        _OcclusionHistory[instanceIndex] = 0;
+        _VisibleIndices.Append(instanceIndex);
+        return;
+    }
+
+    float2 footprintPixels = (uvMaximum - uvMinimum) * _DepthSize.xy;
+    float maximumFootprint = max(max(footprintPixels.x, footprintPixels.y), 1.0);
+    int baseMip = (int)floor(log2(maximumFootprint));
+    // A max-depth texel must remain fully covered by the occluder. Sampling a
+    // footprint-sized texel usually includes background beside the bounds, so
+    // multi-sample modes deliberately use smaller hierarchy cells.
+    int mipReduction = _SamplePattern == 0 ? 2 : (_SamplePattern == 1 ? 1 : baseMip);
+    int mip = _UsesLinearDepthPyramid != 0
+        ? clamp(
+            baseMip - mipReduction,
+            0,
+            _DepthMipCount - 1)
+        : 0;
+    bool occluded = true;
+
+    if (_SamplePattern == 0)
+    {
+        // Conservative: a 3x3 grid across the projected footprint.
+        [unroll]
+        for (int y = 0; y < 3; y++)
+        {
+            [unroll]
+            for (int x = 0; x < 3; x++)
+            {
+                float2 uv = lerp(uvMinimum, uvMaximum, float2(x, y) * 0.5);
+                occluded = occluded && IsSafelyOccluded(uv, mip, nearestEyeDepth);
+            }
+        }
+    }
+    else if (_SamplePattern == 1)
+    {
+        // Balanced: four projected-footprint corners.
+        occluded =
+            IsSafelyOccluded(uvMinimum, mip, nearestEyeDepth) &&
+            IsSafelyOccluded(float2(uvMaximum.x, uvMinimum.y), mip, nearestEyeDepth) &&
+            IsSafelyOccluded(float2(uvMinimum.x, uvMaximum.y), mip, nearestEyeDepth) &&
+            IsSafelyOccluded(uvMaximum, mip, nearestEyeDepth);
+    }
+    else
+    {
+        // Aggressive: raw depth at the projected center, with no pyramid build.
+        occluded = IsSafelyOccluded((uvMinimum + uvMaximum) * 0.5, 0, nearestEyeDepth);
+    }
+
+    if (!occluded)
+    {
+        _OcclusionHistory[instanceIndex] = 0;
+        _VisibleIndices.Append(instanceIndex);
+        return;
+    }
+
+    uint history = min(_OcclusionHistory[instanceIndex] + 1, 0xffffffffu);
+    _OcclusionHistory[instanceIndex] = history;
+    if (history < (uint)_OccludedUpdatesBeforeRemoval)
+        _VisibleIndices.Append(instanceIndex);
+}

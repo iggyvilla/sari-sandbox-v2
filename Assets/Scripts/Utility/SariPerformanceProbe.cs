@@ -81,6 +81,7 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         public string graphicsApi;
         public string renderPipeline;
         public string qualityLevel;
+        public string occlusionMode;
         public string screen;
         public bool developmentBuild;
         public int targetFrameRate;
@@ -104,6 +105,8 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         public MetricSummary vertices;
         public MetricSummary frustumCullingMs;
         public MetricSummary frustumCullingDispatches;
+        public MetricSummary occlusionCullingMs;
+        public MetricSummary occlusionCullingDispatches;
         public MetricSummary behaviourUpdateMs;
         public MetricSummary physicsSimulateMs;
         public SceneSnapshot sceneSnapshot;
@@ -269,6 +272,8 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         List<double> vertices = new();
         List<double> frustumCullingMs = new();
         List<double> frustumCullingDispatches = new();
+        List<double> occlusionCullingMs = new();
+        List<double> occlusionCullingDispatches = new();
         List<double> behaviourUpdateMs = new();
         List<double> physicsSimulateMs = new();
 
@@ -287,6 +292,7 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         using CounterSampler triangleCount = new(ProfilerCategory.Render, "Triangles Count", 1d);
         using CounterSampler vertexCount = new(ProfilerCategory.Render, "Vertices Count", 1d);
         using MarkerSampler frustumCulling = new("Frustum Culling");
+        using MarkerSampler occlusionCulling = new("Occlusion Culling");
         using MarkerSampler behaviourUpdate = new("BehaviourUpdate");
         using MarkerSampler physicsSimulate = new("Physics.Simulate");
 
@@ -320,6 +326,8 @@ public sealed class SariPerformanceProbe : MonoBehaviour
             vertexCount.Sample(vertices);
             frustumCulling.SampleTime(frustumCullingMs);
             frustumCulling.SampleCount(frustumCullingDispatches);
+            occlusionCulling.SampleTime(occlusionCullingMs);
+            occlusionCulling.SampleCount(occlusionCullingDispatches);
             behaviourUpdate.SampleTime(behaviourUpdateMs);
             physicsSimulate.SampleTime(physicsSimulateMs);
         }
@@ -338,6 +346,8 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         report.vertices = Summarize(vertices);
         report.frustumCullingMs = Summarize(frustumCullingMs);
         report.frustumCullingDispatches = Summarize(frustumCullingDispatches);
+        report.occlusionCullingMs = Summarize(occlusionCullingMs);
+        report.occlusionCullingDispatches = Summarize(occlusionCullingDispatches);
         report.behaviourUpdateMs = Summarize(behaviourUpdateMs);
         report.physicsSimulateMs = Summarize(physicsSimulateMs);
         report.averageFps = report.frameMs.average > 0d ? 1000d / report.frameMs.average : 0d;
@@ -386,6 +396,9 @@ public sealed class SariPerformanceProbe : MonoBehaviour
             graphicsApi = SystemInfo.graphicsDeviceType.ToString(),
             renderPipeline = pipeline != null ? pipeline.name : "Built-in",
             qualityLevel = QualitySettings.names[QualitySettings.GetQualityLevel()],
+            occlusionMode = GPUInstanceTracker.Instance != null
+                ? GPUInstanceTracker.Instance.OcclusionMode.ToString()
+                : "Unavailable",
             screen = $"{Screen.width}x{Screen.height} @{Screen.currentResolution.refreshRateRatio}",
             developmentBuild = Debug.isDebugBuild,
             targetFrameRate = Application.targetFrameRate,
@@ -509,11 +522,40 @@ public sealed class SariPerformanceProbe : MonoBehaviour
                         light.shadows = LightShadows.None;
                     }
                     break;
+                case "disabled":
+                case "occlusion-disabled":
+                    SetOcclusionMode(OcclusionCullingMode.Disabled);
+                    break;
+                case "conservative":
+                case "occlusion-conservative":
+                    SetOcclusionMode(OcclusionCullingMode.Conservative);
+                    break;
+                case "balanced":
+                case "occlusion-balanced":
+                    SetOcclusionMode(OcclusionCullingMode.Balanced);
+                    break;
+                case "aggressive":
+                case "occlusion-aggressive":
+                    SetOcclusionMode(OcclusionCullingMode.Aggressive);
+                    break;
                 default:
                     Debug.LogWarning($"Unknown performance probe variant '{tokens[i]}'.");
                     break;
             }
         }
+    }
+
+    private static void SetOcclusionMode(OcclusionCullingMode mode)
+    {
+        GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+        if (tracker == null)
+        {
+            Debug.LogWarning($"Cannot set occlusion mode to {mode}: no GPU instance tracker.");
+            return;
+        }
+
+        tracker.OcclusionMode = mode;
+        Debug.Log($"Performance probe set GPU product occlusion mode to {mode}.");
     }
 
     private static void SetRendererFeatureActive(string featureName, bool active)

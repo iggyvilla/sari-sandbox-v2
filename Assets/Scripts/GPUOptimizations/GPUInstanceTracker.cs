@@ -21,11 +21,46 @@ public class GPUInstanceTracker : MonoBehaviour
     public SimplePlane[] cameraFrustumPlanes;
     private readonly Plane[] _unityFrustumPlanes = new Plane[6];
     [SerializeField, Min(1f)] private float maxCullingUpdatesPerSecond = 30f;
+    [SerializeField, Tooltip("GPU product occlusion quality. Unsupported cameras fall back to frustum culling.")]
+    private OcclusionCullingMode occlusionMode = OcclusionCullingMode.Conservative;
+    [System.NonSerialized]
+    private bool captureOcclusionDebugNextFrame;
     private Matrix4x4 _lastCullingMatrix;
     private bool _hasCullingMatrix;
     private float _nextCullingUpdateTime;
+    private bool _forceCullingUpdate = true;
 
     public uint MainCameraCullingVersion { get; private set; }
+    public uint OcclusionStateVersion { get; private set; }
+
+    public OcclusionCullingMode OcclusionMode
+    {
+        get => occlusionMode;
+        set
+        {
+            if (occlusionMode == value)
+                return;
+
+            occlusionMode = value;
+            OcclusionStateVersion++;
+            RequestCullingUpdate();
+        }
+    }
+
+    public bool ConsumeOcclusionDebugCaptureRequest()
+    {
+        if (!captureOcclusionDebugNextFrame)
+            return false;
+
+        captureOcclusionDebugNextFrame = false;
+        return true;
+    }
+
+    [ContextMenu("Capture Occlusion Debug PNGs")]
+    private void RequestOcclusionDebugCapture()
+    {
+        captureOcclusionDebugNextFrame = true;
+    }
 
     // LOD2/LOD3 are disabled until their mesh scales are fixed. Flip to true (here or in
     // the Inspector) to restore all 4 LODs — no other code change needed.
@@ -59,15 +94,22 @@ public class GPUInstanceTracker : MonoBehaviour
 
         Matrix4x4 currentCullingMatrix =
             mainCamera.projectionMatrix * mainCamera.worldToCameraMatrix;
-        if (_hasCullingMatrix &&
-            MatricesApproximatelyEqual(currentCullingMatrix, _lastCullingMatrix))
+        bool matrixChanged =
+            !_hasCullingMatrix ||
+            !MatricesApproximatelyEqual(currentCullingMatrix, _lastCullingMatrix);
+        bool periodicOcclusionUpdate =
+            occlusionMode != OcclusionCullingMode.Disabled &&
+            GPUOcclusionRendererFeature.IsOcclusionSupported(mainCamera);
+
+        if (!_forceCullingUpdate && !matrixChanged && !periodicOcclusionUpdate)
             return;
 
-        if (_hasCullingMatrix && Time.unscaledTime < _nextCullingUpdateTime)
+        if (!_forceCullingUpdate && Time.unscaledTime < _nextCullingUpdateTime)
             return;
 
         _lastCullingMatrix = currentCullingMatrix;
         _hasCullingMatrix = true;
+        _forceCullingUpdate = false;
         _nextCullingUpdateTime =
             Time.unscaledTime + 1f / Mathf.Max(1f, maxCullingUpdatesPerSecond);
         UpdateFrustumPlanes(mainCamera);
@@ -85,10 +127,22 @@ public class GPUInstanceTracker : MonoBehaviour
 
     public void SetCamera(Camera cam)
     {
+        if (mainCamera == cam)
+            return;
+
         mainCamera = cam;
         _hasCullingMatrix = false;
+        OcclusionStateVersion++;
+        RequestCullingUpdate();
         foreach (BatchInstancer bi in GetComponents<BatchInstancer>())
             bi.agentCamera = cam;
+    }
+
+    private void RequestCullingUpdate()
+    {
+        _forceCullingUpdate = true;
+        _nextCullingUpdateTime = 0f;
+        MainCameraCullingVersion++;
     }
 
     public void CullForLidarRange(Vector3 origin, float maxRange)

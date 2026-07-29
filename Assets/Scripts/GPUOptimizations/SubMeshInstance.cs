@@ -1,6 +1,7 @@
 // from ReverieJake https://gist.github.com/reveriejake/b668119ecdccf8bcb267f2ea303b830d
 
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class SubMeshInstance
 {
@@ -25,6 +26,11 @@ public class SubMeshInstance
     public void UpdateInstanceCountBuf(ComputeBuffer srcBuf)
     {
         ComputeBuffer.CopyCount(srcBuf, argsBuffer, sizeof(uint));
+    }
+
+    public void UpdateInstanceCountBuf(CommandBuffer cmd, ComputeBuffer srcBuf)
+    {
+        cmd.CopyCounterValue(srcBuf, argsBuffer, sizeof(uint));
     }
     
     public void UpdateInstanceCount(int instanceCount)
