@@ -13,7 +13,7 @@
         "possibleAllergens": null,
         "nutritionalFacts": "Serving Size: 56g, Servings Per Container: about 3, Calories: 90, Calories from Fat: 25, Total Fat: 3g, Saturated Fat: 2g, Trans Fat: 0g, Cholesterol: 25mg, Sodium: 380mg, Total Carbohydrates: 7g, Dietary Fiber: less than 1g, Sugars: 4g, Protein: 10g"
     },
-    "555_HOT_SARDINES_IN_TOMATO_SAUCE": {
+    "555_HOT_SARDINES_IN_TOMATO_SAUCE_155G": {
         "netWeight": "155g",
         "pricePHP": 29.0,
         "allergens": "Fish, Soybeans/Soy/Soya",
@@ -496,7 +496,7 @@
         "possibleAllergens": "Eggs, Tree Nuts",
         "nutritionalFacts": "Serving Size: 36g (2pcs), Servings Per Container: 3, Calories: 160, Total Fat: 6g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 90mg, Total Carbohydrates: 25g, Dietary Fiber: 0g, Total Sugars: 16g, Incl. Added Sugars: 16g, Protein: 2g, Vitamin D: 0mg, Calcium: 40mg, Iron: 0.9mg, Potassium: 100mg"
     },
-    "FIBISCO_JOLLY_26G": {
+    "FIBISCO_JOLLY_27G": {
         "netWeight": "27g",
         "pricePHP": 6.245,
         "allergens": "Wheat/Cereals/Gluten, Milk",
@@ -657,7 +657,7 @@
         "possibleAllergens": "Fish",
         "nutritionalFacts": "Serving Size: 30g, Calories: 150, Total Fat: 7g, Saturated Fat: 3g, Trans Fat: 0g, Cholesterol: 0mg, Sodium: 140mg, Total Carbohydrates: 20g, Dietary Fiber: 1g, Sugars: 2g, Protein: 1g"
     },
-    "JACK_DANIELS_700ML": {
+    "JACK_DANIELS_750ML": {
         "netWeight": "700ml",
         "pricePHP": 1101.6,
         "allergens": null,
@@ -937,7 +937,7 @@
         "possibleAllergens": null,
         "nutritionalFacts": "Serving Size: 160g, Calories: 80, Total Fat: 6g, Saturated Fat: 5g, Trans Fat: 0g, Cholesterol: 7mg, Sodium: 520mg, Total Carbohydrates: 2g, Sugars: 1g, Protein: 3g"
     },
-    "MAGNOLIA_DAILYQUEZO_160G": {
+    "MAGNOLIA_DAILYQUEZO_160g": {
         "netWeight": "160g",
         "pricePHP": 36.4,
         "allergens": "Milk",
@@ -1189,7 +1189,7 @@
         "possibleAllergens": null,
         "nutritionalFacts": null
     },
-    "OREO_WAFER_ROLL_3\u00d718G": {
+    "OREO_WAFER_ROLL_3x18G": {
         "netWeight": "54g",
         "pricePHP": 49.5,
         "allergens": null,
