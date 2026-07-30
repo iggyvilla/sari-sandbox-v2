@@ -12,6 +12,7 @@ public enum AgentHandSide
 public abstract class AgentControllerBase : MonoBehaviour
 {
     private const float MaximumHeightMargin = 0.2f;
+    private const float MinimumFloorScale = 0.0001f;
 
     public bool isMultiplayerAgent = false;
 
@@ -19,6 +20,9 @@ public abstract class AgentControllerBase : MonoBehaviour
     [SerializeField] protected float movementSpeed;
     [SerializeField] protected float rotateSpeed;
     [SerializeField] protected float throwStrength;
+
+    [Header("Out Of Bounds Recovery")]
+    [SerializeField, Min(0f)] private float floorBoundsPadding = 0.05f;
 
     [Header("Agent Hand Object")]
     [SerializeField] protected GameObject agentHand;
@@ -75,6 +79,10 @@ public abstract class AgentControllerBase : MonoBehaviour
     private float _standingMovementRootHeight;
     private bool _isCrouching;
     private AgentHandSide _lastManualHandSide = AgentHandSide.Left;
+    private Transform _floorTransform;
+    private Bounds _floorLocalBounds;
+    private Vector3 _spawnPosition;
+    private bool _hasFloorBounds;
 
     private sealed class AgentHandRuntime
     {
@@ -116,6 +124,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         }
         _standingViewHeight = ViewTransform.position.y;
         _standingMovementRootHeight = MovementRoot.position.y;
+        InitializeOutOfBoundsRecovery();
         interactableLayerMask = LayerMask.GetMask("SariInteractable");
         InitializeHandComponents();
     }
@@ -228,6 +237,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     void FixedUpdate()
     {
         _pendingBodyTranslation = Vector3.zero;
+        RecoverIfOutOfBounds();
         UpdateHandControlMode();
         HandleMovement();
         ApplyDesiredHandPose();
@@ -287,6 +297,94 @@ public abstract class AgentControllerBase : MonoBehaviour
                 }
             }
         }
+    }
+
+    private void InitializeOutOfBoundsRecovery()
+    {
+        _spawnPosition = !isMultiplayerAgent && DataHandler.Instance != null
+            ? DataHandler.Instance.agentSpawnPosition
+            : MovementRoot.position;
+
+        GameObject floor = DataHandler.Instance != null ? DataHandler.Instance.floor : null;
+        if (floor == null)
+        {
+            RoomStructure roomStructure = FindFirstObjectByType<RoomStructure>();
+            floor = roomStructure != null ? roomStructure.gameObject : null;
+        }
+
+        MeshCollider floorCollider = floor != null ? floor.GetComponent<MeshCollider>() : null;
+        Mesh floorMesh = floorCollider != null ? floorCollider.sharedMesh : null;
+        if (floorMesh == null)
+        {
+            Debug.LogWarning(
+                $"{name} cannot enable out-of-bounds recovery because no floor mesh collider was found.",
+                this);
+            return;
+        }
+
+        // Use the collider mesh rather than Renderer.localBounds. Static batching can alter the
+        // renderer's local bounds, while the collider retains the source plane footprint that
+        // RoomStructure scales at runtime.
+        _floorTransform = floorCollider.transform;
+        _floorLocalBounds = floorMesh.bounds;
+        _hasFloorBounds = true;
+
+        if (IsOutsideFloorBounds(_spawnPosition))
+        {
+            _hasFloorBounds = false;
+            Debug.LogWarning(
+                $"{name} cannot enable out-of-bounds recovery because its spawn position " +
+                $"{_spawnPosition} is outside the padded floor bounds.",
+                this);
+        }
+    }
+
+    private void RecoverIfOutOfBounds()
+    {
+        Transform movementRoot = MovementRoot;
+        if (!_hasFloorBounds || _floorTransform == null || movementRoot == null) return;
+
+        Vector3 currentPosition = movementRoot.position;
+        if (!IsOutsideFloorBounds(currentPosition)) return;
+
+        if (rigidbody != null)
+        {
+            rigidbody.linearVelocity = Vector3.zero;
+            rigidbody.angularVelocity = Vector3.zero;
+            rigidbody.position = _spawnPosition;
+        }
+        else
+        {
+            movementRoot.position = _spawnPosition;
+        }
+
+        Debug.LogWarning(
+            $"{name} left the floor bounds at {currentPosition} and was returned to " +
+            $"its spawn position {_spawnPosition}.",
+            this);
+    }
+
+    private bool IsOutsideFloorBounds(Vector3 worldPosition)
+    {
+        Vector3 floorPosition = _floorTransform.InverseTransformPoint(worldPosition);
+        Vector3 floorScale = _floorTransform.lossyScale;
+        float paddingX = floorBoundsPadding / Mathf.Max(Mathf.Abs(floorScale.x), MinimumFloorScale);
+        float paddingY = floorBoundsPadding / Mathf.Max(Mathf.Abs(floorScale.y), MinimumFloorScale);
+        float paddingZ = floorBoundsPadding / Mathf.Max(Mathf.Abs(floorScale.z), MinimumFloorScale);
+
+        return !IsFinite(floorPosition) ||
+               floorPosition.x < _floorLocalBounds.min.x - paddingX ||
+               floorPosition.x > _floorLocalBounds.max.x + paddingX ||
+               floorPosition.y < _floorLocalBounds.min.y - paddingY ||
+               floorPosition.z < _floorLocalBounds.min.z - paddingZ ||
+               floorPosition.z > _floorLocalBounds.max.z + paddingZ;
+    }
+
+    private static bool IsFinite(Vector3 value)
+    {
+        return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+               !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+               !float.IsNaN(value.z) && !float.IsInfinity(value.z);
     }
 
     void Update()

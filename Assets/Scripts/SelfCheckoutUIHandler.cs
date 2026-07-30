@@ -27,6 +27,10 @@ public class SelfCheckoutUIHandler : MonoBehaviour
 
     public void StartScreenButtonPressed()
     {
+        // This method is also invoked by BarcodeScanner.onSuccessfulScan.
+        // Once the main screen is open, later scans must not reset the basket.
+        if (startScreen != null && !startScreen.activeSelf) return;
+
         if (startScreen != null) startScreen.SetActive(false);
         if (mainScreen  != null) mainScreen.SetActive(true);
         ResetAllItems();
