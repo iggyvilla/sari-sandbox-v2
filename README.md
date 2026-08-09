@@ -1,9 +1,12 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/9b52e148-3998-420e-ba2a-cb15b0011681">
-    <img width="180" height="180" alt="Sari Agent logo" src="https://github.com/user-attachments/assets/9b52e148-3998-420e-ba2a-cb15b0011681">
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/11696796-f752-4df3-a655-1a8db557ba5c">
+    <img width="1270" height="1080" alt="0" src="https://github.com/user-attachments/assets/11696796-f752-4df3-a655-1a8db557ba5c" />
   </picture>
 </p>
+
+
+
 
 <h1 align="center">Sari Sandbox²</h1>
 
