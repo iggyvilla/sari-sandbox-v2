@@ -10,7 +10,7 @@
 
 <h1 align="center">Sari Sandbox²</h1>
 
-The second-generation [Sari Sandbox](https://sarisandbox.github.io/), a virtual retail environment for embodied agents. Large performance improvements, multiplayer, a store builder, and more.
+The second-generation [Sari Sandbox](https://sarisandbox.github.io/), a virtual retail environment for embodied agents. Large performance improvements, multiplayer, a store builder, and more. The agent harness (Sari Agent²) for running VLMs in this sandbox is available in [this repository](https://github.com/uclsarisquared/sari-agent-2.0/tree/main).
 
 > [!NOTE]  
 > We are still in the process of cleaning up the asset files, and the game will not build without it. We will release it once ready.
