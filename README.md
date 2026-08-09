@@ -12,7 +12,7 @@ The second-generation [Sari Sandbox](https://sarisandbox.github.io/), a virtual 
 > [!NOTE]  
 > Assets and store files will be released once cleaned up.
 
-## Measured results
+## Performance improvements
 
 ### Stable frame loop
 
