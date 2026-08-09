@@ -13,7 +13,7 @@
 The second-generation [Sari Sandbox](https://sarisandbox.github.io/), a virtual retail environment for embodied agents. Large performance improvements, multiplayer, a store builder, and more.
 
 > [!NOTE]  
-> Assets and store files will be released once cleaned up.
+> We are still in the process of cleaning up the asset files, and the game will not build without it. We will release it once ready.
 
 ## Performance improvements
 
