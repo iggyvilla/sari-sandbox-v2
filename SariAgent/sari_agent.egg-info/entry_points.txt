@@ -1,2 +1,0 @@
-[console_scripts]
-sari-agent = sari_agent.main:main

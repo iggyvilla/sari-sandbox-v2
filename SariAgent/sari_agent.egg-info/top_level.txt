@@ -1,7 +1,0 @@
-debug-ui
-debug_runs
-memory
-sari_agent
-screenshots
-scripts
-tests
