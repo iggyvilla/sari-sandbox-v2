@@ -21,6 +21,8 @@ Assets/Meshes
 Assets/Samples
 Unity.RenderPipelines.Core.Samples.Editor.csproj
 Unity.RenderPipelines.Core.Samples.Runtime.csproj
+Unity.XR.Interaction.Toolkit.Samples.StarterAssets.csproj
+Unity.XR.Interaction.Toolkit.Samples.StarterAssets.Editor.csproj
 mono_crash.143e1228bd.0.json
 Assets/Materials/Scalable Grid Prototype Materials
 !Assets/Materials/Shaders
