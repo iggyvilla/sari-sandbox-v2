@@ -10,7 +10,7 @@
 
 <h1 align="center">Sari Sandbox²</h1>
 
-The second-generation [Sari Sandbox](https://sarisandbox.github.io/), a virtual retail environment for embodied agents.
+The second-generation [Sari Sandbox](https://sarisandbox.github.io/), a virtual retail environment for embodied agents. Large performance improvements, multiplayer, a store builder, and more.
 
 > [!NOTE]  
 > Assets and store files will be released once cleaned up.
