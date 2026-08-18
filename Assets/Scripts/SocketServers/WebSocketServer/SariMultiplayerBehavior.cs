@@ -27,6 +27,7 @@ public class SariMultiplayerBehavior : WebSocketBehavior
         public string agentId;
         public float[] position;
         public float[] rotation;
+        public int recoveryCount;
     }
 
     [Serializable] class AgentUpdateMsg
@@ -94,7 +95,8 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                         type = "Snapshot",
                         agentId = s.agentId,
                         position = Vec3ToArr(s.position),
-                        rotation = Vec3ToArr(s.rotation.eulerAngles)
+                        rotation = Vec3ToArr(s.rotation.eulerAngles),
+                        recoveryCount = s.recoveryCount
                     }));
 
                 AgentControllerBase newAgent = MultiplayerAgentManager.Instance.GetAgent(agentId);
@@ -105,7 +107,8 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                     type = "AgentSpawned",
                     agentId = agentId,
                     position = Vec3ToArr(spawnPos),
-                    rotation = Vec3ToArr(spawnRot)
+                    rotation = Vec3ToArr(spawnRot),
+                    recoveryCount = newAgent != null ? newAgent.OutOfBoundsRecoveryCount : 0
                 }));
                 break;
             }

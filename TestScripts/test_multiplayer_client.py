@@ -52,12 +52,20 @@ def on_message(ws, message):
         agent_id = data["agentId"]
         print(f"[recv] Joined as agentId={agent_id}")
     elif data.get("type") == "Snapshot":
+        validate_pose_event(data, require_recovery_count=True)
         print(f"[recv] Snapshot: existing agent {data['agentId']} at {data.get('position')}")
     elif data.get("type") == "AgentSpawned":
         print(f"[recv] AgentSpawned: {data['agentId']} at {data.get('position')}")
     elif data.get("type") == "AgentUpdate":
         print(f"[recv] AgentUpdate: {data['agentId']} -> {data.get('command')} "
               f"translation={data.get('translation')} rotation={data.get('rotation')}")
+    elif data.get("type") == "AgentRecovered":
+        validate_pose_event(data, require_recovery_count=True)
+        if data.get("reason") != "out_of_bounds":
+            raise ValueError(f"Unexpected recovery reason: {data!r}")
+        print(f"[recv] AgentRecovered: {data['agentId']} snapped to "
+              f"{data['position']} rotation={data['rotation']} "
+              f"count={data['recoveryCount']}")
     elif data.get("type") == "AgentLeft":
         print(f"[recv] AgentLeft: {data['agentId']}")
     elif data.get("type") == "Chat":
@@ -142,6 +150,22 @@ def validate_lidar_center(sample):
         raise ValueError(f"LiDAR center hit cannot be at max_range: {sample!r}")
     if not sample["hit"] and sample["distance"] != sample["max_range"]:
         raise ValueError(f"LiDAR center miss must equal max_range: {sample!r}")
+
+
+def validate_pose_event(event, require_recovery_count=False):
+    if not isinstance(event.get("agentId"), str) or not event["agentId"]:
+        raise ValueError(f"Pose event requires a non-empty agentId: {event!r}")
+    for key in ("position", "rotation"):
+        values = event.get(key)
+        if not isinstance(values, list) or len(values) != 3:
+            raise ValueError(f"Pose event {key} must contain three coordinates: {event!r}")
+        if any(isinstance(value, bool) or not isinstance(value, (int, float))
+               or not math.isfinite(value) for value in values):
+            raise ValueError(f"Pose event {key} must contain finite numbers: {event!r}")
+    if require_recovery_count:
+        count = event.get("recoveryCount")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise ValueError(f"Pose event recoveryCount must be a non-negative int: {event!r}")
 
 
 def wait_for_lidar_center_samples(expected_count, timeout=5.0):

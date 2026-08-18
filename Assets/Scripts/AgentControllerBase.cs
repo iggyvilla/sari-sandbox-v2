@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DG.Tweening;
 using TMPro;
@@ -83,6 +84,13 @@ public abstract class AgentControllerBase : MonoBehaviour
     private Bounds _floorLocalBounds;
     private Vector3 _spawnPosition;
     private bool _hasFloorBounds;
+    private int _outOfBoundsRecoveryCount;
+
+    /// <summary>
+    /// Fired once after each authoritative out-of-bounds recovery. The pose is absolute and can
+    /// be used by remote clients to replace any delta-derived state.
+    /// </summary>
+    public event Action<AgentControllerBase, int, Vector3, Quaternion> OutOfBoundsRecovered;
 
     private sealed class AgentHandRuntime
     {
@@ -339,13 +347,22 @@ public abstract class AgentControllerBase : MonoBehaviour
         }
     }
 
-    private void RecoverIfOutOfBounds()
+    /// <summary>
+    /// Recover the agent to its spawn when its movement root is outside the floor footprint.
+    /// Safe to call from FixedUpdate and again immediately before serializing a pose: after the
+    /// first call the root is in bounds, so the counter and event cannot repeat.
+    /// </summary>
+    public bool RecoverIfOutOfBounds()
     {
         Transform movementRoot = MovementRoot;
-        if (!_hasFloorBounds || _floorTransform == null || movementRoot == null) return;
+        if (!_hasFloorBounds || _floorTransform == null || movementRoot == null) return false;
 
         Vector3 currentPosition = movementRoot.position;
-        if (!IsOutsideFloorBounds(currentPosition)) return;
+        if (!IsOutsideFloorBounds(currentPosition)) return false;
+
+        // A deferred MovePosition from the command that crossed the boundary must not survive
+        // the correction and get added to the next hand/body update.
+        _pendingBodyTranslation = Vector3.zero;
 
         if (rigidbody != null)
         {
@@ -358,10 +375,51 @@ public abstract class AgentControllerBase : MonoBehaviour
             movementRoot.position = _spawnPosition;
         }
 
+        ReleaseTransientEnvironmentalConstraints();
+        _outOfBoundsRecoveryCount++;
+
+        Vector3 recoveredPosition = MovementRoot.position;
+        Quaternion recoveredRotation = ViewTransform.rotation;
+
         Debug.LogWarning(
             $"{name} left the floor bounds at {currentPosition} and was returned to " +
-            $"its spawn position {_spawnPosition}.",
+            $"its spawn position {_spawnPosition} (recovery {_outOfBoundsRecoveryCount}).",
             this);
+
+        OutOfBoundsRecovered?.Invoke(
+            this,
+            _outOfBoundsRecoveryCount,
+            recoveredPosition,
+            recoveredRotation);
+        return true;
+    }
+
+    private void ReleaseTransientEnvironmentalConstraints()
+    {
+        bool releasedDoor = ReleaseGrabbedDoor(_leftHand);
+        releasedDoor |= ReleaseGrabbedDoor(_rightHand);
+        if (!releasedDoor) return;
+
+        UpdateDoorCollisionIgnore();
+        SyncRightHandCompatibilityFields();
+    }
+
+    private static bool ReleaseGrabbedDoor(AgentHandRuntime hand)
+    {
+        if (hand.GrabbedDoor == null) return false;
+
+        Rigidbody doorRigidbody = hand.GrabbedDoor.DoorRigidbody;
+        if (doorRigidbody != null)
+        {
+            doorRigidbody.linearVelocity = Vector3.zero;
+            doorRigidbody.angularVelocity = Vector3.zero;
+        }
+
+        hand.GrabbedDoor = null;
+        // A door-only grip is transient environmental state. Never open a hand that is actually
+        // carrying a retail item, even if malformed scene state associated it with both.
+        if (hand.HeldItem?.gameObject == null) hand.IsGripped = false;
+        return true;
     }
 
     private bool IsOutsideFloorBounds(Vector3 worldPosition)
@@ -798,6 +856,8 @@ public abstract class AgentControllerBase : MonoBehaviour
     public float MaximumMovementRootHeight => _standingMovementRootHeight + MaximumHeightMargin;
 
     public bool IsAgentColliding => _bodyCollisionDetector != null && _bodyCollisionDetector.IsColliding;
+
+    public int OutOfBoundsRecoveryCount => _outOfBoundsRecoveryCount;
 
     public bool IsGripped => _rightHand.IsGripped;
 

@@ -6,10 +6,22 @@ public struct AgentState
     public string agentId;
     public Vector3 position;
     public Quaternion rotation;
+    public int recoveryCount;
 }
 
 public class MultiplayerAgentManager : MonoBehaviour
 {
+    [System.Serializable]
+    private sealed class AgentRecoveredMsg
+    {
+        public string type = "AgentRecovered";
+        public string agentId;
+        public string reason = "out_of_bounds";
+        public int recoveryCount;
+        public float[] position;
+        public float[] rotation;
+    }
+
     public static MultiplayerAgentManager Instance { get; private set; }
 
     [SerializeField] private GameObject vrAgentPrefab;
@@ -70,6 +82,7 @@ public class MultiplayerAgentManager : MonoBehaviour
             humanoidGhost = ghostFollower.gameObject,
             ghostFollower = ghostFollower
         };
+        controller.OutOfBoundsRecovered += HandleAgentRecovered;
 
         Debug.Log($"Spawned multiplayer VR agent {agentId} with an IK humanoid ghost.");
         return agentId;
@@ -78,6 +91,8 @@ public class MultiplayerAgentManager : MonoBehaviour
     public void DespawnAgent(string agentId)
     {
         if (!_agents.TryGetValue(agentId, out MultiplayerAgentRecord record)) return;
+        if (record.controller != null)
+            record.controller.OutOfBoundsRecovered -= HandleAgentRecovered;
         Destroy(record.vrAvatar);
         Destroy(record.humanoidGhost);
         _agents.Remove(agentId);
@@ -115,11 +130,40 @@ public class MultiplayerAgentManager : MonoBehaviour
             {
                 agentId = kvp.Key,
                 position = movementRoot.position,
-                rotation = kvp.Value.controller.ViewTransform.rotation
+                rotation = kvp.Value.controller.ViewTransform.rotation,
+                recoveryCount = kvp.Value.controller.OutOfBoundsRecoveryCount
             });
         }
         return result;
     }
+
+    private void HandleAgentRecovered(
+        AgentControllerBase recoveredController,
+        int recoveryCount,
+        Vector3 position,
+        Quaternion rotation)
+    {
+        string recoveredAgentId = null;
+        foreach (KeyValuePair<string, MultiplayerAgentRecord> pair in _agents)
+        {
+            if (pair.Value.controller != recoveredController) continue;
+            recoveredAgentId = pair.Key;
+            break;
+        }
+
+        if (recoveredAgentId == null) return;
+
+        WebSocketHandler.Instance?.BroadcastMultiplayer(JsonUtility.ToJson(new AgentRecoveredMsg
+        {
+            agentId = recoveredAgentId,
+            recoveryCount = recoveryCount,
+            position = Vec3ToArr(position),
+            rotation = Vec3ToArr(rotation.eulerAngles)
+        }));
+    }
+
+    private static float[] Vec3ToArr(Vector3 value) =>
+        new float[] { value.x, value.y, value.z };
 
     private static void PrepareMultiplayerAuthority(GameObject vrAvatar, AgentController controller)
     {

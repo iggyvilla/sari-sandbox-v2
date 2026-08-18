@@ -31,6 +31,7 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         public float[] current_position;
         public float[] current_rotation;
         public bool collision;
+        public int out_of_bounds_recovery_count;
     }
 
     [Serializable]
@@ -386,6 +387,11 @@ public class SariAgentCommandBehavior : WebSocketBehavior
 
         if (agent == null) yield break;
 
+        // MovePosition is applied by physics after FixedUpdate. Check once more here so the same
+        // command that crossed the boundary returns the authoritative spawn pose and new count,
+        // rather than leaking one stale frame to the client.
+        agent.RecoverIfOutOfBounds();
+
         Transform view = agent.ViewTransform;
         if (!sariSandboxV1CompatibilityLayer)
         {
@@ -393,15 +399,30 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             {
                 current_position = Vec3ToArr(view.position),
                 current_rotation = Vec3ToArr(view.rotation.eulerAngles),
-                collision = agent.IsAgentColliding
+                collision = agent.IsAgentColliding,
+                out_of_bounds_recovery_count = agent.OutOfBoundsRecoveryCount
             }));
             yield break;
         }
 
-        session.Send(
-            "Current position: " + view.position +
-            "\nCurrent rotation: " + view.rotation.eulerAngles +
-            "\nCollision: " + agent.IsAgentColliding);
+        session.Send(FormatV1AgentState(
+            view.position,
+            view.rotation.eulerAngles,
+            agent.IsAgentColliding,
+            agent.OutOfBoundsRecoveryCount));
+    }
+
+    public static string FormatV1AgentState(
+        Vector3 position,
+        Vector3 rotation,
+        bool collision,
+        int recoveryCount)
+    {
+        return
+            "Current position: " + position +
+            "\nCurrent rotation: " + rotation +
+            "\nCollision: " + collision +
+            "\nOut-of-bounds recovery count: " + recoveryCount;
     }
 
     private static IEnumerator SendHandStateAfterPhysics(

@@ -296,6 +296,13 @@ public class WebSocketHandler : MonoBehaviour
 
     public void Enqueue(Action action) => _mainThreadActions.Enqueue(action);
 
+    /// <summary>Broadcast an authoritative server event to every multiplayer session.</summary>
+    public void BroadcastMultiplayer(string message)
+    {
+        if (_wss == null || string.IsNullOrEmpty(message)) return;
+        _wss.WebSocketServices["/multiplayer"].Sessions.Broadcast(message);
+    }
+
     /// <summary>
     /// Queues Unity work that must run as a coroutine on the main thread.
     /// Coroutines are serialized so expensive captures do not overlap.
