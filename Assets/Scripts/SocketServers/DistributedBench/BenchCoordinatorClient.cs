@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using WebSocketSharp;
 
@@ -26,6 +27,8 @@ public class BenchCoordinatorClient : MonoBehaviour
     {
         public string type;
         public string lease_id;
+        public string lease_alias;
+        public string sandbox_alias;
     }
 #pragma warning restore CS0649
 
@@ -68,6 +71,12 @@ public class BenchCoordinatorClient : MonoBehaviour
     private bool _connected;
     private bool _shuttingDown;
     private string _activeLeaseId = string.Empty;
+    private string _sandboxAlias = string.Empty;
+
+#if UNITY_STANDALONE_WIN
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool SetWindowText(IntPtr window, string title);
+#endif
 
     /// <summary>
     /// Attaches a client to <paramref name="handler"/> unless this build is not part of a fleet or
@@ -207,6 +216,8 @@ public class BenchCoordinatorClient : MonoBehaviour
         switch (message.type)
         {
             case "coord.welcome":
+                _sandboxAlias = message.sandbox_alias ?? string.Empty;
+                ApplyWindowTitle();
                 break;
 
             case "coord.lease":
@@ -287,6 +298,24 @@ public class BenchCoordinatorClient : MonoBehaviour
         {
             Debug.LogWarning($"Failed to send to coordinator: {error.Message}");
         }
+    }
+
+    private void ApplyWindowTitle()
+    {
+#if UNITY_STANDALONE_WIN
+        if (string.IsNullOrEmpty(_sandboxAlias)) return;
+
+        try
+        {
+            IntPtr window = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
+            if (window != IntPtr.Zero)
+                SetWindowText(window, $"Sari Sandbox V2 - {_sandboxAlias}");
+        }
+        catch (Exception error)
+        {
+            Debug.LogWarning($"Could not set distributed sandbox window title: {error.Message}");
+        }
+#endif
     }
 
     private void CloseSocket()
