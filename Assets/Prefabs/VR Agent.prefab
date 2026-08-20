@@ -669,6 +669,7 @@ MonoBehaviour:
   movementSpeed: 2
   rotateSpeed: 50
   throwStrength: 0.1
+  floorBoundsPadding: 0.25
   agentHand: {fileID: 1878172777069750429}
   leftAgentHand: {fileID: 6348466881429054878}
   agentBasket: {fileID: 5734381874053940350}
@@ -1170,7 +1171,7 @@ GameObject:
   - component: {fileID: 5257668101906759822}
   - component: {fileID: 2609046005643140855}
   - component: {fileID: 739393254627001904}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: VR Agent
   m_TagString: Untagged
   m_Icon: {fileID: 0}

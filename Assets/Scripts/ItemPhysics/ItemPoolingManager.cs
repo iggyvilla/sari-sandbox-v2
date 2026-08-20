@@ -39,11 +39,13 @@ public class ItemPoolingManager : MonoBehaviour
             obj = queue.Dequeue();
             obj.transform.SetParent(null);
             obj.transform.SetPositionAndRotation(position, rotation);
+            RetailItemRuntimeService.ClearHeldItemLayer(obj);
             obj.SetActive(true);
         }
         else
         {
             obj = CreatePhysicsItem(itemId, position, rotation);
+            RetailItemRuntimeService.ClearHeldItemLayer(obj);
         }
 
         if (obj == null) return null;
@@ -64,8 +66,7 @@ public class ItemPoolingManager : MonoBehaviour
 
         ApplyStablePhysicsMaterial(obj);
 
-        BoxCollider bc = obj.GetComponentInChildren<BoxCollider>(true);
-        if (bc != null) bc.enabled = true;
+        RetailItemRuntimeService.SetSolidBoxCollidersEnabled(obj, true);
 
         // ResolveSpawnOverlaps(obj);
 
@@ -96,8 +97,8 @@ public class ItemPoolingManager : MonoBehaviour
             rb.interpolation = RigidbodyInterpolation.None;
         }
 
-        BoxCollider bc = obj.GetComponentInChildren<BoxCollider>(true);
-        if (bc != null) bc.enabled = false;
+        RetailItemRuntimeService.SetSolidBoxCollidersEnabled(obj, false);
+        RetailItemRuntimeService.ClearHeldItemLayer(obj);
 
         obj.SetActive(false);
         obj.transform.SetParent(_poolParent);

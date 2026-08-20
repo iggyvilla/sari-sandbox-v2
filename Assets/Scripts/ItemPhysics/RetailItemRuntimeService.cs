@@ -54,6 +54,8 @@ public sealed class RuntimeRetailItem
     public Vector3 spawnedPosition;
     public Quaternion spawnedRotation;
     public Rigidbody physicsRigidbody;
+    public Transform[] heldLayerTransforms;
+    public int[] preHeldLayers;
 
     public RuntimeRetailItem(string itemId, GameObject gameObject, RetailItemRuntimeState state)
     {
@@ -127,13 +129,18 @@ public class RetailItemRuntimeService : MonoBehaviour
         GameObject item = CreateItemInstance(itemId, expirationDateDecalId, position, rotation, parent);
         if (item == null) return null;
 
-        DisablePhysicsForHeldItem(item);
-        item.transform.Rotate(localEulerOffset);
-
-        return new RuntimeRetailItem(itemId, item, RetailItemRuntimeState.Held)
+        RuntimeRetailItem runtimeItem = new RuntimeRetailItem(
+            itemId,
+            item,
+            RetailItemRuntimeState.Held)
         {
             expirationDateDecalId = expirationDateDecalId
         };
+
+        ConfigurePhysicsForHeldItem(runtimeItem);
+        item.transform.Rotate(localEulerOffset);
+
+        return runtimeItem;
     }
 
     public RuntimeRetailItem ActivatePhysicsPreview(ItemBBoxInfo bboxInfo)
@@ -255,7 +262,7 @@ public class RetailItemRuntimeService : MonoBehaviour
     {
         if (item == null || item.gameObject == null) return;
 
-        EnablePhysics(item.gameObject);
+        EnablePhysics(item);
         CreatePhysicsItemBBox(item.gameObject, item.itemId, item.expirationDateDecalId, bboxMaterial);
         item.state = RetailItemRuntimeState.Dropped;
     }
@@ -264,7 +271,7 @@ public class RetailItemRuntimeService : MonoBehaviour
     {
         if (item == null || item.gameObject == null) return;
 
-        Rigidbody rb = EnablePhysics(item.gameObject);
+        Rigidbody rb = EnablePhysics(item);
         CreatePhysicsItemBBox(item.gameObject, item.itemId, item.expirationDateDecalId, bboxMaterial);
         if (rb != null)
             rb.AddForce(impulse, ForceMode.Impulse);
@@ -340,11 +347,15 @@ public class RetailItemRuntimeService : MonoBehaviour
             GPUInstanceTracker.Instance?.AddToInstance(bboxInfo.itemId, prefab, bboxInfo.instanceData);
     }
 
-    private static Rigidbody EnablePhysics(GameObject item)
+    private static Rigidbody EnablePhysics(RuntimeRetailItem item)
     {
-        item.transform.SetParent(null);
+        RestorePreHeldLayers(item);
 
-        Rigidbody rb = item.GetComponent<Rigidbody>();
+        GameObject itemObject = item.gameObject;
+        itemObject.transform.SetParent(null);
+        SetSolidBoxCollidersEnabled(itemObject, true);
+
+        Rigidbody rb = itemObject.GetComponent<Rigidbody>();
         if (rb != null)
         {
             rb.isKinematic = false;
@@ -352,15 +363,13 @@ public class RetailItemRuntimeService : MonoBehaviour
             rb.interpolation = RigidbodyInterpolation.Extrapolate;
         }
 
-        BoxCollider boxCollider = item.GetComponentInChildren<BoxCollider>();
-        if (boxCollider != null) boxCollider.enabled = true;
-
         return rb;
     }
 
-    private static void DisablePhysicsForHeldItem(GameObject item)
+    private static void ConfigurePhysicsForHeldItem(RuntimeRetailItem item)
     {
-        Rigidbody rb = item.GetComponent<Rigidbody>();
+        GameObject itemObject = item.gameObject;
+        Rigidbody rb = itemObject.GetComponent<Rigidbody>();
         if (rb != null)
         {
             if (!rb.isKinematic)
@@ -374,12 +383,84 @@ public class RetailItemRuntimeService : MonoBehaviour
             rb.interpolation = RigidbodyInterpolation.None;
         }
 
-        BoxCollider boxCollider = item.GetComponentInChildren<BoxCollider>();
-        if (boxCollider != null) boxCollider.enabled = false;
+        // A held item is kinematic but keeps its solid colliders so it can still push
+        // or contact other products. The HeldItem layer ignores the hand and body.
+        SetSolidBoxCollidersEnabled(itemObject, true);
+        ApplyHeldItemLayer(item);
 
-        MeshCollider[] cols = item.GetComponentsInChildren<MeshCollider>(true);
+        MeshCollider[] cols = itemObject.GetComponentsInChildren<MeshCollider>(true);
         foreach (var c in cols)
             c.isTrigger = true;
+    }
+
+    internal static void SetSolidBoxCollidersEnabled(GameObject item, bool enabled)
+    {
+        BoxCollider[] colliders = item.GetComponentsInChildren<BoxCollider>(true);
+        foreach (BoxCollider collider in colliders)
+        {
+            // Trigger boxes are sensors/bboxes rather than physical item bodies.
+            if (!collider.isTrigger)
+                collider.enabled = enabled;
+        }
+    }
+
+    private static void ApplyHeldItemLayer(RuntimeRetailItem item)
+    {
+        int heldItemLayer = LayerMask.NameToLayer("HeldItem");
+        if (heldItemLayer < 0)
+        {
+            Debug.LogError("RetailItemRuntimeService: HeldItem layer is missing.");
+            return;
+        }
+
+        Transform[] transforms = item.gameObject.GetComponentsInChildren<Transform>(true);
+        int[] originalLayers = new int[transforms.Length];
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            int originalLayer = transforms[i].gameObject.layer;
+            originalLayers[i] = originalLayer == heldItemLayer ? 0 : originalLayer;
+            transforms[i].gameObject.layer = heldItemLayer;
+        }
+
+        item.heldLayerTransforms = transforms;
+        item.preHeldLayers = originalLayers;
+    }
+
+    private static void RestorePreHeldLayers(RuntimeRetailItem item)
+    {
+        Transform[] transforms = item.heldLayerTransforms;
+        int[] layers = item.preHeldLayers;
+        if (transforms == null || layers == null)
+        {
+            ClearHeldItemLayer(item.gameObject);
+            return;
+        }
+
+        int count = Mathf.Min(transforms.Length, layers.Length);
+        for (int i = 0; i < count; i++)
+        {
+            if (transforms[i] != null)
+                transforms[i].gameObject.layer = layers[i];
+        }
+
+        item.heldLayerTransforms = null;
+        item.preHeldLayers = null;
+    }
+
+    internal static void ClearHeldItemLayer(GameObject item)
+    {
+        if (item == null) return;
+
+        int heldItemLayer = LayerMask.NameToLayer("HeldItem");
+        if (heldItemLayer < 0) return;
+        if (item.layer != heldItemLayer) return;
+
+        Transform[] transforms = item.GetComponentsInChildren<Transform>(true);
+        foreach (Transform child in transforms)
+        {
+            if (child.gameObject.layer == heldItemLayer)
+                child.gameObject.layer = 0;
+        }
     }
 
     private static GameObject CreatePhysicsItemBBox(
