@@ -3414,8 +3414,8 @@ MonoBehaviour:
   agentController: {fileID: 2075032117}
   ikHumanoidGhostPrefab: {fileID: 7456162950078149447, guid: 91147938a35b74fbdb1356d28a996d49, type: 3}
   sariSandboxV1CompatibilityLayer: 1
-  distributedBenchmarkBuild: 1
-  coordinatorUrl: ws://192.168.0.182:9000/sandbox
+  distributedBenchmarkBuild: 0
+  coordinatorUrl: ws://127.0.0.1:9000/sandbox
   chatUIManager: {fileID: 845791648}
 --- !u!114 &1456967139
 MonoBehaviour:

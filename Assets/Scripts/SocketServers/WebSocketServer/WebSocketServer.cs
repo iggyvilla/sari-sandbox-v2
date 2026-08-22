@@ -7,6 +7,36 @@ using WebSocketSharp.Server;
 
 public class WebSocketHandler : MonoBehaviour
 {
+    private sealed class QueuedCoroutineWork
+    {
+        public readonly string Command;
+        public readonly IEnumerator Routine;
+        public readonly Action<string> OnFailure;
+        public readonly Action OnAbort;
+        public readonly float EnqueuedAtRealtime;
+        public readonly float TimeoutSeconds;
+
+        public QueuedCoroutineWork(
+            string command,
+            IEnumerator routine,
+            Action<string> onFailure,
+            Action onAbort,
+            float timeoutSeconds)
+        {
+            Command = string.IsNullOrEmpty(command) ? "unnamed" : command;
+            Routine = routine;
+            OnFailure = onFailure;
+            OnAbort = onAbort;
+            EnqueuedAtRealtime = Time.realtimeSinceStartup;
+            TimeoutSeconds = timeoutSeconds;
+        }
+    }
+
+    private sealed class QueuedCoroutineExecution
+    {
+        public bool Completed;
+    }
+
     [Serializable]
     public struct LidarCenterSampleResponse
     {
@@ -49,13 +79,15 @@ public class WebSocketHandler : MonoBehaviour
 
     private WebSocketServer _wss;
     private readonly ConcurrentQueue<Action> _mainThreadActions = new();
-    private readonly Queue<IEnumerator> _queuedCoroutines = new();
+    private readonly Queue<QueuedCoroutineWork> _queuedCoroutines = new();
     private readonly List<Action> _resetCompletionCallbacks = new();
     private readonly PendingCommandQueue _parkedCommands = new();
     private HumanoidGhostFollower _agentGhost;
     private bool _isRunningQueuedCoroutines;
     private Coroutine _queuedCoroutineRunner;
     private Coroutine _activeQueuedCoroutine;
+    private QueuedCoroutineWork _activeQueuedWork;
+    private float _activeQueuedStartedAtRealtime;
     private Coroutine _resetCoroutine;
     private SandboxState _state = SandboxState.Booting;
     private bool _resetInFlight;
@@ -64,6 +96,8 @@ public class WebSocketHandler : MonoBehaviour
     private string _resetPhase = "idle";
 
     private const float ResetWatchdogSeconds = 30f;
+    private const int MaxQueuedCoroutines = 64;
+    private const float QueuedCoroutineTimeoutSeconds = 8f;
 
     /// <summary>Fires on the main thread whenever the sandbox changes readiness.</summary>
     public event Action<SandboxState> StateChanged;
@@ -72,6 +106,17 @@ public class WebSocketHandler : MonoBehaviour
 
     /// <summary>The port the command server actually bound to. Self-assigned in distributed builds.</summary>
     public int BoundPort => port;
+
+    /// <summary>Command currently occupying the serialized coroutine lane, if any.</summary>
+    public string ActiveQueuedCommand => _activeQueuedWork != null ? _activeQueuedWork.Command : "";
+
+    /// <summary>Real-time age of the active command. Exposed for health/status diagnostics.</summary>
+    public float ActiveQueuedCommandAgeSeconds => _activeQueuedWork != null
+        ? Mathf.Max(0f, Time.realtimeSinceStartup - _activeQueuedStartedAtRealtime)
+        : 0f;
+
+    /// <summary>Number of commands waiting behind the active serialized command.</summary>
+    public int QueuedCommandCount => _queuedCoroutines.Count;
 
     /// <summary>Stable id this sandbox reports to the benchmark coordinator.</summary>
     public string SandboxId { get; private set; }
@@ -96,11 +141,16 @@ public class WebSocketHandler : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        if (IsBenchmarkBuild) Application.runInBackground = true;
         SandboxId = SandboxNetwork.LoadOrCreateSandboxId(persist: !IsBenchmarkBuild);
     }
 
     void Start()
     {
+        Debug.Log(
+            $"Sandbox runtime configuration: runInBackground={Application.runInBackground}, " +
+            $"unityVersion={Application.unityVersion}, version={Application.version}.");
+
         SetAgent(agentController);
         StartServer();
 
@@ -268,14 +318,26 @@ public class WebSocketHandler : MonoBehaviour
     {
         Coroutine active = _activeQueuedCoroutine;
         Coroutine runner = _queuedCoroutineRunner;
+        QueuedCoroutineWork activeWork = _activeQueuedWork;
+        QueuedCoroutineWork[] pending = _queuedCoroutines.ToArray();
 
         _queuedCoroutines.Clear();
         _activeQueuedCoroutine = null;
+        _activeQueuedWork = null;
         _queuedCoroutineRunner = null;
         _isRunningQueuedCoroutines = false;
 
         if (active != null) StopCoroutine(active);
         if (runner != null) StopCoroutine(runner);
+
+        AbortQueuedWork(activeWork);
+        if (activeWork != null || pending.Length > 0)
+        {
+            Debug.LogWarning(
+                $"Environment reset cancelled active command " +
+                $"'{(activeWork != null ? activeWork.Command : "none")}' and " +
+                $"{pending.Length} waiting command(s).");
+        }
     }
 
     /// <summary>
@@ -304,16 +366,50 @@ public class WebSocketHandler : MonoBehaviour
     }
 
     /// <summary>
-    /// Queues Unity work that must run as a coroutine on the main thread.
-    /// Coroutines are serialized so expensive captures do not overlap.
+    /// Queues named Unity work that must run as a coroutine on the main thread. Coroutines are
+    /// serialized so expensive captures do not overlap, but every item has a real-time deadline
+    /// and the queue is bounded so one bad client cannot create an unlimited stale backlog.
     /// </summary>
-    public void EnqueueCoroutine(IEnumerator routine)
+    public bool EnqueueCoroutine(
+        string command,
+        IEnumerator routine,
+        Action<string> onFailure,
+        Action onAbort = null,
+        float timeoutSeconds = QueuedCoroutineTimeoutSeconds)
     {
-        _queuedCoroutines.Enqueue(routine);
-        if (_isRunningQueuedCoroutines) return;
+        if (routine == null)
+        {
+            NotifyFailureCallback(onFailure, command, "could not be queued because its coroutine is null");
+            return false;
+        }
+
+        int outstandingCount = _queuedCoroutines.Count + (_activeQueuedWork != null ? 1 : 0);
+        if (outstandingCount >= MaxQueuedCoroutines)
+        {
+            NotifyFailureCallback(
+                onFailure,
+                command,
+                $"was rejected because the coroutine queue is full ({MaxQueuedCoroutines} items)");
+            return false;
+        }
+
+        QueuedCoroutineWork work = new QueuedCoroutineWork(
+            command,
+            routine,
+            onFailure,
+            onAbort,
+            Mathf.Max(0.1f, timeoutSeconds));
+        _queuedCoroutines.Enqueue(work);
+
+        Debug.Log(
+            $"Coroutine queue enqueued '{work.Command}' " +
+            $"(waiting={_queuedCoroutines.Count}, active='{ActiveQueuedCommand}').");
+
+        if (_isRunningQueuedCoroutines) return true;
 
         _isRunningQueuedCoroutines = true;
         _queuedCoroutineRunner = StartCoroutine(RunQueuedCoroutines());
+        return true;
     }
 
     public AgentController Agent => agentController;
@@ -375,9 +471,19 @@ public class WebSocketHandler : MonoBehaviour
     public void EnqueueScreenshot(
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
-        Action<byte[]> callback)
+        Action<byte[]> callback,
+        Action<string> errorCallback)
     {
-        EnqueueCoroutine(ScreenshotRoutine(camera, hiddenGhost, callback));
+        Action abortCleanup = null;
+        EnqueueCoroutine(
+            "RequestScreenshot",
+            ScreenshotRoutine(
+                camera,
+                hiddenGhost,
+                callback,
+                cleanup => abortCleanup = cleanup),
+            errorCallback,
+            () => abortCleanup?.Invoke());
     }
 
     /// <summary>
@@ -390,7 +496,17 @@ public class WebSocketHandler : MonoBehaviour
         Action<byte[]> callback,
         Action<string> errorCallback)
     {
-        EnqueueCoroutine(LidarScanRoutine(camera, hiddenGhost, callback, errorCallback));
+        LidarSensor activeSensor = null;
+        EnqueueCoroutine(
+            "RequestLidarScan",
+            LidarScanRoutine(
+                camera,
+                hiddenGhost,
+                callback,
+                errorCallback,
+                sensor => activeSensor = sensor),
+            errorCallback,
+            () => activeSensor?.CancelActiveCapture());
     }
 
     /// <summary>
@@ -402,7 +518,17 @@ public class WebSocketHandler : MonoBehaviour
         Action<LidarCenterSampleResponse> callback,
         Action<string> errorCallback)
     {
-        EnqueueCoroutine(LidarCenterSampleRoutine(camera, hiddenGhost, callback, errorCallback));
+        LidarSensor activeSensor = null;
+        EnqueueCoroutine(
+            "RequestLidarCenter",
+            LidarCenterSampleRoutine(
+                camera,
+                hiddenGhost,
+                callback,
+                errorCallback,
+                sensor => activeSensor = sensor),
+            errorCallback,
+            () => activeSensor?.CancelActiveCapture());
     }
 
     void OnDestroy()
@@ -420,16 +546,115 @@ public class WebSocketHandler : MonoBehaviour
         {
             while (_queuedCoroutines.Count > 0)
             {
-                _activeQueuedCoroutine = StartCoroutine(_queuedCoroutines.Dequeue());
-                yield return _activeQueuedCoroutine;
+                QueuedCoroutineWork work = _queuedCoroutines.Dequeue();
+                _activeQueuedWork = work;
+                _activeQueuedStartedAtRealtime = Time.realtimeSinceStartup;
+
+                float deadline = work.EnqueuedAtRealtime + work.TimeoutSeconds;
+                float queuedFor = _activeQueuedStartedAtRealtime - work.EnqueuedAtRealtime;
+                if (_activeQueuedStartedAtRealtime >= deadline)
+                {
+                    NotifyQueuedFailure(
+                        work,
+                        $"timed out after waiting {queuedFor:0.00}s in the coroutine queue");
+                    _activeQueuedWork = null;
+                    continue;
+                }
+
+                Debug.Log(
+                    $"Coroutine queue starting '{work.Command}' after {queuedFor:0.00}s " +
+                    $"(waiting={_queuedCoroutines.Count}).");
+
+                QueuedCoroutineExecution execution = new QueuedCoroutineExecution();
+                _activeQueuedCoroutine = StartCoroutine(TrackQueuedCoroutine(work.Routine, execution));
+
+                while (!execution.Completed && Time.realtimeSinceStartup < deadline)
+                    yield return null;
+
+                float totalAge = Time.realtimeSinceStartup - work.EnqueuedAtRealtime;
+                if (!execution.Completed)
+                {
+                    Coroutine timedOut = _activeQueuedCoroutine;
+                    _activeQueuedCoroutine = null;
+                    if (timedOut != null) StopCoroutine(timedOut);
+
+                    AbortQueuedWork(work);
+                    NotifyQueuedFailure(
+                        work,
+                        $"timed out after {totalAge:0.00}s in the coroutine queue");
+                }
+                else
+                {
+                    Debug.Log(
+                        $"Coroutine queue completed '{work.Command}' in {totalAge:0.00}s " +
+                        $"(waiting={_queuedCoroutines.Count}).");
+                }
+
                 _activeQueuedCoroutine = null;
+                _activeQueuedWork = null;
             }
         }
         finally
         {
             _activeQueuedCoroutine = null;
+            _activeQueuedWork = null;
             _queuedCoroutineRunner = null;
             _isRunningQueuedCoroutines = false;
+        }
+    }
+
+    private static IEnumerator TrackQueuedCoroutine(
+        IEnumerator routine,
+        QueuedCoroutineExecution execution)
+    {
+        try
+        {
+            yield return routine;
+        }
+        finally
+        {
+            execution.Completed = true;
+        }
+    }
+
+    private static void AbortQueuedWork(QueuedCoroutineWork work)
+    {
+        if (work?.OnAbort == null) return;
+
+        try
+        {
+            work.OnAbort();
+        }
+        catch (Exception error)
+        {
+            Debug.LogError($"Cleanup for queued command '{work.Command}' failed: {error}");
+        }
+    }
+
+    private static void NotifyQueuedFailure(QueuedCoroutineWork work, string reason)
+    {
+        if (work == null) return;
+        NotifyFailureCallback(work.OnFailure, work.Command, reason);
+    }
+
+    private static void NotifyFailureCallback(
+        Action<string> onFailure,
+        string command,
+        string reason)
+    {
+        string commandName = string.IsNullOrEmpty(command) ? "unnamed" : command;
+        string message = $"Error: command '{commandName}' {reason}.";
+        Debug.LogError(message);
+
+        try
+        {
+            onFailure?.Invoke(message);
+        }
+        catch (Exception error)
+        {
+            // The original WebSocket commonly closes before an infrastructure timeout expires.
+            Debug.LogWarning(
+                $"Could not return queued-command failure for '{commandName}': {error.Message}");
         }
     }
 
@@ -439,12 +664,22 @@ public class WebSocketHandler : MonoBehaviour
     private static IEnumerator ScreenshotRoutine(
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
-        Action<byte[]> callback)
+        Action<byte[]> callback,
+        Action<Action> setAbortCleanup)
     {
         if (camera == null) yield break;
 
         GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
         Camera originalCamera = tracker != null ? tracker.MainCamera : null;
+        bool cleaned = false;
+        Action cleanup = () =>
+        {
+            if (cleaned) return;
+            cleaned = true;
+            if (hiddenGhost != null) hiddenGhost.SetRenderersVisible(true);
+            if (tracker != null) tracker.SetCamera(originalCamera);
+        };
+        setAbortCleanup?.Invoke(cleanup);
 
         try
         {
@@ -460,11 +695,13 @@ public class WebSocketHandler : MonoBehaviour
                 () =>
                 {
                     if (hiddenGhost != null) hiddenGhost.SetRenderersVisible(true);
-                });
+                },
+                () => cleaned);
         }
         finally
         {
-            if (tracker != null) tracker.SetCamera(originalCamera);
+            cleanup();
+            setAbortCleanup?.Invoke(null);
         }
     }
 
@@ -475,7 +712,8 @@ public class WebSocketHandler : MonoBehaviour
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
         Action<byte[]> callback,
-        Action<string> errorCallback)
+        Action<string> errorCallback,
+        Action<LidarSensor> setActiveSensor)
     {
         if (camera == null)
         {
@@ -486,8 +724,16 @@ public class WebSocketHandler : MonoBehaviour
         // Resolve the level LiDAR mount before rendering. The resulting payload is
         // passed back as byte[] and sent by WebSocketSharp as a binary WebSocket frame.
         LidarSensor sensor = LidarSensor.ResolveLevelSensor(camera);
-
-        yield return sensor.CaptureScan(camera, hiddenGhost, callback, errorCallback);
+        setActiveSensor?.Invoke(sensor);
+        try
+        {
+            yield return sensor.CaptureScan(camera, hiddenGhost, callback, errorCallback);
+        }
+        finally
+        {
+            sensor.CancelActiveCapture();
+            setActiveSensor?.Invoke(null);
+        }
     }
 
     /// <summary>
@@ -498,7 +744,8 @@ public class WebSocketHandler : MonoBehaviour
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
         Action<LidarCenterSampleResponse> callback,
-        Action<string> errorCallback)
+        Action<string> errorCallback,
+        Action<LidarSensor> setActiveSensor)
     {
         if (camera == null)
         {
@@ -507,10 +754,19 @@ public class WebSocketHandler : MonoBehaviour
         }
 
         LidarSensor sensor = LidarSensor.ResolveLevelSensor(camera);
-        yield return sensor.CaptureCenterSample(
-            camera,
-            hiddenGhost,
-            sample => callback?.Invoke(new LidarCenterSampleResponse(sample)),
-            errorCallback);
+        setActiveSensor?.Invoke(sensor);
+        try
+        {
+            yield return sensor.CaptureCenterSample(
+                camera,
+                hiddenGhost,
+                sample => callback?.Invoke(new LidarCenterSampleResponse(sample)),
+                errorCallback);
+        }
+        finally
+        {
+            sensor.CancelActiveCapture();
+            setActiveSensor?.Invoke(null);
+        }
     }
 }

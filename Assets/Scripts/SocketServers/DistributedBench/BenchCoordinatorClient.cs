@@ -309,7 +309,7 @@ public class BenchCoordinatorClient : MonoBehaviour
         {
             IntPtr window = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
             if (window != IntPtr.Zero)
-                SetWindowText(window, $"Sari Sandbox V2 - {_sandboxAlias}");
+                SetWindowText(window, $"{_sandboxAlias} | Sari Sandbox²");
         }
         catch (Exception error)
         {

@@ -40,11 +40,15 @@ public static class ScreenshotUtility
         Camera cam,
         Action<byte[]> callback,
         Action beforeRender = null,
-        Action afterRender = null)
+        Action afterRender = null,
+        Func<bool> isCancelled = null)
     {
-        yield return new WaitForSeconds(0.5f);
-        yield return new WaitForEndOfFrame();
+        // This path renders the requested camera into its own RenderTexture, so it does not depend
+        // on Unity's end-of-frame backbuffer callback. A real-time delay retains the existing
+        // movement-settling behavior without hanging when scaled simulation time is paused.
+        yield return new WaitForSecondsRealtime(0.5f);
 
+        if (isCancelled?.Invoke() == true) yield break;
         if (cam == null) yield break;
 
         RenderTexture rt = new RenderTexture(Screen.width, Screen.height, 24);

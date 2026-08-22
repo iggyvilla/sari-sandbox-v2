@@ -23,6 +23,7 @@ public class LidarSensor : MonoBehaviour
     private const float DebugProbeVerticalDeg = 0f;
     private const float RangeMissTolerance = 0.001f;
     private const float PlanarForwardEpsilonSqr = 0.000001f;
+    private const float GpuReadbackTimeoutSeconds = 6f;
 
     [SerializeField] private SweepMode sweepMode = SweepMode.EgocentricView;
     [SerializeField] private int channels = 32;
@@ -62,6 +63,7 @@ public class LidarSensor : MonoBehaviour
     private Transform _excludedHiddenGhostRoot;
     private int _rangeBufferCount;
     private int _sequence;
+    private int _captureGeneration;
     private bool _isBusy;
     private bool _hasDebugProbeRaycastGizmo;
     private Vector3 _debugProbeRayOrigin;
@@ -69,6 +71,18 @@ public class LidarSensor : MonoBehaviour
     private Vector3 _debugProbeRaycastHitPoint;
 
     public bool IsBusy => _isBusy;
+
+    /// <summary>
+    /// Restores the transient capture flags when the owning command coroutine is forcibly stopped.
+    /// GPU readback requests cannot be cancelled, but allowing their stale completion to be ignored
+    /// is safer than permanently leaving this sensor busy after a reset or queue watchdog timeout.
+    /// </summary>
+    public void CancelActiveCapture()
+    {
+        _captureGeneration++;
+        _excludedHiddenGhostRoot = null;
+        _isBusy = false;
+    }
 
     public struct CenterSample
     {
@@ -127,6 +141,7 @@ public class LidarSensor : MonoBehaviour
             yield break;
         }
 
+        int captureGeneration = ++_captureGeneration;
         _isBusy = true;
         HumanoidGhostFollower activeHiddenGhost = hiddenGhost;
         _excludedHiddenGhostRoot = null;
@@ -156,7 +171,20 @@ public class LidarSensor : MonoBehaviour
             DispatchRangeSampler(azimuthSweep);
 
             AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(_rangeBuffer);
-            yield return new WaitUntil(() => request.done);
+            float readbackDeadline = Time.realtimeSinceStartup + GpuReadbackTimeoutSeconds;
+            while (
+                !request.done &&
+                captureGeneration == _captureGeneration &&
+                Time.realtimeSinceStartup < readbackDeadline)
+                yield return null;
+
+            if (captureGeneration != _captureGeneration) yield break;
+            if (!request.done)
+            {
+                onError?.Invoke(
+                    $"Error: LiDAR GPU readback timed out after {GpuReadbackTimeoutSeconds:0.#}s");
+                yield break;
+            }
 
             if (request.hasError)
             {
@@ -169,8 +197,11 @@ public class LidarSensor : MonoBehaviour
         }
         finally
         {
-            _excludedHiddenGhostRoot = null;
-            _isBusy = false;
+            if (captureGeneration == _captureGeneration)
+            {
+                _excludedHiddenGhostRoot = null;
+                _isBusy = false;
+            }
         }
     }
 
@@ -192,6 +223,7 @@ public class LidarSensor : MonoBehaviour
             yield break;
         }
 
+        int captureGeneration = ++_captureGeneration;
         _isBusy = true;
         _excludedHiddenGhostRoot = null;
 
@@ -232,7 +264,20 @@ public class LidarSensor : MonoBehaviour
                 1,
                 0,
                 1);
-            yield return new WaitUntil(() => request.done);
+            float readbackDeadline = Time.realtimeSinceStartup + GpuReadbackTimeoutSeconds;
+            while (
+                !request.done &&
+                captureGeneration == _captureGeneration &&
+                Time.realtimeSinceStartup < readbackDeadline)
+                yield return null;
+
+            if (captureGeneration != _captureGeneration) yield break;
+            if (!request.done)
+            {
+                onError?.Invoke(
+                    $"Error: LiDAR center GPU readback timed out after {GpuReadbackTimeoutSeconds:0.#}s");
+                yield break;
+            }
 
             if (request.hasError)
             {
@@ -270,8 +315,11 @@ public class LidarSensor : MonoBehaviour
         }
         finally
         {
-            _excludedHiddenGhostRoot = null;
-            _isBusy = false;
+            if (captureGeneration == _captureGeneration)
+            {
+                _excludedHiddenGhostRoot = null;
+                _isBusy = false;
+            }
         }
     }
 
@@ -345,6 +393,7 @@ public class LidarSensor : MonoBehaviour
             yield break;
         }
 
+        int captureGeneration = ++_captureGeneration;
         _isBusy = true;
 
         RenderTexture debugTexture = null;
@@ -463,7 +512,20 @@ public class LidarSensor : MonoBehaviour
             depthSampler.Dispatch(statsKernel, Mathf.CeilToInt(faceResolution / 8f), Mathf.CeilToInt(faceResolution / 8f), 1);
 
             AsyncGPUReadbackRequest depthStatsRequest = AsyncGPUReadback.Request(depthStatsBuffer);
-            yield return new WaitUntil(() => depthStatsRequest.done);
+            float depthStatsDeadline = Time.realtimeSinceStartup + GpuReadbackTimeoutSeconds;
+            while (
+                !depthStatsRequest.done &&
+                captureGeneration == _captureGeneration &&
+                Time.realtimeSinceStartup < depthStatsDeadline)
+                yield return null;
+
+            if (captureGeneration != _captureGeneration) yield break;
+            if (!depthStatsRequest.done)
+            {
+                onError?.Invoke(
+                    $"Error: LiDAR debug depth readback timed out after {GpuReadbackTimeoutSeconds:0.#}s");
+                yield break;
+            }
 
             string depthStatsMessage;
             if (depthStatsRequest.hasError)
@@ -495,7 +557,20 @@ public class LidarSensor : MonoBehaviour
             DispatchRangeSampler(azimuthSweep);
 
             AsyncGPUReadbackRequest rangeRequest = AsyncGPUReadback.Request(_rangeBuffer);
-            yield return new WaitUntil(() => rangeRequest.done);
+            float rangeDeadline = Time.realtimeSinceStartup + GpuReadbackTimeoutSeconds;
+            while (
+                !rangeRequest.done &&
+                captureGeneration == _captureGeneration &&
+                Time.realtimeSinceStartup < rangeDeadline)
+                yield return null;
+
+            if (captureGeneration != _captureGeneration) yield break;
+            if (!rangeRequest.done)
+            {
+                onError?.Invoke(
+                    $"Error: LiDAR debug range readback timed out after {GpuReadbackTimeoutSeconds:0.#}s");
+                yield break;
+            }
 
             string rangeMessage;
             string probeMessage = "LiDAR debug step 7 probe: skipped because range buffer readback failed.";
@@ -538,10 +613,13 @@ public class LidarSensor : MonoBehaviour
         }
         finally
         {
-            _excludedHiddenGhostRoot = null;
+            if (captureGeneration == _captureGeneration)
+            {
+                _excludedHiddenGhostRoot = null;
+                _isBusy = false;
+            }
             if (debugTexture != null) Destroy(debugTexture);
             depthStatsBuffer?.Release();
-            _isBusy = false;
         }
     }
 
