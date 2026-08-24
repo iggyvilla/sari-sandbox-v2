@@ -89,7 +89,7 @@ QualitySettings:
     lodBias: 2
     maximumLODLevel: 0
     enableLODCrossFade: 1
-    streamingMipmapsActive: 0
+    streamingMipmapsActive: 1
     streamingMipmapsAddAllCameras: 1
     streamingMipmapsMemoryBudget: 512
     streamingMipmapsRenderersPerFrame: 512
@@ -120,6 +120,7 @@ QualitySettings:
     GameCoreXboxOne: 1
     Lumin: 0
     Nintendo Switch: 1
+    Nintendo Switch 2: 1
     PS4: 1
     PS5: 1
     Server: 0

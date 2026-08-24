@@ -7,7 +7,7 @@ public static class TextureMemoryOptimizer
 {
     private const string ProductPrefabDirectory = "Assets/Resources/Prefabs/Products";
     private const string ProductTextureDirectory = "Assets/Resources/Textures/";
-    private const int ProductMaxTextureSize = 1024;
+    private const int ProductDefaultMaxTextureSize = 4096;
 
     [MenuItem("Tools/Texture Memory/Apply Recommended Settings")]
     public static void ApplyRecommendedSettings()
@@ -65,9 +65,9 @@ public static class TextureMemoryOptimizer
                     continue;
 
                 bool changed = false;
-                if (importer.maxTextureSize > ProductMaxTextureSize)
+                if (importer.maxTextureSize != ProductDefaultMaxTextureSize)
                 {
-                    importer.maxTextureSize = ProductMaxTextureSize;
+                    importer.maxTextureSize = ProductDefaultMaxTextureSize;
                     changed = true;
                 }
 
@@ -82,10 +82,10 @@ public static class TextureMemoryOptimizer
                     importer.GetPlatformTextureSettings("Standalone");
                 if (
                     standaloneSettings.overridden &&
-                    standaloneSettings.maxTextureSize > ProductMaxTextureSize
+                    standaloneSettings.maxTextureSize != ProductDefaultMaxTextureSize
                 )
                 {
-                    standaloneSettings.maxTextureSize = ProductMaxTextureSize;
+                    standaloneSettings.maxTextureSize = ProductDefaultMaxTextureSize;
                     importer.SetPlatformTextureSettings(standaloneSettings);
                     changed = true;
                 }
@@ -105,7 +105,8 @@ public static class TextureMemoryOptimizer
         AssetDatabase.SaveAssets();
         Debug.Log(
             $"Optimized {changedCount} of {productTexturePaths.Count} product texture importer(s): " +
-            $"maximum size {ProductMaxTextureSize}, mip streaming enabled where mipmaps exist."
+            $"maximum size setting {ProductDefaultMaxTextureSize}, " +
+            "mip streaming enabled where mipmaps exist."
         );
         return changedCount;
     }
