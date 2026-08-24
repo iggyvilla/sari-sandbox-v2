@@ -1,0 +1,12 @@
+[tool.semantic_release]
+# No build step: we only derive the version, bump it, tag, and zip the source.
+# This is a Unity (C#) project; the version lives in Unity's bundleVersion field
+# (ProjectSettings.asset), rewritten here as a `key: value` line.
+build_command = ""
+commit_author = "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+commit_message = "chore(release): {version} [skip ci]"
+tag_format = "v{version}"
+version_variables = ["ProjectSettings/ProjectSettings.asset:bundleVersion"]
+
+[tool.semantic_release.branches.main]
+match = "main"

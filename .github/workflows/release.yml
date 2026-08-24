@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install python-semantic-release
+        run: pip install python-semantic-release
+
+      - name: Bump version and create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: semantic-release -c semantic-release.toml version
+
+      - name: Build source archive
+        run: |
+          # Zip the tracked source, excluding git metadata and Unity build artifacts.
+          git archive --format=zip -o sari-sandbox-v2-source.zip HEAD
+
+      - name: Upload source archive to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="$(git describe --tags --abbrev=0 HEAD)"
+          gh release upload "$TAG" sari-sandbox-v2-source.zip --clobber
