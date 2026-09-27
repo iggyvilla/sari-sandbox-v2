@@ -8,8 +8,6 @@ public class ItemPoolingManager : MonoBehaviour
     private const float ItemMaxDepenetrationVelocity = 0.25f;
     private const int ItemSolverIterations = 12;
     private const int ItemSolverVelocityIterations = 4;
-    private const float SpawnOverlapPadding = 0.002f;
-    private const int SpawnOverlapResolveIterations = 6;
 
     private readonly Dictionary<string, Queue<GameObject>> _pool = new();
     private Transform _poolParent;
@@ -25,18 +23,26 @@ public class ItemPoolingManager : MonoBehaviour
 
         Instance = this;
         _poolParent = new GameObject("[ItemPool]").transform;
+        _poolParent.SetParent(transform, worldPositionStays: false);
         _stableItemMaterial = CreateStableItemMaterial();
+    }
+
+    void OnDestroy()
+    {
+        if (Instance != this) return;
+
+        Instance = null;
+        if (_stableItemMaterial != null) Destroy(_stableItemMaterial);
     }
 
     // Returns a physics-ready item at the given world position and rotation.
     // Reuses a pooled object if available, otherwise instantiates from Resources.
     public GameObject GetOrCreate(string itemId, Vector3 position, Quaternion rotation)
     {
-        GameObject obj;
+        GameObject obj = DequeuePooled(itemId);
 
-        if (_pool.TryGetValue(itemId, out Queue<GameObject> queue) && queue.Count > 0)
+        if (obj != null)
         {
-            obj = queue.Dequeue();
             obj.transform.SetParent(null);
             obj.transform.SetPositionAndRotation(position, rotation);
             RetailItemRuntimeService.ClearHeldItemLayer(obj);
@@ -53,9 +59,7 @@ public class ItemPoolingManager : MonoBehaviour
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
         {
-            rb.isKinematic = false;
-            rb.useGravity = true;
-            rb.interpolation = RigidbodyInterpolation.Extrapolate;
+            RetailItemRuntimeService.MakeDynamic(rb);
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.maxDepenetrationVelocity = ItemMaxDepenetrationVelocity;
             rb.solverIterations = ItemSolverIterations;
@@ -64,17 +68,13 @@ public class ItemPoolingManager : MonoBehaviour
             rb.angularVelocity = Vector3.zero;
         }
 
-        ApplyStablePhysicsMaterial(obj);
-
         RetailItemRuntimeService.SetSolidBoxCollidersEnabled(obj, true);
-
-        // ResolveSpawnOverlaps(obj);
 
         // Physics previews should remain at their authored shelf pose until something
         // physically touches them. Clearing velocity before activation is not enough:
         // the solver can still create linear and angular velocity while resolving tiny
         // initial overlaps with the shelf or neighboring products.
-        rb?.Sleep();
+        if (rb != null) rb.Sleep();
 
         return obj;
     }
@@ -82,20 +82,12 @@ public class ItemPoolingManager : MonoBehaviour
     public void ReturnToPool(string itemId, GameObject obj)
     {
         if (obj == null) return;
+        // Guard against double returns handing one object to two items.
+        if (!obj.activeSelf && obj.transform.parent == _poolParent) return;
 
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
-        {
-            if (!rb.isKinematic)
-            {
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-            }
-
-            rb.isKinematic = true;
-            rb.useGravity = false;
-            rb.interpolation = RigidbodyInterpolation.None;
-        }
+            RetailItemRuntimeService.MakeKinematic(rb);
 
         RetailItemRuntimeService.SetSolidBoxCollidersEnabled(obj, false);
         RetailItemRuntimeService.ClearHeldItemLayer(obj);
@@ -103,10 +95,27 @@ public class ItemPoolingManager : MonoBehaviour
         obj.SetActive(false);
         obj.transform.SetParent(_poolParent);
 
-        if (!_pool.ContainsKey(itemId))
-            _pool[itemId] = new Queue<GameObject>();
+        if (!_pool.TryGetValue(itemId, out Queue<GameObject> queue))
+        {
+            queue = new Queue<GameObject>();
+            _pool[itemId] = queue;
+        }
 
-        _pool[itemId].Enqueue(obj);
+        queue.Enqueue(obj);
+    }
+
+    // Skips pooled objects destroyed externally (e.g. by scene unload).
+    private GameObject DequeuePooled(string itemId)
+    {
+        if (!_pool.TryGetValue(itemId, out Queue<GameObject> queue)) return null;
+
+        while (queue.Count > 0)
+        {
+            GameObject obj = queue.Dequeue();
+            if (obj != null) return obj;
+        }
+
+        return null;
     }
 
     public void ClearPool()
@@ -120,7 +129,7 @@ public class ItemPoolingManager : MonoBehaviour
 
     private GameObject CreatePhysicsItem(string itemId, Vector3 position, Quaternion rotation)
     {
-        GameObject prefab = Resources.Load<GameObject>("Prefabs/Products/" + itemId);
+        GameObject prefab = ProductPrefabs.Load(itemId);
         if (prefab == null)
         {
             Debug.LogError($"ItemPoolingManager: prefab not found for {itemId}");
@@ -130,6 +139,7 @@ public class ItemPoolingManager : MonoBehaviour
         GameObject obj = Instantiate(prefab, position, rotation);
         obj.name = itemId;
         obj.tag = "RetailItem";
+        ApplyStablePhysicsMaterial(obj);
 
         return obj;
     }
@@ -157,59 +167,5 @@ public class ItemPoolingManager : MonoBehaviour
             if (!collider.isTrigger)
                 collider.sharedMaterial = _stableItemMaterial;
         }
-    }
-
-    private static void ResolveSpawnOverlaps(GameObject obj)
-    {
-        Collider[] itemColliders = obj.GetComponentsInChildren<Collider>(true);
-
-        for (int i = 0; i < SpawnOverlapResolveIterations; i++)
-        {
-            bool moved = false;
-
-            foreach (Collider itemCollider in itemColliders)
-            {
-                if (!ShouldResolveCollider(itemCollider)) continue;
-
-                Bounds bounds = itemCollider.bounds;
-                Collider[] overlaps = Physics.OverlapBox(
-                    bounds.center,
-                    bounds.extents + Vector3.one * SpawnOverlapPadding,
-                    Quaternion.identity,
-                    Physics.DefaultRaycastLayers,
-                    QueryTriggerInteraction.Ignore);
-
-                foreach (Collider overlap in overlaps)
-                {
-                    if (!ShouldResolveCollider(overlap) || overlap.transform.IsChildOf(obj.transform))
-                        continue;
-
-                    if (!Physics.ComputePenetration(
-                            itemCollider,
-                            itemCollider.transform.position,
-                            itemCollider.transform.rotation,
-                            overlap,
-                            overlap.transform.position,
-                            overlap.transform.rotation,
-                            out Vector3 direction,
-                            out float distance))
-                        continue;
-
-                    obj.transform.position += direction * (distance + SpawnOverlapPadding);
-                    Physics.SyncTransforms();
-                    moved = true;
-                    break;
-                }
-
-                if (moved) break;
-            }
-
-            if (!moved) break;
-        }
-    }
-
-    private static bool ShouldResolveCollider(Collider collider)
-    {
-        return collider != null && collider.enabled && !collider.isTrigger && collider.gameObject.activeInHierarchy;
     }
 }

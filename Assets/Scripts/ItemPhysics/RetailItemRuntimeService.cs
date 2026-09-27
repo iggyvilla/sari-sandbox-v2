@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /*
@@ -49,6 +50,7 @@ public sealed class RuntimeRetailItem
     public GameObject gameObject;
     public RetailItemRuntimeState state;
     public ItemBBoxInfo shelfBBoxInfo;
+    public Transform originalBBoxParent;
     public Vector3 originalBBoxWorldPosition;
     public Quaternion originalBBoxWorldRotation;
     public Vector3 spawnedPosition;
@@ -56,6 +58,8 @@ public sealed class RuntimeRetailItem
     public Rigidbody physicsRigidbody;
     public Transform[] heldLayerTransforms;
     public int[] preHeldLayers;
+    public MeshCollider[] heldMeshColliders;
+    public bool[] preHeldMeshTriggers;
 
     public RuntimeRetailItem(string itemId, GameObject gameObject, RetailItemRuntimeState state)
     {
@@ -88,6 +92,11 @@ public class RetailItemRuntimeService : MonoBehaviour
     }
 
     private static RetailItemRuntimeService _instance;
+
+    // Non-creating lookup for cleanup/teardown paths.
+    public static RetailItemRuntimeService TryGetInstance() => _instance != null ? _instance : null;
+
+    private static readonly List<BoxCollider> BoxColliderBuffer = new();
 
     void Awake()
     {
@@ -163,8 +172,7 @@ public class RetailItemRuntimeService : MonoBehaviour
         if (physicsObj == null) return null;
         ExpirationDateDecalCatalog.ApplyTo(physicsObj, bboxInfo.expirationDateDecalId);
 
-        BatchInstancer bi = GPUInstanceTracker.Instance?.GetBatchInstancerFromId(bboxInfo.itemId);
-        bi?.RemoveSingleDrawData(bboxInfo.instanceData);
+        RemoveShelfGpuInstanceForBBox(bboxInfo);
 
         RuntimeRetailItem item = new RuntimeRetailItem(
             bboxInfo.itemId,
@@ -173,6 +181,7 @@ public class RetailItemRuntimeService : MonoBehaviour
         {
             expirationDateDecalId = bboxInfo.expirationDateDecalId,
             shelfBBoxInfo = bboxInfo,
+            originalBBoxParent = bboxInfo.transform.parent,
             originalBBoxWorldPosition = bboxInfo.transform.position,
             originalBBoxWorldRotation = bboxInfo.transform.rotation,
             spawnedPosition = pos,
@@ -183,6 +192,7 @@ public class RetailItemRuntimeService : MonoBehaviour
         bboxInfo.transform.SetParent(physicsObj.transform, worldPositionStays: true);
         bboxInfo.isPhysicsObject = true;
         bboxInfo.returnToPoolOnDelete = true;
+        bboxInfo.itemRoot = physicsObj;
 
         return item;
     }
@@ -192,11 +202,7 @@ public class RetailItemRuntimeService : MonoBehaviour
         if (item == null || item.shelfBBoxInfo == null) return;
 
         ItemBBoxInfo bboxInfo = item.shelfBBoxInfo;
-        bboxInfo.transform.SetParent(null);
-
-        bboxInfo.transform.SetPositionAndRotation(
-            item.originalBBoxWorldPosition,
-            item.originalBBoxWorldRotation);
+        ReturnBBoxToShelfPose(item);
         bboxInfo.isPhysicsObject = false;
         bboxInfo.onBeforeDelete = null;
         Destroy(bboxInfo.gameObject);
@@ -211,11 +217,8 @@ public class RetailItemRuntimeService : MonoBehaviour
         if (item == null || item.shelfBBoxInfo == null) return;
 
         ItemBBoxInfo bboxInfo = item.shelfBBoxInfo;
-        bboxInfo.transform.SetParent(null);
-        bboxInfo.transform.SetPositionAndRotation(
-            item.originalBBoxWorldPosition,
-            item.originalBBoxWorldRotation);
-        ResetBBoxToShelf(bboxInfo);
+        ReturnBBoxToShelfPose(item);
+        bboxInfo.ClearPhysicsState();
 
         RestoreGpuInstance(bboxInfo);
 
@@ -229,6 +232,14 @@ public class RetailItemRuntimeService : MonoBehaviour
         item.state = RetailItemRuntimeState.ShelfGpu;
         item.gameObject = null;
         item.physicsRigidbody = null;
+    }
+
+    // Re-parents the bbox where it was before activation so the virtual pool can reclaim it.
+    private static void ReturnBBoxToShelfPose(RuntimeRetailItem item)
+    {
+        Transform bbox = item.shelfBBoxInfo.transform;
+        bbox.SetParent(item.originalBBoxParent != null ? item.originalBBoxParent : null);
+        bbox.SetPositionAndRotation(item.originalBBoxWorldPosition, item.originalBBoxWorldRotation);
     }
 
     private System.Collections.IEnumerator ReturnToPoolDelayed(string itemId, GameObject go, float delaySeconds)
@@ -260,23 +271,24 @@ public class RetailItemRuntimeService : MonoBehaviour
 
     public void DropHeldItem(RuntimeRetailItem item, Material bboxMaterial)
     {
-        if (item == null || item.gameObject == null) return;
-
-        EnablePhysics(item);
-        CreatePhysicsItemBBox(item.gameObject, item.itemId, item.expirationDateDecalId, bboxMaterial);
-        item.state = RetailItemRuntimeState.Dropped;
+        ReleaseHeldItem(item, bboxMaterial);
     }
 
     public void ThrowHeldItem(RuntimeRetailItem item, Material bboxMaterial, Vector3 impulse)
     {
-        if (item == null || item.gameObject == null) return;
+        Rigidbody rb = ReleaseHeldItem(item, bboxMaterial);
+        if (rb != null)
+            rb.AddForce(impulse, ForceMode.Impulse);
+    }
+
+    private static Rigidbody ReleaseHeldItem(RuntimeRetailItem item, Material bboxMaterial)
+    {
+        if (item == null || item.gameObject == null) return null;
 
         Rigidbody rb = EnablePhysics(item);
         CreatePhysicsItemBBox(item.gameObject, item.itemId, item.expirationDateDecalId, bboxMaterial);
-        if (rb != null)
-            rb.AddForce(impulse, ForceMode.Impulse);
-
         item.state = RetailItemRuntimeState.Dropped;
+        return rb;
     }
 
     public void Delete(ItemBBoxInfo bboxInfo)
@@ -285,7 +297,8 @@ public class RetailItemRuntimeService : MonoBehaviour
 
         if (bboxInfo.isPhysicsObject)
         {
-            GameObject root = bboxInfo.transform.root.gameObject;
+            // Not transform.root: items parented to a basket would resolve to the agent.
+            GameObject root = ResolveItemRoot(bboxInfo);
             bboxInfo.onBeforeDelete?.Invoke();
             
             // If it's an item that turned physical, but didn't move, return it to the pool
@@ -297,19 +310,29 @@ public class RetailItemRuntimeService : MonoBehaviour
             return;
         }
 
-        var proxy = bboxInfo.GetComponent<ItemBBoxPhysicsProxy>();
+        ItemBBoxPhysicsProxy proxy = bboxInfo.Proxy;
         if (proxy != null) proxy.enabled = false;
         Destroy(bboxInfo.gameObject);
+    }
+
+    private static GameObject ResolveItemRoot(ItemBBoxInfo bboxInfo)
+    {
+        if (bboxInfo.itemRoot != null) return bboxInfo.itemRoot;
+
+        Rigidbody rb = bboxInfo.GetComponentInParent<Rigidbody>();
+        return rb != null ? rb.gameObject : bboxInfo.gameObject;
     }
 
     public static void RemoveShelfGpuInstanceForBBox(ItemBBoxInfo bboxInfo)
     {
         if (bboxInfo == null || bboxInfo.isPhysicsObject) return;
 
-        BatchInstancer itemBatchInstancer =
-            GPUInstanceTracker.Instance?.GetBatchInstancerFromId(bboxInfo.itemId);
+        GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+        if (tracker == null) return;
 
-        itemBatchInstancer?.RemoveSingleDrawData(bboxInfo.instanceData);
+        BatchInstancer itemBatchInstancer = tracker.GetBatchInstancerFromId(bboxInfo.itemId);
+        if (itemBatchInstancer != null)
+            itemBatchInstancer.RemoveSingleDrawData(bboxInfo.instanceData);
     }
 
     private GameObject CreateItemInstance(
@@ -319,7 +342,7 @@ public class RetailItemRuntimeService : MonoBehaviour
         Quaternion rotation,
         Transform parent)
     {
-        GameObject prefab = Resources.Load<GameObject>("Prefabs/Products/" + itemId);
+        GameObject prefab = ProductPrefabs.Load(itemId);
         if (prefab == null)
         {
             Debug.LogError($"RetailItemRuntimeService: prefab not found for {itemId}");
@@ -333,23 +356,18 @@ public class RetailItemRuntimeService : MonoBehaviour
         return item;
     }
 
-    private static void ResetBBoxToShelf(ItemBBoxInfo bboxInfo)
-    {
-        bboxInfo.isPhysicsObject = false;
-        bboxInfo.returnToPoolOnDelete = false;
-        bboxInfo.onBeforeDelete = null;
-    }
-
     private static void RestoreGpuInstance(ItemBBoxInfo bboxInfo)
     {
-        GameObject prefab = Resources.Load<GameObject>("Prefabs/Products/" + bboxInfo.itemId);
-        if (prefab != null)
-            GPUInstanceTracker.Instance?.AddToInstance(bboxInfo.itemId, prefab, bboxInfo.instanceData);
+        GameObject prefab = ProductPrefabs.Load(bboxInfo.itemId);
+        GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+        if (prefab != null && tracker != null)
+            tracker.AddToInstance(bboxInfo.itemId, prefab, bboxInfo.instanceData);
     }
 
     private static Rigidbody EnablePhysics(RuntimeRetailItem item)
     {
         RestorePreHeldLayers(item);
+        RestorePreHeldMeshTriggers(item);
 
         GameObject itemObject = item.gameObject;
         itemObject.transform.SetParent(null);
@@ -357,11 +375,7 @@ public class RetailItemRuntimeService : MonoBehaviour
 
         Rigidbody rb = itemObject.GetComponent<Rigidbody>();
         if (rb != null)
-        {
-            rb.isKinematic = false;
-            rb.useGravity = true;
-            rb.interpolation = RigidbodyInterpolation.Extrapolate;
-        }
+            MakeDynamic(rb);
 
         return rb;
     }
@@ -371,17 +385,7 @@ public class RetailItemRuntimeService : MonoBehaviour
         GameObject itemObject = item.gameObject;
         Rigidbody rb = itemObject.GetComponent<Rigidbody>();
         if (rb != null)
-        {
-            if (!rb.isKinematic)
-            {
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-            }
-
-            rb.isKinematic = true;
-            rb.useGravity = false;
-            rb.interpolation = RigidbodyInterpolation.None;
-        }
+            MakeKinematic(rb);
 
         // A held item is kinematic but keeps its solid colliders so it can still push
         // or contact other products. The HeldItem layer ignores the hand and body.
@@ -389,24 +393,74 @@ public class RetailItemRuntimeService : MonoBehaviour
         ApplyHeldItemLayer(item);
 
         MeshCollider[] cols = itemObject.GetComponentsInChildren<MeshCollider>(true);
-        foreach (var c in cols)
-            c.isTrigger = true;
+        bool[] wasTrigger = new bool[cols.Length];
+        for (int i = 0; i < cols.Length; i++)
+        {
+            wasTrigger[i] = cols[i].isTrigger;
+            cols[i].isTrigger = true;
+        }
+
+        item.heldMeshColliders = cols;
+        item.preHeldMeshTriggers = wasTrigger;
+    }
+
+    private static void RestorePreHeldMeshTriggers(RuntimeRetailItem item)
+    {
+        MeshCollider[] cols = item.heldMeshColliders;
+        bool[] wasTrigger = item.preHeldMeshTriggers;
+        if (cols == null || wasTrigger == null) return;
+
+        for (int i = 0; i < cols.Length && i < wasTrigger.Length; i++)
+        {
+            if (cols[i] != null)
+                cols[i].isTrigger = wasTrigger[i];
+        }
+
+        item.heldMeshColliders = null;
+        item.preHeldMeshTriggers = null;
+    }
+
+    // Zeroes velocity (if simulated) and freezes the body.
+    internal static void MakeKinematic(Rigidbody rb)
+    {
+        if (!rb.isKinematic)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        rb.isKinematic = true;
+        rb.useGravity = false;
+        rb.interpolation = RigidbodyInterpolation.None;
+    }
+
+    internal static void MakeDynamic(Rigidbody rb)
+    {
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        rb.interpolation = RigidbodyInterpolation.Extrapolate;
     }
 
     internal static void SetSolidBoxCollidersEnabled(GameObject item, bool enabled)
     {
-        BoxCollider[] colliders = item.GetComponentsInChildren<BoxCollider>(true);
-        foreach (BoxCollider collider in colliders)
+        item.GetComponentsInChildren(true, BoxColliderBuffer);
+        foreach (BoxCollider collider in BoxColliderBuffer)
         {
             // Trigger boxes are sensors/bboxes rather than physical item bodies.
             if (!collider.isTrigger)
                 collider.enabled = enabled;
         }
+
+        BoxColliderBuffer.Clear();
     }
+
+    private static int _heldItemLayer = int.MinValue;
+    private static int HeldItemLayer =>
+        _heldItemLayer != int.MinValue ? _heldItemLayer : (_heldItemLayer = LayerMask.NameToLayer("HeldItem"));
 
     private static void ApplyHeldItemLayer(RuntimeRetailItem item)
     {
-        int heldItemLayer = LayerMask.NameToLayer("HeldItem");
+        int heldItemLayer = HeldItemLayer;
         if (heldItemLayer < 0)
         {
             Debug.LogError("RetailItemRuntimeService: HeldItem layer is missing.");
@@ -451,7 +505,7 @@ public class RetailItemRuntimeService : MonoBehaviour
     {
         if (item == null) return;
 
-        int heldItemLayer = LayerMask.NameToLayer("HeldItem");
+        int heldItemLayer = HeldItemLayer;
         if (heldItemLayer < 0) return;
         if (item.layer != heldItemLayer) return;
 
@@ -469,45 +523,29 @@ public class RetailItemRuntimeService : MonoBehaviour
         string expirationDateDecalId,
         Material bboxMaterial)
     {
-        Transform lod0 = FindLOD0(itemRoot);
-        MeshFilter mf = lod0.GetComponent<MeshFilter>();
-        Bounds meshBounds = mf != null ? mf.sharedMesh.bounds : new Bounds(Vector3.zero, Vector3.one);
+        Transform lod0 = itemRoot.transform.childCount > 0
+            ? LodHierarchy.ResolveLodTransforms(itemRoot)[0]
+            : itemRoot.transform;
+        Mesh mesh = lod0.TryGetComponent(out MeshFilter mf) ? mf.sharedMesh : null;
+        Bounds meshBounds = mesh != null ? mesh.bounds : new Bounds(Vector3.zero, Vector3.one);
 
-        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        cube.transform.SetParent(itemRoot.transform, worldPositionStays: true);
-        cube.transform.position = lod0.TransformPoint(meshBounds.center);
-        cube.transform.rotation = lod0.rotation;
+        ItemBBoxInfo itemBBoxInfo = ItemBBoxInfo.CreateBBoxObject("Cube", outlineEnabled: false, addPhysicsProxy: false);
+        GameObject cube = itemBBoxInfo.gameObject;
+
+        // Set world pose before parenting so the root's scale isn't applied twice.
+        cube.transform.SetPositionAndRotation(lod0.TransformPoint(meshBounds.center), lod0.rotation);
         cube.transform.localScale = Vector3.Scale(lod0.lossyScale, meshBounds.size);
+        cube.transform.SetParent(itemRoot.transform, worldPositionStays: true);
 
-        cube.GetComponent<BoxCollider>().isTrigger = true;
-        MeshRenderer renderer = cube.GetComponent<MeshRenderer>();
+        Renderer renderer = itemBBoxInfo.Renderer;
         if (renderer != null && bboxMaterial != null)
             renderer.sharedMaterial = bboxMaterial;
 
-        cube.tag = "RetailItemBBox";
-        cube.layer = LayerMask.NameToLayer("ItemBBox");
-        cube.AddComponent<OutlineFx.OutlineFx>().enabled = false;
-        cube.AddComponent<OutlineController>();
-
-        ItemBBoxInfo itemBBoxInfo = cube.AddComponent<ItemBBoxInfo>();
         itemBBoxInfo.isPhysicsObject = true;
+        itemBBoxInfo.itemRoot = itemRoot;
         itemBBoxInfo.itemId = itemId;
         itemBBoxInfo.expirationDateDecalId = expirationDateDecalId;
 
         return cube;
-    }
-
-    private static Transform FindLOD0(GameObject item)
-    {
-        if (item.transform.childCount == 0) return item.transform;
-
-        Transform prodChild = item.transform.GetChild(0);
-        foreach (Transform t in prodChild)
-        {
-            if (t.name.EndsWith("_LOD0"))
-                return t;
-        }
-
-        return prodChild;
     }
 }

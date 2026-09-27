@@ -17,6 +17,8 @@ public partial class ShelfBuilder
             ? forcedCategory
             : subShelfCategories.TryGetValue(categoryKey, out var configuredCategory) ? configuredCategory : default;
 
+        if (spawner == null) return;
+
         spawner.Init(
             distanceBetweenLevels,
             itemSpawnOption,
@@ -28,33 +30,25 @@ public partial class ShelfBuilder
             isFridge
         );
 
-        shelfObjects.Add(shelf);
+        _itemSpawners.Add(spawner);
     }
 
     public void SpawnItemsOnAllShelves()
     {
         if (!spawnItems) return;
 
-        foreach (GameObject shelf in shelfObjects)
-        {
-            ItemSpawner spawner = shelf.GetComponent<ItemSpawner>();
+        foreach (ItemSpawner spawner in _itemSpawners)
             spawner.SpawnProducts();
-        }
     }
 
+    // Shelf bboxes live under NearbyItemBBoxManager, so clearing each spawner's records is enough.
     public void DespawnShelfItems()
     {
         NearbyItemBBoxManager manager = NearbyItemBBoxManager.TryGetInstance();
-        if (manager != null)
-        {
-            foreach (ItemSpawner spawner in GetComponentsInChildren<ItemSpawner>())
-                manager.ClearOwner(spawner, removeGpuInstances: true);
-        }
+        if (manager == null) return;
 
-        foreach (ItemBBoxInfo bboxInfo in GetComponentsInChildren<ItemBBoxInfo>())
-        {
-            bboxInfo.DeleteItem();
-        }
+        foreach (ItemSpawner spawner in GetComponentsInChildren<ItemSpawner>())
+            manager.ClearOwner(spawner, removeGpuInstances: true);
     }
 
     public static void DeleteAllPriceTags()

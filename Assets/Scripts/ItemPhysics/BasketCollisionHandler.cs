@@ -10,6 +10,8 @@ public class BasketCollisionHandler : MonoBehaviour
         if (rb != null)
             rb.isKinematic = true;
 
-        other.transform.SetParent(transform, worldPositionStays: true);
+        // Move the whole item (its Rigidbody root), not just the collider that entered.
+        Transform item = rb != null ? rb.transform : other.transform;
+        item.SetParent(transform, worldPositionStays: true);
     }
 }

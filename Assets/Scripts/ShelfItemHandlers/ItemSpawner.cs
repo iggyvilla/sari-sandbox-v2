@@ -1,11 +1,5 @@
-using System;
 using System.Collections.Generic;
-using System.Numerics;
 using UnityEngine;
-using Quaternion = UnityEngine.Quaternion;
-using Vector2 = UnityEngine.Vector2;
-using Vector3 = UnityEngine.Vector3;
-using Vector4 = UnityEngine.Vector4;
 
 // Attached to the shelf side profile prefab
 public class ItemSpawner : MonoBehaviour
@@ -28,14 +22,18 @@ public class ItemSpawner : MonoBehaviour
     private Material _airMaterial;
     private ItemCategory itemCategory;
     
-    private float _bBoxPadding = 0.005f;
+    private const float BBoxPadding = 0.005f;
 
     private float direction;
-    private List<GameObject> triggers = new();
-    private LayerMask itemTriggerMask;
+    private readonly List<GameObject> triggers = new();
+    private readonly List<GameObject> _priceTags = new();
     private ShelfInfo _shelfInfo;
 
     private const float PriceTagScale = 1.1f;
+    // Gap between the shelf lip and the price tag face.
+    private const float PriceTagLipOffset = 0.001f;
+    // Extra lift for upright tags on a fridge's lowest shelf.
+    private const float FridgeBottomTagLift = 0.01f;
     private GameObject _priceTagPrefab;
     private float _priceTagHeight;
     private float _priceTagWidth;
@@ -49,22 +47,14 @@ public class ItemSpawner : MonoBehaviour
     
     void Awake()
     {
-        itemTriggerMask = LayerMask.NameToLayer("ItemBBox");
         shelfItemData = GetComponent<ShelfItemData>();
         if (shelfItemData == null)
         {
             Debug.LogError($"{nameof(ItemSpawner)} on {name}: missing {nameof(ShelfItemData)} component.");
             enabled = false;
-            return;
         }
 
-        UpdateShelfDimensions();
-        
-        /*
-         * We don't spawn products immediately here 
-         * because we process scaling/rotation first
-         * in ShelfBuilder.cs, then we use SpawnProducts()
-         */
+        // Products spawn later via SpawnProducts(), after ShelfBuilder scales/rotates the shelf.
     }
 
     public void Init(float distanceBetweenShelves, ItemSpawnOption spawnOption, bool _spawnPriceTags, ItemCategory category, Material airMaterial, GameObject priceTagPrefab, ShelfInfo shelfInfo, bool spawnHingeDoors)
@@ -90,7 +80,7 @@ public class ItemSpawner : MonoBehaviour
 
     void UpdateShelfDimensions()
     {
-        // Not sure if there's a better name for this
+        // +1/-1 sign that maps shelf-local offsets onto world axes
         direction = CalculateDirectionInteger();
         
         Renderer r = GetComponent<Renderer>();
@@ -111,9 +101,7 @@ public class ItemSpawner : MonoBehaviour
 
     bool ShelfIsFacingZ()
     {
-        float dp = Vector3.Dot(transform.forward, Vector3.forward);
-        if (Math.Abs((int)dp) == 1) return true;
-        return false;
+        return Mathf.Abs(Vector3.Dot(transform.forward, Vector3.forward)) > 0.5f;
     }
 
     int CalculateDirectionInteger()
@@ -129,36 +117,18 @@ public class ItemSpawner : MonoBehaviour
         if (!TryInitialize()) return;
 
         NearbyItemBBoxManager.TryGetInstance()?.ClearOwner(this, removeGpuInstances: true);
+        DestroyPriceTags();
 
         // Update our knowledge of the shelf dimensions
         UpdateShelfDimensions();
-        
-        if (_itemSpawnOption == ItemSpawnOption.GenerateRandom)
+
+        // ReadFromSave falls back to a random fill (then saves) when nothing is stored.
+        bool loaded = _itemSpawnOption == ItemSpawnOption.ReadFromSave && shelfItemData.LoadItemsFromJson(_shelfInfo);
+        if (!loaded)
         {
-            // If we spawn items randomly, then just fill our ShelfItemData with random items
-            shelfItemData.RandomFillFromCategory(
-                itemCategory,
-                InterItemPadding, 
-                widthBudget
-            );
-        }
-        else if (_itemSpawnOption == ItemSpawnOption.GenerateRandomThenSave)
-        {
-            // Generate random items, then save to a JSON
-            shelfItemData.RandomFillFromCategory(
-                itemCategory,
-                InterItemPadding, 
-                widthBudget
-            );
-            shelfItemData.SaveItemsToJson(_shelfInfo);
-        }
-        else if (_itemSpawnOption == ItemSpawnOption.ReadFromSave)
-        {
-            if (!shelfItemData.LoadItemsFromJson(_shelfInfo))
-            {
-                shelfItemData.RandomFillFromCategory(itemCategory, InterItemPadding, widthBudget);
+            shelfItemData.RandomFillFromCategory(itemCategory, InterItemPadding, widthBudget);
+            if (_itemSpawnOption != ItemSpawnOption.GenerateRandom)
                 shelfItemData.SaveItemsToJson(_shelfInfo);
-            }
         }
         
         /*
@@ -169,7 +139,7 @@ public class ItemSpawner : MonoBehaviour
          *       xxxxx     -->   xxxxx
          *       ---------     ---------
          */
-        float lengthwiseOffset = Math.Max(0, (widthBudget - shelfItemData.itemsTotalWidth)/2);
+        float lengthwiseOffset = Mathf.Max(0, (widthBudget - shelfItemData.itemsTotalWidth)/2);
         
         bool firstItem = true;
         
@@ -207,6 +177,8 @@ public class ItemSpawner : MonoBehaviour
 
             int numRows = CalculateRows(itemDepth);
             int numStack = CalculateStackHeight(itemHeight, itemCategory);
+            Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
+            ProductDrawTemplate drawTemplate = CreateProductDrawTemplate(product, aisleRot);
 
             if (spawnPriceTags && _priceTagPrefab != null) SpawnPriceTag(shelfItem, lengthwiseOffset);
             
@@ -247,10 +219,7 @@ public class ItemSpawner : MonoBehaviour
                             k
                         );
 
-                    Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
-
-                    InstanceData instanceData =
-                        GenerateProductDrawData(product, spawnPosition);
+                    InstanceData instanceData = drawTemplate.At(spawnPosition);
 
                     if (combine)
                     {
@@ -281,7 +250,6 @@ public class ItemSpawner : MonoBehaviour
                         // calcs assumes mesh origin at bottom.
                         ItemBBoxInfo bboxInfo = GenerateBoundingBoxTriggerForItem(
                             spawnPosition,
-                            spawnPosition,
                             itemHeight,
                             itemWidth,
                             itemDepth,
@@ -295,7 +263,6 @@ public class ItemSpawner : MonoBehaviour
                     else
                     {
                         VirtualItemBBoxRecord record = CreateVirtualBBoxRecord(
-                            spawnPosition,
                             spawnPosition,
                             itemHeight,
                             itemWidth,
@@ -409,7 +376,7 @@ public class ItemSpawner : MonoBehaviour
     {
         Vector3 priceTagSpawnPos = transform.position 
                                    + transform.right * (lengthwiseOffset - widthBudget/2) * (ShelfIsFacingZ() ? -1 : 1) 
-                                   + transform.forward * (depthBudget/2 + 0.001f)
+                                   + transform.forward * (depthBudget/2 + PriceTagLipOffset)
                                    + transform.up * shelfWidth/2
                                    - transform.up * _priceTagHeight/2;
 
@@ -419,16 +386,10 @@ public class ItemSpawner : MonoBehaviour
         // lying flat on the lip (handled inside TrySpawnBakedPriceTag).
         bool isFridgeBottomShelf = _spawnHingeDoors && _shelfInfo.subSubShelfId == 0;
 
-        if (
-            itemPriceData.TryGetValue(
-                shelfItem.name,
-                out ItemPriceData ptinfo)
-            )
+        if (itemPriceData.ContainsKey(shelfItem.name) &&
+            TrySpawnBakedPriceTag(shelfItem.name, priceTagSpawnPos, priceTagRotation, isFridgeBottomShelf))
         {
-            if (TrySpawnBakedPriceTag(shelfItem.name, priceTagSpawnPos, priceTagRotation, isFridgeBottomShelf))
-            {
-                return;
-            }
+            return;
         }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -440,7 +401,7 @@ public class ItemSpawner : MonoBehaviour
                     
         PriceTag ptconfig = pt.GetComponent<PriceTag>();
 
-        if (ptconfig != null && itemPriceData.TryGetValue(shelfItem.name, out ptinfo))
+        if (ptconfig != null && itemPriceData.TryGetValue(shelfItem.name, out ItemPriceData ptinfo))
         {
             ptconfig.SetValues(
                 shelfItem.name,
@@ -452,6 +413,7 @@ public class ItemSpawner : MonoBehaviour
         pt.isStatic = true;
         // Set name in Unity hierarchy, helpful when debugging
         pt.name = shelfItem.name + "_PRICE_TAG";
+        _priceTags.Add(pt);
 #endif
     }
 
@@ -466,7 +428,7 @@ public class ItemSpawner : MonoBehaviour
         // the lip and stands upright against the glass.
         if (isFridgeBottomShelf)
         {
-            position += transform.up * (shelfWidth / 2f + 0.01f);
+            position += transform.up * (shelfWidth / 2f + FridgeBottomTagLift);
         }
 
         GameObject priceTag = new(itemId + "_PRICE_TAG");
@@ -486,6 +448,7 @@ public class ItemSpawner : MonoBehaviour
         spriteRenderer.sortingOrder = -1;
 
         priceTag.AddComponent<BakedPriceTag>();
+        _priceTags.Add(priceTag);
 
         Vector2 spriteSize = sprite.bounds.size;
         if (spriteSize.x > 0f && spriteSize.y > 0f)
@@ -503,140 +466,129 @@ public class ItemSpawner : MonoBehaviour
     private void OnDestroy()
     {
         NearbyItemBBoxManager.TryGetInstance()?.ClearOwner(this, removeGpuInstances: true);
+        DestroyPriceTags();
 
         foreach (var trigger in triggers)
         {
-            Destroy(trigger);
+            if (trigger != null) Destroy(trigger);
         }
     }
 
-    InstanceData AdjustDrawDataIfPivotOnCenter(
-        Transform lod0Transform,
-        Transform lod1Transform,
-        Transform lod2Transform,
-        Transform lod3Transform,
-        InstanceData data)
+    // Price tags live at scene root, so the spawner cleans up its own.
+    private void DestroyPriceTags()
     {
-        void AdjustLod(Transform lodTransform, ref LodTransform lodData)
+        foreach (GameObject priceTag in _priceTags)
         {
-            if (lodTransform is null) return;
-            
-            Mesh mesh = lodTransform.GetComponent<MeshFilter>()?.sharedMesh;
-            
-            // If mesh exists, and its pivot is already at the bottom, no need to adjust
-            if (mesh is null)
-            {
-                Debug.Log("Cannot find mesh for: " + lodTransform.name);
-                return;
-            }
-            if (lodTransform.position == Vector3.zero) return;
-
-            /*
-             * Our shelf position calcs assume the pivot is at the item's bottom,
-             * not center, so adjust for it. Without this, items spawn IN the
-             * shelves, not ON.
-            */
-            float bottomOffset = -mesh.bounds.min.y * Mathf.Abs(lodTransform.lossyScale.y);
-            lodData.position.y += bottomOffset;
+            if (priceTag != null) Destroy(priceTag);
         }
 
-        AdjustLod(lod0Transform, ref data.lod0);
-        AdjustLod(lod1Transform, ref data.lod1);
-        AdjustLod(lod2Transform, ref data.lod2);
-        AdjustLod(lod3Transform, ref data.lod3);
-
-        return data;
+        _priceTags.Clear();
     }
 
-    int CalculateRows(float itemWidth)
+    int CalculateRows(float itemDepth)
     {
         return (int) ((depthBudget-itemOuterPadding-itemBackPadding) /
-                      (itemWidth + InterItemPadding));
+                      (itemDepth + InterItemPadding));
     }
 
-    ItemBBoxInfo GenerateBoundingBoxTriggerForItem(Vector3 drawPosition, Vector3 physicsSpawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
+    Vector3 BBoxCenter(Vector3 spawnPosition, float itemHeight)
     {
-        GameObject bbox = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        BoxCollider b = bbox.GetComponent<BoxCollider>();
-        ItemBBoxInfo itemBBoxInfo = bbox.AddComponent<ItemBBoxInfo>();
+        // Cubes extrude from the center; item pivots are at the bottom.
+        return spawnPosition + new Vector3(0, itemHeight / 2, 0);
+    }
 
-        bbox.tag = "RetailItemBBox";
-        bbox.AddComponent<OutlineFx.OutlineFx>();
-        bbox.AddComponent<OutlineController>();
-        
-        // Squares in Unity extrude from the center, hence the need to
-        // add itemHeight since we assume that the item's
-        // pivot is at it's bottom
-        bbox.transform.position =
-            drawPosition + new Vector3(0, itemHeight / 2, 0);
-        bbox.layer = itemTriggerMask;
+    Vector3 BBoxSize(float itemHeight, float itemWidth, float itemDepth)
+    {
+        bool facingZ = ShelfIsFacingZ();
+        return new Vector3(
+            (facingZ ? itemWidth : itemDepth) + BBoxPadding,
+            itemHeight + BBoxPadding,
+            (facingZ ? itemDepth : itemWidth) + BBoxPadding
+        );
+    }
 
+    // Eager bbox used only by the combineRowMeshes benchmark path.
+    ItemBBoxInfo GenerateBoundingBoxTriggerForItem(Vector3 spawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
+    {
+        ItemBBoxInfo itemBBoxInfo = ItemBBoxInfo.CreateBBoxObject(
+            "Cube", outlineEnabled: true, addPhysicsProxy: DataHandler.Instance.enableShelfItemPhysics);
+        GameObject bbox = itemBBoxInfo.gameObject;
+
+        bbox.transform.position = BBoxCenter(spawnPosition, itemHeight);
         bbox.GetComponent<Renderer>().material = _airMaterial;
 
         itemBBoxInfo.itemId = productName;
         itemBBoxInfo.expirationDateDecalId = ExpirationDateDecalCatalog.GetRandomDecalId();
         itemBBoxInfo.instanceData = instanceData;
-        itemBBoxInfo.physicsSpawnPosition = physicsSpawnPosition;
+        itemBBoxInfo.physicsSpawnPosition = spawnPosition;
         itemBBoxInfo.spawnRotation = aisleRot;
 
-        if (DataHandler.Instance.enableShelfItemPhysics)
-            bbox.AddComponent<ItemBBoxPhysicsProxy>();
-
+        BoxCollider b = itemBBoxInfo.BoxCollider;
         b.name = productName;
-        b.isTrigger = true;
         b.size = Vector3.one;
 
-        bbox.transform.localScale = new Vector3(
-            (ShelfIsFacingZ() ? itemWidth : itemDepth) + _bBoxPadding,
-            itemHeight + _bBoxPadding,
-            (ShelfIsFacingZ() ? itemDepth : itemWidth) + _bBoxPadding
-        );
+        bbox.transform.localScale = BBoxSize(itemHeight, itemWidth, itemDepth);
 
         triggers.Add(bbox);
         return itemBBoxInfo;
     }
 
-    VirtualItemBBoxRecord CreateVirtualBBoxRecord(Vector3 drawPosition, Vector3 physicsSpawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
+    VirtualItemBBoxRecord CreateVirtualBBoxRecord(Vector3 spawnPosition, float itemHeight, float itemWidth, float itemDepth, string productName, InstanceData instanceData, Quaternion aisleRot)
     {
         return new VirtualItemBBoxRecord
         {
             itemId = productName,
             expirationDateDecalId = ExpirationDateDecalCatalog.GetRandomDecalId(),
             instanceData = instanceData,
-            bboxCenter = drawPosition + new Vector3(0, itemHeight / 2, 0),
-            bboxSize = new Vector3(
-                (ShelfIsFacingZ() ? itemWidth : itemDepth) + _bBoxPadding,
-                itemHeight + _bBoxPadding,
-                (ShelfIsFacingZ() ? itemDepth : itemWidth) + _bBoxPadding
-            ),
-            physicsSpawnPosition = physicsSpawnPosition,
+            bboxCenter = BBoxCenter(spawnPosition, itemHeight),
+            bboxSize = BBoxSize(itemHeight, itemWidth, itemDepth),
+            physicsSpawnPosition = spawnPosition,
             spawnRotation = aisleRot,
             bboxMaterial = _airMaterial,
-            ownerSpawner = this,
-            ownerTransform = transform
+            ownerSpawner = this
         };
     }
 
-    InstanceData GenerateProductDrawData(GameObject product, Vector3 spawnPosition)
+    // Per-product draw data; only the positions change per instance.
+    private readonly struct ProductDrawTemplate
     {
-        /*
-         * Get the transforms of _LOD0–_LOD3 via the shared resolver (single source of
-         * truth for the scan + fallback logic). Using the LOD child transforms rather
-         * than the product root ensures correct local-vs-world coordinates for items
-         * with non-identity rotations/scales.
-         *
-         * lods[i] is guaranteed non-null; missing LODs carry forward the last found one.
-         */
-        Transform[] lods = LodHierarchy.ResolveLodTransforms(product);
+        private readonly InstanceData _data;
+        // Per-LOD bottom-pivot y offset; NaN when no correction applies.
+        private readonly Vector4 _bottomOffsets;
 
-        Quaternion aisleRot = Quaternion.Euler(0, DegreesToAisle(), 0);
+        public ProductDrawTemplate(InstanceData data, Vector4 bottomOffsets)
+        {
+            _data = data;
+            _bottomOffsets = bottomOffsets;
+        }
+
+        public InstanceData At(Vector3 spawnPosition)
+        {
+            InstanceData data = _data;
+            data.lod0.position = WithBottomOffset(spawnPosition, _bottomOffsets.x);
+            data.lod1.position = WithBottomOffset(spawnPosition, _bottomOffsets.y);
+            data.lod2.position = WithBottomOffset(spawnPosition, _bottomOffsets.z);
+            data.lod3.position = WithBottomOffset(spawnPosition, _bottomOffsets.w);
+            return data;
+        }
+
+        private static Vector3 WithBottomOffset(Vector3 position, float offset)
+        {
+            if (!float.IsNaN(offset)) position.y += offset;
+            return position;
+        }
+    }
+
+    ProductDrawTemplate CreateProductDrawTemplate(GameObject product, Quaternion aisleRot)
+    {
+        // LOD child transforms (not the root) give correct rotation/scale; lods[i] is never null.
+        Transform[] lods = LodHierarchy.ResolveLodTransforms(product);
 
         LodTransform MakeLodTransform(Transform src)
         {
             Quaternion q = aisleRot * src.rotation;
             return new LodTransform
             {
-                position = spawnPosition,
                 rotation = new Vector4(q.x, q.y, q.z, q.w),
                 scale    = src.lossyScale
             };
@@ -650,10 +602,31 @@ public class ItemSpawner : MonoBehaviour
             lod3 = MakeLodTransform(lods[3]),
         };
 
-        return AdjustDrawDataIfPivotOnCenter(lods[0], lods[1], lods[2], lods[3], data);
+        Vector4 bottomOffsets = new Vector4(
+            BottomPivotOffset(lods[0]),
+            BottomPivotOffset(lods[1]),
+            BottomPivotOffset(lods[2]),
+            BottomPivotOffset(lods[3]));
+
+        return new ProductDrawTemplate(data, bottomOffsets);
     }
-    
-    Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum, bool bBoxDepth = false)
+
+    // Shelf math assumes a bottom pivot; returns the lift for centre-pivot LODs, or NaN for none.
+    static float BottomPivotOffset(Transform lodTransform)
+    {
+        if (lodTransform == null) return float.NaN;
+
+        if (!lodTransform.TryGetComponent(out MeshFilter meshFilter) || meshFilter.sharedMesh == null)
+        {
+            Debug.Log("Cannot find mesh for: " + lodTransform.name);
+            return float.NaN;
+        }
+        if (lodTransform.position == Vector3.zero) return float.NaN;
+
+        return -meshFilter.sharedMesh.bounds.min.y * Mathf.Abs(lodTransform.lossyScale.y);
+    }
+
+    Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum)
     {
         Vector3 shelfPos = transform.position;
         
@@ -661,17 +634,9 @@ public class ItemSpawner : MonoBehaviour
             (widthBudget/2 - itemOuterPadding - lengthwiseOffset) *
             direction;
 
-        float backOffset;
-        if (bBoxDepth)
-        {
-            backOffset = itemDepth * direction;
-        }
-        else
-        {
-            backOffset =
-                (depthBudget/2 - ((itemDepth + InterItemPadding) 
-                                  * (rowNum + 0.5f)) - itemOuterPadding) * direction;
-        }
+        float backOffset =
+            (depthBudget/2 - ((itemDepth + InterItemPadding)
+                              * (rowNum + 0.5f)) - itemOuterPadding) * direction;
         
         /* A shelf's side and back differs depending on how its rotated */
         Vector3 spawnPosition = new Vector3(
@@ -686,7 +651,6 @@ public class ItemSpawner : MonoBehaviour
         return spawnPosition;
     }
 
-    // i feel like there's a better way to do this...
     float DegreesToAisle()
     {
         Vector3 fwd = transform.forward;
@@ -702,7 +666,7 @@ public class ItemSpawner : MonoBehaviour
     {
         // TODO: can implement randomness for row front (i.e., iteration = 0)
         
-        // stack only if of type "Can" or "Biscuit"
+        // stack only if of type "Can"
         if (category is ItemCategory.Can)
         {
             return (int)((heightBudget * CanFillFraction) / itemHeight);

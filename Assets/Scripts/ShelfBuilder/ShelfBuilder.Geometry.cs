@@ -6,6 +6,11 @@ public partial class ShelfBuilder
     private Material EffectiveShelfMaterial => isFridge ? metalShelfMaterial : shelfMaterial;
     private Material EffectiveWallMaterial => isFridge ? metalShelfMaterial : wallMaterial;
 
+    // Rail texture repeats per metre of rail height.
+    private const float RailTilesPerMeter = 80f;
+    // Shared tiled rail materials keyed by (source material, tiling) so rebuilds don't leak copies.
+    private static readonly Dictionary<(Material, float), Material> RailMaterialCache = new();
+
     void BuildRectangularShelf()
     {
         float wallThickness = subShelfHeight;
@@ -16,7 +21,7 @@ public partial class ShelfBuilder
         BuildSubShelf(transform, MyZWithOffset(-shelvesZOffset), 1, groundY, 180, shelfWidth, backShelfConfig);
 
         float shelvesXOffset = subShelfDepth / 2 + shelfWidth / 2 + wallThickness;
-        sideShelfWidth = CalculateShelfWidth(wallThickness, frontShelfConfig, backShelfConfig);
+        float sideShelfWidth = CalculateShelfWidth(wallThickness, frontShelfConfig, backShelfConfig);
 
         BuildSubShelf(
             transform,
@@ -97,9 +102,7 @@ public partial class ShelfBuilder
                 parent
             );
 
-            shelfExtruded.layer = LayerMask.NameToLayer(roof ? "SariInteractable" : "SariShelf");
-            shelfExtruded.tag = "Wall";
-            shelfExtruded.name = "Shelf" + i;
+            MarkStaticWall(shelfExtruded, "Shelf" + i, roof ? "SariInteractable" : "SariShelf");
             shelfExtruded.GetComponent<Renderer>().sharedMaterial = EffectiveShelfMaterial;
 
             Vector3 extrudedScale = shelfSideProfile.transform.localScale;
@@ -108,10 +111,11 @@ public partial class ShelfBuilder
                 extrudedScale.y = shelfRoofHeight;
 
             shelfExtruded.transform.localScale = extrudedScale;
-            if (!roof) shelfBottomYs.Add(shelfPosition.y - extrudedScale.y / 2f);
 
             if (!roof)
             {
+                shelfBottomYs.Add(shelfPosition.y - extrudedScale.y / 2f);
+
                 var outline = shelfExtruded.AddComponent<OutlineFx.OutlineFx>();
                 outline.enabled = false;
 
@@ -125,7 +129,6 @@ public partial class ShelfBuilder
             if (isBottomShelf && !roof)
                 BuildShelfBoot(emptyParent.transform, shelfPosition.x, shelfPosition.z, floorY, width);
 
-            shelfExtruded.isStatic = true;
             shelfPosition.y += distanceBetweenLevels + (isBottomShelf ? subShelfHeight / 2 : roof ? shelfRoofHeight / 2 : 0);
             shelfExtruded.transform.SetParent(emptyParent.transform);
         }
@@ -142,13 +145,10 @@ public partial class ShelfBuilder
         if (bootHeight <= 0f) return;
 
         GameObject boot = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        boot.layer = LayerMask.NameToLayer("SariShelf");
-        boot.tag = "Wall";
-        boot.name = "ShelfBoot";
+        MarkStaticWall(boot, "ShelfBoot");
         boot.transform.localScale = new Vector3(width, bootHeight, subShelfDepth);
         boot.transform.position = new Vector3(x, floorY + bootHeight / 2f, z);
         boot.GetComponent<Renderer>().sharedMaterial = shelfBootMaterial;
-        boot.isStatic = true;
         boot.transform.SetParent(parent);
     }
 
@@ -194,17 +194,29 @@ public partial class ShelfBuilder
         Renderer railRenderer = rail.GetComponentInChildren<Renderer>();
         if (railRenderer != null)
         {
-            Material[] railMaterials = railRenderer.materials;
-            if (railMaterials.Length > 1)
+            Material[] railMaterials = railRenderer.sharedMaterials;
+            if (railMaterials.Length > 1 && railMaterials[1] != null)
             {
-                Material railMaterial = railMaterials[1];
-                Vector2 tiling = railMaterial.mainTextureScale;
-                tiling.y = 80 * railScale.x;
-                railMaterial.mainTextureScale = tiling;
+                railMaterials[1] = GetTiledRailMaterial(railMaterials[1], RailTilesPerMeter * railScale.x);
+                railRenderer.sharedMaterials = railMaterials;
             }
         }
 
         rail.isStatic = true;
+    }
+
+    static Material GetTiledRailMaterial(Material source, float tilingY)
+    {
+        var key = (source, tilingY);
+        if (RailMaterialCache.TryGetValue(key, out Material tiled) && tiled != null)
+            return tiled;
+
+        tiled = new Material(source);
+        Vector2 tiling = tiled.mainTextureScale;
+        tiling.y = tilingY;
+        tiled.mainTextureScale = tiling;
+        RailMaterialCache[key] = tiled;
+        return tiled;
     }
 
     void BuildSupports(Transform parent, float x, float z, List<float> shelfBottomYs)
@@ -227,24 +239,29 @@ public partial class ShelfBuilder
     {
         float wallHeight = CalculateShelfHeight();
         GameObject backWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        backWall.layer = LayerMask.NameToLayer("SariShelf");
-        backWall.tag = "Wall";
-        backWall.name = "BackWall";
-        
+        MarkStaticWall(backWall, "BackWall");
+
         backWall.transform.localScale = new Vector3(wallWidth, wallHeight, wallThickness);
 
         Vector3 backWallPos = parent.position;
         backWallPos.z = parent.position.z - (wallOffset + wallThickness) / 2;
         backWallPos.y = wallHeight / 2;
         backWall.transform.position = backWallPos;
-            
-        backWall.isStatic = true;
 
         Renderer r = backWall.GetComponent<Renderer>();
 
         r.sharedMaterial = EffectiveWallMaterial;
         
         backWall.transform.SetParent(parent);
+    }
+
+    // Shared setup for static shelf geometry.
+    static void MarkStaticWall(GameObject go, string objectName, string layerName = "SariShelf")
+    {
+        go.name = objectName;
+        go.layer = LayerMask.NameToLayer(layerName);
+        go.tag = "Wall";
+        go.isStatic = true;
     }
 
     Vector3 MyPosWithOffset(float offset, float width, ShelfConfiguration frontShelfCfg, ShelfConfiguration backShelfCfg)

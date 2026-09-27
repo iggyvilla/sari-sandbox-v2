@@ -2,7 +2,6 @@ using UnityEngine;
 
 public sealed class VirtualItemBBoxRecord
 {
-    public int recordId;
     public string itemId;
     public string expirationDateDecalId;
     public InstanceData instanceData;
@@ -12,7 +11,6 @@ public sealed class VirtualItemBBoxRecord
     public Quaternion spawnRotation;
     public Material bboxMaterial;
     public ItemSpawner ownerSpawner;
-    public Transform ownerTransform;
     public int stackGroupId = -1;
     public Vector2Int gridCell;
     public ItemBBoxInfo activeBBoxInfo;

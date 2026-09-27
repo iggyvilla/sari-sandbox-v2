@@ -9,9 +9,7 @@ public class RetailItemData
 {
     [NonSerialized, JsonIgnore]
     public GameObject prefab;
-    [NonSerialized, JsonIgnore]
-    public List<string> tags;
-    
+
     public string name;
     public ItemCategory itemCategory;
     public RetailItemDimensions dimensions;
@@ -42,28 +40,44 @@ public class ShelfItemData : MonoBehaviour
     public float itemsTotalWidth = 0f;
     private ItemCategories itemCategories;
     private bool _initialized;
+
+    // Bails out of a fill when a category keeps yielding unusable products.
+    private const int MaxFailedPicks = 100;
     
     public void RandomFillFromCategory(ItemCategory itemCategory, float interItemPadding, float widthBudget)
     {
         if (!TryInitialize()) return;
 
+        shelfItems = new List<RetailItemData>();
+        itemsTotalWidth = 0f;
+
         float lengthwiseOffset = 0.0f;
         bool firstItem = true;
+        int failedPicks = 0;
 
         while (lengthwiseOffset < widthBudget)
         {
+            if (failedPicks >= MaxFailedPicks)
+            {
+                Debug.LogError($"{nameof(ShelfItemData)} on {name}: no usable products in category {itemCategory}.");
+                itemsTotalWidth = lengthwiseOffset;
+                break;
+            }
+
             GameObject product = GetRandomProduct(itemCategory);
-            if (product is null)
+            if (product == null)
             {
                 Debug.LogWarning("Null product, retrying...");
+                failedPicks++;
                 continue;
             }
             
             MeshRenderer r = product.GetComponentInChildren<MeshRenderer>();
 
-            if (r is null)
+            if (r == null)
             {
                 Debug.LogError(product.name + " has no mesh renderer");
+                failedPicks++;
                 continue;
             }
 
@@ -78,7 +92,6 @@ public class ShelfItemData : MonoBehaviour
             {
                 prefab = product,
                 name = product.name,
-                tags = new List<string>(),
                 itemCategory = itemCategory,
                 dimensions = dimensions
             };
@@ -106,11 +119,12 @@ public class ShelfItemData : MonoBehaviour
     {
         if (shelfItems.Count == 0) return;
 
-        string idString = $"ID{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
+        string idString = SaveKey(si);
 
         SaveDataWrapper wrapper = new SaveDataWrapper
         {
-            items = shelfItems,
+            // Copy so later edits to shelfItems don't mutate the stored data.
+            items = new List<RetailItemData>(shelfItems),
             itemsTotalWidth = itemsTotalWidth
         };
 
@@ -120,19 +134,29 @@ public class ShelfItemData : MonoBehaviour
 
     public bool LoadItemsFromJson(ShelfInfo si)
     {
-        string idString = $"ID{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
+        string idString = SaveKey(si);
 
-        if (DataHandler.Instance.TryGetShelfItems(idString, out SaveDataWrapper wrapper))
+        if (DataHandler.Instance.TryGetShelfItems(idString, out SaveDataWrapper wrapper) && wrapper.items != null)
         {
             Debug.Log($"Loading shelf {idString}'s items from store file.");
             itemsTotalWidth = wrapper.itemsTotalWidth;
 
+            // Copy so later edits to shelfItems don't mutate the stored data; skip removed products.
+            shelfItems = new List<RetailItemData>(wrapper.items.Count);
             foreach (RetailItemData itemData in wrapper.items)
             {
-                itemData.prefab = Resources.Load<GameObject>("Prefabs/Products/" + itemData.name);
+                if (itemData == null) continue;
+
+                itemData.prefab = ProductPrefabs.Load(itemData.name);
+                if (itemData.prefab == null)
+                {
+                    Debug.LogWarning($"Shelf {idString}: product '{itemData.name}' no longer exists, skipping.");
+                    continue;
+                }
+
+                shelfItems.Add(itemData);
             }
 
-            shelfItems = wrapper.items;
             return true;
         }
 
@@ -141,12 +165,14 @@ public class ShelfItemData : MonoBehaviour
     }
 
     
+    static string SaveKey(ShelfInfo si) => $"ID{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
+
     GameObject GetRandomProduct(ItemCategory itemCategory)
     {
         string[] categoryIds = itemCategories.Categories[(int)itemCategory].Items;
-        string chosenId = categoryIds[Random.Range(0, categoryIds.Length)];
-        
-        return Resources.Load<GameObject>("Prefabs/Products/" + chosenId);
+        if (categoryIds == null || categoryIds.Length == 0) return null;
+
+        return ProductPrefabs.Load(categoryIds[Random.Range(0, categoryIds.Length)]);
     }
 
     private bool TryInitialize()

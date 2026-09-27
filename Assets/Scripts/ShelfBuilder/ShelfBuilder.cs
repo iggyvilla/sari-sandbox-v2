@@ -36,7 +36,7 @@ public partial class ShelfBuilder : MonoBehaviour
     public bool spawnPriceTags;
     [Tooltip("Determines if to spawn randomly picked items from a single category")]
     public ItemSpawnOption itemSpawnOption;
-    [Tooltip("Per-sub-shelf item category, keyed by 'subShelfId_subSubShelfId'")]
+    // Per-sub-shelf item category, keyed by 'subShelfId_subSubShelfId' (not Unity-serialized).
     public Dictionary<string, ItemCategory> subShelfCategories = new();
 
     [Header("Debug")]
@@ -83,8 +83,6 @@ public partial class ShelfBuilder : MonoBehaviour
     [Tooltip("Single door or double door")]
     public FridgeDoorStyle fridgeDoorStyle;
 
-    public float sideShelfWidth;
-
     // Extra thickness the fridge door border / lights / decor stick out past the glass.
     private const float FridgeBorderThicknessPadding = 0.02f;
     // Fraction of the roof height the lit panel covers (flush against the top).
@@ -101,7 +99,7 @@ public partial class ShelfBuilder : MonoBehaviour
     private float subShelfHeight;
     private float subShelfDepth;
 
-    private List<GameObject> shelfObjects;
+    private List<ItemSpawner> _itemSpawners;
 
     private bool _hasBuilt = false;
 
@@ -142,11 +140,13 @@ public partial class ShelfBuilder : MonoBehaviour
 
     private void Build()
     {
-        shelfObjects = new List<GameObject>();
+        _itemSpawners = new List<ItemSpawner>();
 
         subShelfHeight = shelfSideProfile.transform.localScale.y;
         subShelfDepth  = shelfSideProfile.transform.localScale.z;
 
+        // Clear old spawners' items now; their deferred OnDestroy would run after the new spawn.
+        DespawnShelfItems();
         DestroyAllChildren();
         BuildRectangularShelf();
         SpawnItemsOnAllShelves();

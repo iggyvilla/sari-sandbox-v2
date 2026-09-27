@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 // Attached to each shelf ItemBBox trigger alongside ItemBBoxInfo.
@@ -9,13 +10,15 @@ using UnityEngine;
 [RequireComponent(typeof(ItemBBoxInfo))]
 public class ItemBBoxPhysicsProxy : MonoBehaviour
 {
-    [SerializeField] private float positionThreshold = 0.01f;
-    [SerializeField] private float rotationThreshold = 5f;
+    private const float PositionThreshold = 0.01f;
+    private const float RotationThresholdDegrees = 5f;
 
     private ItemBBoxInfo _bBoxInfo;
     private bool _permanentlyPhysical;
     private RuntimeRetailItem _runtimeItem;
     private Coroutine _settleCoroutine;
+    // Hand spheres currently inside this bbox (one per agent hand).
+    private readonly HashSet<Collider> _handOverlaps = new();
 
     internal bool HasPhysicsPreview =>
         _runtimeItem != null &&
@@ -36,8 +39,10 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     // Runs upon entering the hand's trigger sphere
     void OnTriggerEnter(Collider other)
     {
-        if (!DataHandler.Instance.enableShelfItemPhysics) return;
-        if (other.GetComponent<HandPhysicsSphere>() == null) return;
+        // Unity sends trigger events to disabled behaviours too.
+        if (!enabled) return;
+        if (DataHandler.Instance == null || !DataHandler.Instance.enableShelfItemPhysics) return;
+        if (!other.TryGetComponent(out HandPhysicsSphere _)) return;
 
         if (_bBoxInfo.PhysicsStack != null)
         {
@@ -47,6 +52,7 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
 
         if (_permanentlyPhysical) return;
 
+        _handOverlaps.Add(other);
         CancelSettleEvaluation();
         EnsurePhysicsPreview();
     }
@@ -54,13 +60,18 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     // Runs upon exiting the hand's trigger sphere
     void OnTriggerExit(Collider other)
     {
-        if (other.GetComponent<HandPhysicsSphere>() == null) return;
+        if (!enabled) return;
+        if (!other.TryGetComponent(out HandPhysicsSphere _)) return;
 
         if (_bBoxInfo.PhysicsStack != null)
         {
             _bBoxInfo.PhysicsStack.OnHandExit(this, other);
             return;
         }
+
+        _handOverlaps.Remove(other);
+        _handOverlaps.RemoveWhere(c => c == null);
+        if (_handOverlaps.Count > 0) return;
 
         if (_runtimeItem == null || _permanentlyPhysical) return;
         
@@ -73,11 +84,10 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
     void OnDestroy()
     {
         CancelSettleEvaluation();
-        _bBoxInfo?.PhysicsStack?.OnMemberRemoved(this);
+        if (_bBoxInfo != null)
+            _bBoxInfo.PhysicsStack?.OnMemberRemoved(this);
 
-        if (_runtimeItem != null)
-            RetailItemRuntimeService.Instance.ReleaseActivePhysicsPreview(_runtimeItem);
-        _runtimeItem = null;
+        ReleaseRuntimeItem();
     }
 
     internal bool EnsurePhysicsPreview()
@@ -93,18 +103,14 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
 
     internal void ResetForVirtualPoolReuse(bool enableShelfPhysics)
     {
-        CancelSettleEvaluation();
+        ResetPoolState();
         _bBoxInfo = GetComponent<ItemBBoxInfo>();
-        _permanentlyPhysical = false;
-        _runtimeItem = null;
         enabled = enableShelfPhysics;
     }
 
     internal void ResetForVirtualPoolRelease()
     {
-        CancelSettleEvaluation();
-        _permanentlyPhysical = false;
-        _runtimeItem = null;
+        ResetPoolState();
         enabled = false;
     }
 
@@ -115,19 +121,30 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
         if (_bBoxInfo != null)
             _bBoxInfo.PhysicsStack?.OnMemberRemoved(this);
 
-        if (_runtimeItem != null)
-            RetailItemRuntimeService.Instance.ReleaseActivePhysicsPreview(_runtimeItem);
-        _runtimeItem = null;
+        ReleaseRuntimeItem();
         _permanentlyPhysical = false;
 
         if (_bBoxInfo != null)
-        {
-            _bBoxInfo.isPhysicsObject = false;
-            _bBoxInfo.returnToPoolOnDelete = false;
-            _bBoxInfo.onBeforeDelete = null;
-        }
+            _bBoxInfo.ClearPhysicsState();
 
         enabled = false;
+    }
+
+    private void ResetPoolState()
+    {
+        CancelSettleEvaluation();
+        _permanentlyPhysical = false;
+        _runtimeItem = null;
+        _handOverlaps.Clear();
+    }
+
+    // Returns an active preview to the pool; safe during teardown.
+    private void ReleaseRuntimeItem()
+    {
+        RetailItemRuntimeService service = RetailItemRuntimeService.TryGetInstance();
+        if (_runtimeItem != null && service != null)
+            service.ReleaseActivePhysicsPreview(_runtimeItem);
+        _runtimeItem = null;
     }
 
     // Called by ItemBBoxInfo.DeleteItem() when the agent grabs the item mid-activation.
@@ -144,15 +161,7 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
 
     private IEnumerator WaitAndEvaluate()
     {
-        yield return null;
-
-        float elapsed = 0f;
-        const float maxWait = 2f;
-        while (!IsPhysicsPreviewSleeping() && elapsed < maxWait)
-        {
-            yield return new WaitForSeconds(0.1f);
-            elapsed += 0.1f;
-        }
+        yield return ShelfItemPhysicsStack.WaitForSettle(() => !IsPhysicsPreviewSleeping());
 
         if (_runtimeItem == null || _runtimeItem.gameObject == null)
         {
@@ -186,7 +195,7 @@ public class ItemBBoxPhysicsProxy : MonoBehaviour
 
         float posDelta = Vector3.Distance(_runtimeItem.gameObject.transform.position, _runtimeItem.spawnedPosition);
         float rotDelta = Quaternion.Angle(_runtimeItem.gameObject.transform.rotation, _runtimeItem.spawnedRotation);
-        return posDelta > positionThreshold || rotDelta > rotationThreshold;
+        return posDelta > PositionThreshold || rotDelta > RotationThresholdDegrees;
     }
 
     internal void MarkPhysicsPreviewAsDropped()

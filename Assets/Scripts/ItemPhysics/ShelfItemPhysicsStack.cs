@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -9,6 +10,7 @@ public sealed class ShelfItemPhysicsStack
 {
     private const float MaxSettleWaitSeconds = 2f;
     private const float SettlePollIntervalSeconds = 0.1f;
+    private static readonly WaitForSeconds SettlePoll = new(SettlePollIntervalSeconds);
 
     private readonly List<ItemBBoxPhysicsProxy> _members = new();
     private readonly Dictionary<ItemBBoxPhysicsProxy, HashSet<Collider>> _handOverlaps = new();
@@ -117,32 +119,43 @@ public sealed class ShelfItemPhysicsStack
         _isActivating = false;
     }
 
+    // Waits a frame, then polls until isAwake() is false or the max settle time passes.
+    internal static IEnumerator WaitForSettle(Func<bool> isAwake)
+    {
+        yield return null;
+
+        float elapsed = 0f;
+        while (isAwake() && elapsed < MaxSettleWaitSeconds)
+        {
+            yield return SettlePoll;
+            elapsed += SettlePollIntervalSeconds;
+        }
+    }
+
     private void BeginSettleEvaluation()
     {
         if (_settleCoroutine != null || _permanentlyPhysical || !HasActivePhysicsPreviews())
             return;
 
-        _settleCoroutine = RetailItemRuntimeService.Instance.StartCoroutine(WaitAndEvaluate());
+        // Skip during teardown instead of spawning a new service.
+        RetailItemRuntimeService service = RetailItemRuntimeService.TryGetInstance();
+        if (service != null)
+            _settleCoroutine = service.StartCoroutine(WaitAndEvaluate());
     }
 
     private void CancelSettleEvaluation()
     {
         if (_settleCoroutine == null) return;
 
-        RetailItemRuntimeService.Instance.StopCoroutine(_settleCoroutine);
+        RetailItemRuntimeService service = RetailItemRuntimeService.TryGetInstance();
+        if (service != null)
+            service.StopCoroutine(_settleCoroutine);
         _settleCoroutine = null;
     }
 
     private IEnumerator WaitAndEvaluate()
     {
-        yield return null;
-
-        float elapsed = 0f;
-        while (HasAwakePhysicsPreviews() && elapsed < MaxSettleWaitSeconds)
-        {
-            yield return new WaitForSeconds(SettlePollIntervalSeconds);
-            elapsed += SettlePollIntervalSeconds;
-        }
+        yield return WaitForSettle(HasAwakePhysicsPreviews);
 
         bool shouldStayPhysical = false;
         foreach (ItemBBoxPhysicsProxy proxy in _members)

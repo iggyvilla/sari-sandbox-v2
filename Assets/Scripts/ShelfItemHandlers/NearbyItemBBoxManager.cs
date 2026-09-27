@@ -39,11 +39,13 @@ public class NearbyItemBBoxManager : MonoBehaviour
     [SerializeField] private int createdThisTick;
     [SerializeField] private int releasedThisTick;
 
-    private readonly List<VirtualItemBBoxRecord> _records = new();
+    private readonly Dictionary<ItemSpawner, HashSet<VirtualItemBBoxRecord>> _recordsByOwner = new();
+    private int _recordCount;
     private readonly Dictionary<Vector2Int, List<VirtualItemBBoxRecord>> _grid = new();
     private readonly Dictionary<int, StackGroup> _stackGroups = new();
     private readonly HashSet<VirtualItemBBoxRecord> _activeRecords = new();
-    private readonly Stack<GameObject> _pool = new();
+    private readonly Stack<ItemBBoxInfo> _pool = new();
+    private readonly Dictionary<string, HashSet<InstanceData>> _pendingGpuRemovals = new();
     private readonly List<Transform> _activationOrigins = new();
 
     private readonly List<Vector3> _originPositions = new();
@@ -54,15 +56,11 @@ public class NearbyItemBBoxManager : MonoBehaviour
     private Transform _activeRoot;
     private Transform _poolRoot;
     private float _nextTickTime;
-    private int _nextRecordId;
     private int _nextStackGroupId;
-    private int _itemBBoxLayer;
 
     public int TotalVirtualBBoxes => totalVirtualBBoxes;
     public int ActiveRealBBoxes => activeRealBBoxes;
     public int PooledBBoxes => pooledBBoxes;
-    public int CreatedThisTick => createdThisTick;
-    public int ReleasedThisTick => releasedThisTick;
 
     public static NearbyItemBBoxManager Instance
     {
@@ -79,13 +77,8 @@ public class NearbyItemBBoxManager : MonoBehaviour
         }
     }
 
-    public static NearbyItemBBoxManager TryGetInstance()
-    {
-        if (_instance != null) return _instance;
-
-        _instance = FindFirstObjectByType<NearbyItemBBoxManager>();
-        return _instance;
-    }
+    // Non-creating lookup; the manager registers itself in Awake, so no scene search is needed.
+    public static NearbyItemBBoxManager TryGetInstance() => _instance != null ? _instance : null;
 
     private void Awake()
     {
@@ -96,7 +89,6 @@ public class NearbyItemBBoxManager : MonoBehaviour
         }
 
         _instance = this;
-        _itemBBoxLayer = LayerMask.NameToLayer("ItemBBox");
         EnsureRoots();
         UpdateDebugCounters();
     }
@@ -125,13 +117,19 @@ public class NearbyItemBBoxManager : MonoBehaviour
 
     public void RegisterVirtualBBox(VirtualItemBBoxRecord record)
     {
-        if (record == null || record.consumed) return;
+        if (record == null || record.consumed || record.ownerSpawner is null) return;
 
         using (RegisterMarker.Auto())
         {
-            record.recordId = ++_nextRecordId;
+            if (!_recordsByOwner.TryGetValue(record.ownerSpawner, out HashSet<VirtualItemBBoxRecord> ownerRecords))
+            {
+                ownerRecords = new HashSet<VirtualItemBBoxRecord>();
+                _recordsByOwner[record.ownerSpawner] = ownerRecords;
+            }
+
+            if (!ownerRecords.Add(record)) return;
+            _recordCount++;
             record.gridCell = GetCell(record.bboxCenter);
-            _records.Add(record);
 
             if (!_grid.TryGetValue(record.gridCell, out List<VirtualItemBBoxRecord> cellRecords))
             {
@@ -178,41 +176,19 @@ public class NearbyItemBBoxManager : MonoBehaviour
         _activationOrigins.Remove(origin);
     }
 
-    public void NotifyShelfBBoxDestroyed(ItemBBoxInfo info)
-    {
-        if (info == null || info.VirtualRecord == null) return;
+    public void NotifyShelfBBoxDestroyed(ItemBBoxInfo info) => ConsumeRecord(info, suppressGpuRemoval: false);
 
-        VirtualItemBBoxRecord record = info.VirtualRecord;
-        record.activeBBoxInfo = null;
-        record.consumed = true;
-        info.VirtualRecord = null;
-        _activeRecords.Remove(record);
-        RemoveRecordFromRegistry(record);
-        PruneEmptyStackGroups();
-        UpdateDebugCounters();
-    }
-
-    public void NotifyBBoxBecameDropped(ItemBBoxInfo info)
-    {
-        if (info == null || info.VirtualRecord == null) return;
-
-        VirtualItemBBoxRecord record = info.VirtualRecord;
-        record.activeBBoxInfo = null;
-        record.consumed = true;
-        info.VirtualRecord = null;
-        info.suppressGpuRemovalOnDestroy = true;
-        _activeRecords.Remove(record);
-        RemoveRecordFromRegistry(record);
-        PruneEmptyStackGroups();
-        UpdateDebugCounters();
-    }
+    public void NotifyBBoxBecameDropped(ItemBBoxInfo info) => ConsumeRecord(info, suppressGpuRemoval: true);
 
     public void ClearAllVirtualBBoxes(bool removeGpuInstances)
     {
-        for (int i = _records.Count - 1; i >= 0; i--)
-            ClearRegisteredRecord(_records[i], removeGpuInstances);
+        foreach (HashSet<VirtualItemBBoxRecord> ownerRecords in _recordsByOwner.Values)
+            foreach (VirtualItemBBoxRecord record in ownerRecords)
+                ReleaseRegisteredRecord(record, removeGpuInstances);
 
-        _records.Clear();
+        FlushGpuRemovals();
+        _recordsByOwner.Clear();
+        _recordCount = 0;
         _grid.Clear();
         _stackGroups.Clear();
         _activeRecords.Clear();
@@ -222,17 +198,34 @@ public class NearbyItemBBoxManager : MonoBehaviour
 
     public void ClearOwner(ItemSpawner owner, bool removeGpuInstances)
     {
-        if (owner == null) return;
+        if (owner is null || !_recordsByOwner.Remove(owner, out HashSet<VirtualItemBBoxRecord> ownerRecords))
+            return;
 
-        for (int i = _records.Count - 1; i >= 0; i--)
+        foreach (VirtualItemBBoxRecord record in ownerRecords)
         {
-            VirtualItemBBoxRecord record = _records[i];
-            if (record.ownerSpawner != owner) continue;
-
-            ClearRegisteredRecord(record, removeGpuInstances);
+            ReleaseRegisteredRecord(record, removeGpuInstances);
+            RemoveFromSpatialIndex(record);
+            PruneStackGroup(record.stackGroupId);
         }
 
-        PruneEmptyStackGroups();
+        FlushGpuRemovals();
+        _recordCount -= ownerRecords.Count;
+        UpdateDebugCounters();
+    }
+
+    private void ConsumeRecord(ItemBBoxInfo info, bool suppressGpuRemoval)
+    {
+        if (info == null || info.VirtualRecord == null) return;
+
+        VirtualItemBBoxRecord record = info.VirtualRecord;
+        record.activeBBoxInfo = null;
+        record.consumed = true;
+        info.VirtualRecord = null;
+        if (suppressGpuRemoval)
+            info.suppressGpuRemovalOnDestroy = true;
+        _activeRecords.Remove(record);
+        RemoveRecordFromRegistry(record);
+        PruneStackGroup(record.stackGroupId);
         UpdateDebugCounters();
     }
 
@@ -376,18 +369,16 @@ public class NearbyItemBBoxManager : MonoBehaviour
 
         using (MaterializeMarker.Auto())
         {
-            GameObject bbox = GetBBoxFromPool();
-            ItemBBoxInfo info = bbox.GetComponent<ItemBBoxInfo>();
-            BoxCollider boxCollider = bbox.GetComponent<BoxCollider>();
-            Renderer renderer = bbox.GetComponent<Renderer>();
-            OutlineFx.OutlineFx outlineFx = bbox.GetComponent<OutlineFx.OutlineFx>();
-            OutlineController outlineController = bbox.GetComponent<OutlineController>();
-            ItemBBoxPhysicsProxy proxy = bbox.GetComponent<ItemBBoxPhysicsProxy>();
+            ItemBBoxInfo info = GetBBoxFromPool();
+            GameObject bbox = info.gameObject;
+            BoxCollider boxCollider = info.BoxCollider;
+            Renderer renderer = info.Renderer;
+            OutlineFx.OutlineFx outlineFx = info.OutlineFx;
+            OutlineController outlineController = info.OutlineController;
+            ItemBBoxPhysicsProxy proxy = info.Proxy;
 
             bbox.SetActive(false);
             bbox.name = record.itemId + "_VirtualBBox";
-            bbox.tag = "RetailItemBBox";
-            bbox.layer = _itemBBoxLayer;
             bbox.transform.SetParent(_activeRoot, worldPositionStays: false);
             bbox.transform.SetPositionAndRotation(record.bboxCenter, Quaternion.identity);
             bbox.transform.localScale = record.bboxSize;
@@ -409,23 +400,22 @@ public class NearbyItemBBoxManager : MonoBehaviour
 
             if (outlineFx != null)
                 outlineFx.enabled = false;
-            outlineController?.ResetOutlineState();
+            if (outlineController != null)
+                outlineController.ResetOutlineState();
 
+            info.ClearItemState();
             info.suppressGpuRemovalOnDestroy = false;
-            info.isPhysicsObject = false;
-            info.returnToPoolOnDelete = false;
             info.itemId = record.itemId;
             info.expirationDateDecalId = record.expirationDateDecalId;
             info.instanceData = record.instanceData;
             info.physicsSpawnPosition = record.physicsSpawnPosition;
             info.spawnRotation = record.spawnRotation;
-            info.PhysicsStack = null;
-            info.onBeforeDelete = null;
             info.VirtualRecord = record;
 
             bool enableShelfPhysics =
                 DataHandler.Instance != null && DataHandler.Instance.enableShelfItemPhysics;
-            proxy?.ResetForVirtualPoolReuse(enableShelfPhysics);
+            if (proxy != null)
+                proxy.ResetForVirtualPoolReuse(enableShelfPhysics);
 
             record.activeBBoxInfo = info;
             _activeRecords.Add(record);
@@ -444,29 +434,20 @@ public class NearbyItemBBoxManager : MonoBehaviour
         using (ReleaseMarker.Auto())
         {
             GameObject bbox = info.gameObject;
-            ItemBBoxPhysicsProxy proxy = bbox.GetComponent<ItemBBoxPhysicsProxy>();
-            OutlineController outlineController = bbox.GetComponent<OutlineController>();
-            OutlineFx.OutlineFx outlineFx = bbox.GetComponent<OutlineFx.OutlineFx>();
-            BoxCollider boxCollider = bbox.GetComponent<BoxCollider>();
-            Renderer renderer = bbox.GetComponent<Renderer>();
+            ItemBBoxPhysicsProxy proxy = info.Proxy;
+            OutlineController outlineController = info.OutlineController;
+            OutlineFx.OutlineFx outlineFx = info.OutlineFx;
+            BoxCollider boxCollider = info.BoxCollider;
+            Renderer renderer = info.Renderer;
 
-            proxy?.ResetForVirtualPoolRelease();
-            outlineController?.ResetOutlineState();
+            if (proxy != null) proxy.ResetForVirtualPoolRelease();
+            if (outlineController != null) outlineController.ResetOutlineState();
             if (outlineFx != null) outlineFx.enabled = false;
             if (boxCollider != null) boxCollider.enabled = false;
             if (renderer != null) renderer.enabled = false;
 
+            info.ClearItemState();
             info.suppressGpuRemovalOnDestroy = true;
-            info.isPhysicsObject = false;
-            info.returnToPoolOnDelete = false;
-            info.itemId = null;
-            info.expirationDateDecalId = null;
-            info.instanceData = default;
-            info.physicsSpawnPosition = default;
-            info.spawnRotation = Quaternion.identity;
-            info.PhysicsStack = null;
-            info.onBeforeDelete = null;
-            info.VirtualRecord = null;
 
             record.activeBBoxInfo = null;
             _activeRecords.Remove(record);
@@ -474,7 +455,7 @@ public class NearbyItemBBoxManager : MonoBehaviour
             bbox.name = "PooledItemBBox";
             bbox.transform.SetParent(_poolRoot, worldPositionStays: false);
             bbox.SetActive(false);
-            _pool.Push(bbox);
+            _pool.Push(info);
             releasedThisTick++;
             return true;
         }
@@ -488,7 +469,7 @@ public class NearbyItemBBoxManager : MonoBehaviour
         if (info.transform.parent != _activeRoot)
             return false;
 
-        ItemBBoxPhysicsProxy proxy = info.GetComponent<ItemBBoxPhysicsProxy>();
+        ItemBBoxPhysicsProxy proxy = info.Proxy;
         if (proxy != null && !proxy.CanReturnToVirtualPool)
             return false;
 
@@ -498,13 +479,14 @@ public class NearbyItemBBoxManager : MonoBehaviour
         return true;
     }
 
-    private void ClearRegisteredRecord(VirtualItemBBoxRecord record, bool removeGpuInstances)
+    // Consumes the record and destroys its live bbox; callers own registry removal and FlushGpuRemovals.
+    private void ReleaseRegisteredRecord(VirtualItemBBoxRecord record, bool removeGpuInstances)
     {
         if (record == null) return;
 
         record.consumed = true;
         if (removeGpuInstances)
-            RemoveGpuInstance(record);
+            QueueGpuRemoval(record);
 
         if (record.stackGroupId >= 0 &&
             _stackGroups.TryGetValue(record.stackGroupId, out StackGroup group))
@@ -519,17 +501,14 @@ public class NearbyItemBBoxManager : MonoBehaviour
 
         if (info != null)
         {
-            GameObject bbox = info.gameObject;
-            ItemBBoxPhysicsProxy proxy = bbox.GetComponent<ItemBBoxPhysicsProxy>();
-            proxy?.ReleasePreviewForVirtualCleanup();
+            ItemBBoxPhysicsProxy proxy = info.Proxy;
+            if (proxy != null) proxy.ReleasePreviewForVirtualCleanup();
 
             info.suppressGpuRemovalOnDestroy = true;
             info.PhysicsStack = null;
             info.VirtualRecord = null;
-            Destroy(bbox);
+            Destroy(info.gameObject);
         }
-
-        RemoveRecordFromRegistry(record);
     }
 
     private void RemoveRecordFromRegistry(VirtualItemBBoxRecord record)
@@ -537,7 +516,14 @@ public class NearbyItemBBoxManager : MonoBehaviour
         if (record == null) return;
 
         RemoveFromSpatialIndex(record);
-        _records.Remove(record);
+        if (!(record.ownerSpawner is null) &&
+            _recordsByOwner.TryGetValue(record.ownerSpawner, out HashSet<VirtualItemBBoxRecord> ownerRecords) &&
+            ownerRecords.Remove(record))
+        {
+            _recordCount--;
+            if (ownerRecords.Count == 0)
+                _recordsByOwner.Remove(record.ownerSpawner);
+        }
     }
 
     private void RemoveFromSpatialIndex(VirtualItemBBoxRecord record)
@@ -552,42 +538,49 @@ public class NearbyItemBBoxManager : MonoBehaviour
             _grid.Remove(record.gridCell);
     }
 
-    private void RemoveGpuInstance(VirtualItemBBoxRecord record)
+    private void QueueGpuRemoval(VirtualItemBBoxRecord record)
     {
-        if (record == null || GPUInstanceTracker.Instance == null) return;
+        if (string.IsNullOrEmpty(record.itemId)) return;
 
-        BatchInstancer itemBatchInstancer =
-            GPUInstanceTracker.Instance.GetBatchInstancerFromId(record.itemId);
-
-        itemBatchInstancer?.RemoveSingleDrawData(record.instanceData);
-    }
-
-    private void PruneEmptyStackGroups()
-    {
-        List<int> emptyGroups = null;
-        foreach (KeyValuePair<int, StackGroup> kvp in _stackGroups)
+        if (!_pendingGpuRemovals.TryGetValue(record.itemId, out HashSet<InstanceData> removals))
         {
-            bool hasLiveRecord = false;
-            for (int i = 0; i < kvp.Value.records.Count; i++)
-            {
-                if (kvp.Value.records[i] != null && !kvp.Value.records[i].consumed)
-                {
-                    hasLiveRecord = true;
-                    break;
-                }
-            }
-
-            if (hasLiveRecord) continue;
-
-            if (emptyGroups == null)
-                emptyGroups = new List<int>();
-            emptyGroups.Add(kvp.Key);
+            removals = new HashSet<InstanceData>();
+            _pendingGpuRemovals[record.itemId] = removals;
         }
 
-        if (emptyGroups == null) return;
+        removals.Add(record.instanceData);
+    }
 
-        for (int i = 0; i < emptyGroups.Count; i++)
-            _stackGroups.Remove(emptyGroups[i]);
+    // One bulk removal per batch instead of a linear search per record.
+    private void FlushGpuRemovals()
+    {
+        if (_pendingGpuRemovals.Count == 0) return;
+
+        GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+        if (tracker != null)
+        {
+            foreach (KeyValuePair<string, HashSet<InstanceData>> kvp in _pendingGpuRemovals)
+            {
+                BatchInstancer batch = tracker.GetBatchInstancerFromId(kvp.Key);
+                if (batch != null) batch.RemoveDrawData(kvp.Value);
+            }
+        }
+
+        _pendingGpuRemovals.Clear();
+    }
+
+    // Drops the stack group once none of its records are live.
+    private void PruneStackGroup(int groupId)
+    {
+        if (groupId < 0 || !_stackGroups.TryGetValue(groupId, out StackGroup group)) return;
+
+        for (int i = 0; i < group.records.Count; i++)
+        {
+            if (group.records[i] != null && !group.records[i].consumed)
+                return;
+        }
+
+        _stackGroups.Remove(groupId);
     }
 
     private bool IsStackGroupWithinRadius(StackGroup group, float sqrRadius)
@@ -651,20 +644,17 @@ public class NearbyItemBBoxManager : MonoBehaviour
             _originPositions.Add(DataHandler.Instance.AgentPosition);
     }
 
-    private GameObject GetBBoxFromPool()
+    private ItemBBoxInfo GetBBoxFromPool()
     {
         EnsureRoots();
 
-        if (_pool.Count > 0)
-            return _pool.Pop();
+        while (_pool.Count > 0)
+        {
+            ItemBBoxInfo pooled = _pool.Pop();
+            if (pooled != null) return pooled;
+        }
 
-        GameObject bbox = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        bbox.name = "PooledItemBBox";
-        bbox.AddComponent<ItemBBoxInfo>();
-        bbox.AddComponent<OutlineFx.OutlineFx>();
-        bbox.AddComponent<OutlineController>();
-        bbox.AddComponent<ItemBBoxPhysicsProxy>();
-        return bbox;
+        return ItemBBoxInfo.CreateBBoxObject("PooledItemBBox", outlineEnabled: true, addPhysicsProxy: true);
     }
 
     private Vector2Int GetCell(Vector3 position)
@@ -695,23 +685,18 @@ public class NearbyItemBBoxManager : MonoBehaviour
     {
         while (_pool.Count > 0)
         {
-            GameObject pooled = _pool.Pop();
+            ItemBBoxInfo pooled = _pool.Pop();
             if (pooled == null) continue;
 
-            ItemBBoxInfo info = pooled.GetComponent<ItemBBoxInfo>();
-            if (info != null)
-            {
-                info.suppressGpuRemovalOnDestroy = true;
-                info.VirtualRecord = null;
-            }
-
-            Destroy(pooled);
+            pooled.suppressGpuRemovalOnDestroy = true;
+            pooled.VirtualRecord = null;
+            Destroy(pooled.gameObject);
         }
     }
 
     private void UpdateDebugCounters()
     {
-        totalVirtualBBoxes = _records.Count;
+        totalVirtualBBoxes = _recordCount;
         activeRealBBoxes = _activeRecords.Count;
         pooledBBoxes = _pool.Count;
     }
