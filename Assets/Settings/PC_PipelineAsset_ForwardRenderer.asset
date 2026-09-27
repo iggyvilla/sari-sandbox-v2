@@ -116,7 +116,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Active: 1
   depthBias: 0.05
-  logDepthRange: 1
+  logDepthRange: 0
 --- !u!114 &6971159631047061389
 MonoBehaviour:
   m_ObjectHideFlags: 0

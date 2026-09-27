@@ -338,17 +338,21 @@ public class BenchCoordinatorClient : MonoBehaviour
     {
         if (_socket == null) return;
 
-        try
-        {
-            _socket.Close();
-        }
-        catch (Exception)
-        {
-            // Closing an already-dead socket is not worth surfacing.
-        }
-
+        // websocket-sharp's Close() blocks until a pending connect times out, so never run it on the main thread.
+        WebSocket socket = _socket;
         _socket = null;
         _connected = false;
+        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                socket.Close();
+            }
+            catch (Exception)
+            {
+                // Closing an already-dead socket is not worth surfacing.
+            }
+        });
     }
 
     private static string ReadEnv(string name)

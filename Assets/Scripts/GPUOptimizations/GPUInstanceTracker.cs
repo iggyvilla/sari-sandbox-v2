@@ -30,6 +30,7 @@ public class GPUInstanceTracker : MonoBehaviour
     private readonly Plane[] _unityPlanes = new Plane[6];
     private readonly Vector4[] _planes = new Vector4[6];
     private CommandBuffer _cullCommands;
+    private InstanceCullingSystem _culling;
 
     public Camera MainCamera => mainCamera;
 
@@ -53,6 +54,7 @@ public class GPUInstanceTracker : MonoBehaviour
             return;
         }
         Instance = this;
+        _culling = new InstanceCullingSystem(frustumCullingShader);
         frustumCulling = ReadToggleArgument(FrustumCullingFlag, frustumCulling);
         occlusionCulling = ReadToggleArgument(OcclusionCullingFlag, occlusionCulling);
     }
@@ -77,6 +79,7 @@ public class GPUInstanceTracker : MonoBehaviour
     void OnDestroy()
     {
         _cullCommands?.Release();
+        _culling?.Dispose();
         if (Instance == this) Instance = null;
     }
 
@@ -86,9 +89,8 @@ public class GPUInstanceTracker : MonoBehaviour
 
     void LateUpdate()
     {
-        if (Time.frameCount % DestroyedCameraPurgeInterval != 0) return;
-        foreach (BatchInstancer bi in _batchers.Values)
-            bi.ReleaseDestroyedCameraResults();
+        if (Time.frameCount % DestroyedCameraPurgeInterval == 0)
+            _culling.ReleaseDestroyedCameras();
     }
 
     private void OnBeginCameraRendering(ScriptableRenderContext _, Camera cam)
@@ -99,26 +101,18 @@ public class GPUInstanceTracker : MonoBehaviour
             cam.transform.position,
             frustumCulling ? CalculatePlanes(cam) : null,
             occlusionCulling && cam.cameraType == CameraType.Game);
-        foreach (BatchInstancer bi in _batchers.Values)
-            bi.RenderForCamera(_cullCommands, cam, view);
+        _culling.RenderCamera(_cullCommands, cam, view);
         ExecuteCullCommands();
     }
 
     // Called by HiZOcclusionFeature after the depth prepass, before products draw in the opaque pass.
     public void RecordOcclusionCull(CommandBuffer cmd, Camera cam, OcclusionView occlusion)
     {
-        foreach (BatchInstancer bi in _batchers.Values)
-            bi.RecordOcclusionCull(cmd, cam, occlusion);
+        _culling.RecordOcclusionCull(cmd, cam, occlusion);
     }
 
     // Debug: total instances drawn for a camera on its last render.
-    public int ReadVisibleCount(Camera cam)
-    {
-        int total = 0;
-        foreach (BatchInstancer bi in _batchers.Values)
-            total += bi.ReadVisibleCount(cam);
-        return total;
-    }
+    public int ReadVisibleCount(Camera cam) => _culling.ReadVisibleCount(cam);
 
     private void ExecuteCullCommands()
     {
@@ -144,18 +138,12 @@ public class GPUInstanceTracker : MonoBehaviour
 
     public void CullForLidarRange(Vector3 origin, float maxRange)
     {
-        foreach (BatchInstancer bi in _batchers.Values)
-            bi.CullForLidarRange(_cullCommands, origin, maxRange);
+        _culling.CullForLidarRange(_cullCommands, origin, maxRange);
         ExecuteCullCommands();
     }
 
-    public LidarIndirectDrawStats AddLidarDepthDrawCommands(CommandBuffer cmd, Material depthMaterial)
-    {
-        var stats = new LidarIndirectDrawStats();
-        foreach (BatchInstancer bi in _batchers.Values)
-            stats.Add(bi.AddLidarDepthDrawCommands(cmd, depthMaterial));
-        return stats;
-    }
+    public LidarIndirectDrawStats AddLidarDepthDrawCommands(CommandBuffer cmd, Material depthMaterial) =>
+        _culling.AddLidarDepthDrawCommands(cmd, depthMaterial);
 
     public void DespawnAllItems()
     {
@@ -210,8 +198,9 @@ public class GPUInstanceTracker : MonoBehaviour
     private BatchInstancer CreateBatcher(string itemId, LODDefinition[] lodDefinitions)
     {
         BatchInstancer bi = gameObject.AddComponent<BatchInstancer>();
-        bi.Init(itemId, lodDefinitions, frustumCullingShader);
+        bi.Init(itemId, lodDefinitions);
         _batchers[itemId] = bi;
+        _culling.Add(bi);
         return bi;
     }
 

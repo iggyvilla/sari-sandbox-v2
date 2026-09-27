@@ -28,6 +28,9 @@ public sealed class SariPerformanceProbe : MonoBehaviour
     private const string TargetScene = "Dev Scene";
 
     private static bool _installed;
+    // "spin" variant: yaw the agent while sampling so culling runs every frame, like a moving agent.
+    private static bool _spinCamera;
+    private const float SpinDegreesPerSecond = 90f;
 
     [Serializable]
     private sealed class MetricSummary
@@ -295,6 +298,7 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         float sampleEnd = Time.realtimeSinceStartup + sampleSeconds;
         while (Time.realtimeSinceStartup < sampleEnd)
         {
+            SpinCamera();
             FrameTimingManager.CaptureFrameTimings();
             yield return null;
 
@@ -452,6 +456,13 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         };
     }
 
+    private static void SpinCamera()
+    {
+        Camera cam = GPUInstanceTracker.Instance != null ? GPUInstanceTracker.Instance.MainCamera : null;
+        if (_spinCamera && cam != null)
+            cam.transform.root.Rotate(0f, SpinDegreesPerSecond * Time.unscaledDeltaTime, 0f);
+    }
+
     private static void ApplyProbeVariant(string variant)
     {
         if (string.IsNullOrWhiteSpace(variant) ||
@@ -489,6 +500,9 @@ public sealed class SariPerformanceProbe : MonoBehaviour
                     {
                         instancer.enabled = false;
                     }
+                    break;
+                case "spin":
+                    _spinCamera = true;
                     break;
                 case "no-frustum-culling":
                     if (GPUInstanceTracker.Instance != null)

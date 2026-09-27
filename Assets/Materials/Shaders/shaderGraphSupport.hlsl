@@ -17,6 +17,8 @@ struct LodRenderData {
 };
 
 StructuredBuffer<uint> _VisibleIndices;
+// Start of this draw's (batch, LOD) region in _VisibleIndices (float: set per draw via MaterialPropertyBlock).
+float _VisibleOffset;
 StructuredBuffer<float4> _Positions;
 StructuredBuffer<LodRenderData> _LodTransformData;
 
@@ -50,7 +52,7 @@ inline float4x4 TRSMatrix(float3 position, float4 rotation, float3 scale)
 inline void SetUnityMatrices(uint instanceID, inout float4x4 objectToWorld, inout float4x4 worldToObject)
 {
 #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
-    uint sourceIndex = _VisibleIndices[instanceID];
+    uint sourceIndex = _VisibleIndices[(uint)_VisibleOffset + instanceID];
     LodRenderData lodData = _LodTransformData[sourceIndex];
 
     DrawData drawData;
