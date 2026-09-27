@@ -15,7 +15,7 @@ public class GPUInstanceTracker : MonoBehaviour
     [SerializeField] private bool frustumCulling = true;
 
     [Tooltip("Also cull products hidden behind this frame's depth prepass (needs HiZOcclusionFeature on the renderer).")]
-    [SerializeField] private bool occlusionCulling = true;
+    [SerializeField] private bool occlusionCulling = false;
 
     // LOD2/LOD3 are disabled until their mesh scales are fixed.
     [SerializeField] private bool enableLod2AndLod3 = false;
