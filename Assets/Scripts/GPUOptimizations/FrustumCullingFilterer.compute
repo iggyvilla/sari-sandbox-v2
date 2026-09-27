@@ -1,33 +1,25 @@
-// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-#define MAX_LODS 4
+// Keep in sync with BatchInstancer.CullFlags.
+#define CULL_FRUSTUM 1
+#define CULL_RANGE   2
 
-struct Plane
-{
-    float distance;
-    float3 normal;
-};
-
-// in: per-instance culling positions shared by all LOD levels
+// in: per-instance LOD/draw positions shared by all LOD levels
 StructuredBuffer<float4> position_buffer;
-// in: how many item locations
+// in: per-instance world bounding sphere (xyz = center, w = radius) enclosing every LOD mesh
+StructuredBuffer<float4> sphere_buffer;
 int num_to_draw;
-// in: holds information about the camera's frustum planes
-StructuredBuffer<Plane> planes;
 
-// in: agent (player) world position for LOD selections
-float3 agent_position;
-// 0 = camera frustum culling, 1 = LiDAR range culling.
-int culling_mode;
-float3 range_cull_origin;
-float range_cull_max_distance_sq;
-// in: squared distance thresholds, ASCENDING (inner → outer), one per LOD level:
-//   lod_distances[j] = max distance squared for lods[j]
-//   indices 0..num_lods-2 drive LOD selection; index num_lods-1 is the hard cull distance
-//   (instance is skipped entirely if distSq >= lod_distances[num_lods - 1])
+// in: camera frustum planes (xyz = normal, w = distance); points inside satisfy dot(n, p) + d >= 0
+float4 planes[6];
+int cull_flags;
+
+// in: origin for LOD selection and distance culling (camera or LiDAR position)
+float4 cull_origin;
+// in: LiDAR range culling radius squared (CULL_RANGE only)
+float range_max_distance_sq;
+// in: squared max distance per LOD, ascending; [num_lods - 1] is the hard cull distance
 float4 lod_distances;
-// in: number of active LOD levels (1–4); unused slots are never written to
 int num_lods;
 
 // out: one compact visible-instance index list per LOD level
@@ -37,46 +29,42 @@ AppendStructuredBuffer<uint> lod1_buf;
 AppendStructuredBuffer<uint> lod2_buf;
 AppendStructuredBuffer<uint> lod3_buf;
 
-[numthreads(512,1,1)]
+[numthreads(64,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= (uint) num_to_draw) return;
 
-    float3 cullPos = position_buffer[id.x].xyz;
-
-    if (culling_mode == 0)
+    if (cull_flags & CULL_FRUSTUM)
     {
+        float4 sphere = sphere_buffer[id.x];
         [unroll]
         for (int i = 0; i < 6; i++)
         {
-            if (dot(planes[i].normal, cullPos) + planes[i].distance < -0.2f)
-                return; // culled
+            if (dot(planes[i].xyz, sphere.xyz) + planes[i].w < -sphere.w)
+                return;
         }
     }
-    else
+
+    float3 toOrigin = position_buffer[id.x].xyz - cull_origin.xyz;
+    float distSq = dot(toOrigin, toOrigin);
+
+    // LiDAR keeps everything within its range (drawn with the farthest LOD past the LOD table);
+    // cameras hard-cull at the farthest LOD distance.
+    if (cull_flags & CULL_RANGE)
     {
-        float3 toRangeOrigin = cullPos - range_cull_origin;
-        if (dot(toRangeOrigin, toRangeOrigin) > range_cull_max_distance_sq)
-            return;
+        if (distSq > range_max_distance_sq) return;
+    }
+    else if (distSq >= lod_distances[num_lods - 1])
+    {
+        return;
     }
 
-    float3 toAgent = cullPos - agent_position;
-    float distSq = dot(toAgent, toAgent);
-
-    // Hard cull normal rendering at the farthest LOD distance. LiDAR range culling already
-    // applied maxRange above, so keep far objects and draw them with the farthest LOD.
-    if (culling_mode == 0 && distSq >= lod_distances[num_lods - 1]) return;
-
-    // Select LOD: default to the farthest, then walk from LOD0 outward to find the
-    // highest-quality level whose threshold (lod_distances[j]) we're still within.
     int lodIdx = num_lods - 1;
     for (int j = 0; j < num_lods - 1; j++)
     {
         if (distSq < lod_distances[j]) { lodIdx = j; break; }
     }
 
-    // Append the source instance index to the right named buffer. The material shader
-    // uses this compact visible list to fetch position + per-LOD transform data.
     switch (lodIdx)
     {
         case 0: lod0_buf.Append(id.x); break;
