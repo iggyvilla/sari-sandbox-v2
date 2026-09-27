@@ -95,9 +95,11 @@ public readonly struct CullView
     public readonly Vector4[] planes; // null = no frustum test
     public readonly Vector3 origin;
     public readonly float rangeSq;    // > 0 = LiDAR range mode
+    public readonly bool occlusion;   // an occlusion pass will re-cull these results this frame
 
-    private CullView(Vector4[] planes, Vector3 origin, float rangeSq)
+    private CullView(Vector4[] planes, Vector3 origin, float rangeSq, bool occlusion = false)
     {
+        this.occlusion = occlusion;
         this.planes = planes;
         this.origin = origin;
         this.rangeSq = rangeSq;
@@ -105,11 +107,20 @@ public readonly struct CullView
 
     public bool IsRange => rangeSq > 0f;
 
-    public static CullView ForCamera(Vector3 origin, Vector4[] frustumPlanes) =>
-        new(frustumPlanes, origin, 0f);
+    public static CullView ForCamera(Vector3 origin, Vector4[] frustumPlanes, bool occlusion) =>
+        new(frustumPlanes, origin, 0f, occlusion);
 
     public static CullView ForRange(Vector3 origin, float range) =>
         new(null, origin, Mathf.Max(0.01f, range) * Mathf.Max(0.01f, range));
+}
+
+// This frame's Hi-Z pyramid for one camera (see HiZOcclusionFeature).
+public sealed class OcclusionView
+{
+    public Texture hiz;
+    public Matrix4x4 worldToView;
+    public Vector4 projection; // proj[0][0], proj[1][1], near, depth bias
+    public Vector4 size;       // width, height, mip count
 }
 
 // GPU-instanced renderer for every instance of one product (or combined row chunk).
@@ -121,6 +132,7 @@ public class BatchInstancer : MonoBehaviour
     // Keep in sync with FrustumCullingFilterer.compute.
     private const int CullFrustum = 1;
     private const int CullRange = 2;
+    private const int CullOcclusion = 4;
 
     // CPU mirror of the GPU test is made slightly more permissive so it never drops a LOD the GPU fills.
     private const float CpuCullEpsilon = 1e-3f;
@@ -143,6 +155,10 @@ public class BatchInstancer : MonoBehaviour
     private static readonly int VisibleIndicesId = Shader.PropertyToID("_VisibleIndices");
     private static readonly int PositionsId = Shader.PropertyToID("_Positions");
     private static readonly int LodTransformDataId = Shader.PropertyToID("_LodTransformData");
+    private static readonly int HiZTextureId = Shader.PropertyToID("hiz_texture");
+    private static readonly int HiZWorldToViewId = Shader.PropertyToID("hiz_world_to_view");
+    private static readonly int HiZProjectionId = Shader.PropertyToID("hiz_projection");
+    private static readonly int HiZSizeId = Shader.PropertyToID("hiz_size");
 
     // GPU results for one viewer (a camera or the LiDAR). Separate per viewer so cameras never share counts.
     private sealed class CullResult
@@ -158,6 +174,8 @@ public class BatchInstancer : MonoBehaviour
         public Vector3 originKey;
         public float rangeKey;
         public int lodMask;
+        public int drawnFrame = -1;
+        public readonly Vector4[] planes = new Vector4[6];
 
         public void Release()
         {
@@ -283,14 +301,15 @@ public class BatchInstancer : MonoBehaviour
         _buffersDirty = true;
     }
 
-    public void RenderForCamera(Camera cam, in CullView view)
+    public void RenderForCamera(CommandBuffer cmd, Camera cam, in CullView view)
     {
         if (!PrepareBuffers() || !BoundsVisible(view)) return;
 
         if (!_cameraResults.TryGetValue(cam, out CullResult result))
             _cameraResults[cam] = result = new CullResult();
 
-        Cull(result, view, cam.cullingMatrix);
+        Cull(cmd, result, view, cam.cullingMatrix);
+        result.drawnFrame = Time.frameCount;
 
         for (int lod = 0; lod < lods.Length; lod++)
         {
@@ -313,6 +332,35 @@ public class BatchInstancer : MonoBehaviour
         }
     }
 
+    // Re-culls this camera's frustum results against its Hi-Z so the opaque pass skips hidden instances.
+    public void RecordOcclusionCull(CommandBuffer cmd, Camera cam, OcclusionView occlusion)
+    {
+        if (!_cameraResults.TryGetValue(cam, out CullResult result) ||
+            !result.hasResults || result.lodMask == 0 || result.boundVersion != _dataVersion)
+            return;
+
+        bool frustum = (result.flags & CullFrustum) != 0;
+        RecordDispatch(
+            cmd, result, (result.flags & ~CullRange) | CullOcclusion, frustum ? result.planes : null,
+            result.originKey, 0f, occlusion);
+    }
+
+    // Debug: instances this camera's last draw used (synchronous GPU readback; don't call per frame).
+    public int ReadVisibleCount(Camera cam)
+    {
+        if (!_cameraResults.TryGetValue(cam, out CullResult result) || !result.hasResults ||
+            _argsEntryCount == 0 || result.drawnFrame < Time.frameCount - 1)
+            return 0;
+
+        var args = new uint[_argsEntryCount * ArgsStride];
+        result.args.GetData(args);
+        int total = 0;
+        for (int lod = 0; lod < lods.Length; lod++)
+            if ((result.lodMask & (1 << lod)) != 0 && _subMeshCounts[lod] > 0)
+                total += (int)args[_argsEntryStart[lod] * ArgsStride + 1];
+        return total;
+    }
+
     public void ReleaseDestroyedCameraResults()
     {
         foreach (Camera cam in _cameraResults.Keys)
@@ -326,12 +374,12 @@ public class BatchInstancer : MonoBehaviour
         DestroyedCameras.Clear();
     }
 
-    public void CullForLidarRange(Vector3 origin, float maxRange)
+    public void CullForLidarRange(CommandBuffer cmd, Vector3 origin, float maxRange)
     {
         if (!PrepareBuffers()) return;
 
         _lidarResult ??= new CullResult();
-        Cull(_lidarResult, CullView.ForRange(origin, maxRange), Matrix4x4.identity);
+        Cull(cmd, _lidarResult, CullView.ForRange(origin, maxRange), Matrix4x4.identity);
     }
 
     public LidarIndirectDrawStats AddLidarDepthDrawCommands(CommandBuffer cmd, Material depthMaterial)
@@ -542,53 +590,76 @@ public class BatchInstancer : MonoBehaviour
         return true;
     }
 
-    private void Cull(CullResult result, in CullView view, Matrix4x4 viewKey)
+    private void Cull(CommandBuffer cmd, CullResult result, in CullView view, Matrix4x4 viewKey)
     {
         BindResult(result);
 
         int flags = (view.planes != null ? CullFrustum : 0) | (view.IsRange ? CullRange : 0);
+        int key = flags | (view.occlusion ? CullOcclusion : 0);
         if (result.hasResults &&
-            result.flags == flags &&
+            result.flags == key &&
             result.viewKey == viewKey &&
             result.originKey == view.origin &&
             result.rangeKey == view.rangeSq)
             return;
 
         result.hasResults = true;
-        result.flags = flags;
+        result.flags = key;
         result.viewKey = viewKey;
         result.originKey = view.origin;
         result.rangeKey = view.rangeSq;
+        if (view.planes != null)
+            Array.Copy(view.planes, result.planes, result.planes.Length);
         result.lodMask = view.IsRange ? AllLodsMask : CalculateVisibleLodMask(view);
         if (result.lodMask == 0) return;
 
+        RecordDispatch(cmd, result, flags, view.planes, view.origin, view.rangeSq, null);
+    }
+
+    private void RecordDispatch(
+        CommandBuffer cmd,
+        CullResult result,
+        int flags,
+        Vector4[] planes,
+        Vector3 origin,
+        float rangeSq,
+        OcclusionView occlusion)
+    {
         using (CullMarker.Auto())
         {
             for (int lod = 0; lod < MaxLods; lod++)
             {
                 ComputeBuffer target = lod < lods.Length ? result.visible[lod] : _dummyAppendBuffer;
-                if (lod < lods.Length) target.SetCounterValue(0);
-                _cullingShader.SetBuffer(_kernel, LodBufIds[lod], target);
+                if (lod < lods.Length) cmd.SetBufferCounterValue(target, 0);
+                cmd.SetComputeBufferParam(_cullingShader, _kernel, LodBufIds[lod], target);
             }
 
-            _cullingShader.SetBuffer(_kernel, PositionBufferId, _positionBuffer);
-            _cullingShader.SetBuffer(_kernel, SphereBufferId, _sphereBuffer);
-            _cullingShader.SetInt(NumToDrawId, _instances.Count);
-            _cullingShader.SetInt(NumLodsId, lods.Length);
-            _cullingShader.SetInt(CullFlagsId, flags);
-            _cullingShader.SetVector(LodDistancesId, _lodDistancesSq);
-            _cullingShader.SetVector(CullOriginId, view.origin);
-            _cullingShader.SetFloat(RangeMaxDistanceSqId, view.rangeSq);
-            if (view.planes != null)
-                _cullingShader.SetVectorArray(PlanesId, view.planes);
+            cmd.SetComputeBufferParam(_cullingShader, _kernel, PositionBufferId, _positionBuffer);
+            cmd.SetComputeBufferParam(_cullingShader, _kernel, SphereBufferId, _sphereBuffer);
+            cmd.SetComputeIntParam(_cullingShader, NumToDrawId, _instances.Count);
+            cmd.SetComputeIntParam(_cullingShader, NumLodsId, lods.Length);
+            cmd.SetComputeIntParam(_cullingShader, CullFlagsId, flags);
+            cmd.SetComputeVectorParam(_cullingShader, LodDistancesId, _lodDistancesSq);
+            cmd.SetComputeVectorParam(_cullingShader, CullOriginId, origin);
+            cmd.SetComputeFloatParam(_cullingShader, RangeMaxDistanceSqId, rangeSq);
+            if (planes != null)
+                cmd.SetComputeVectorArrayParam(_cullingShader, PlanesId, planes);
 
-            _cullingShader.Dispatch(
-                _kernel, Mathf.CeilToInt(_instances.Count / (float)_threadGroupSize), 1, 1);
+            cmd.SetComputeTextureParam(
+                _cullingShader, _kernel, HiZTextureId, occlusion != null ? occlusion.hiz : Texture2D.whiteTexture);
+            if (occlusion != null)
+            {
+                cmd.SetComputeMatrixParam(_cullingShader, HiZWorldToViewId, occlusion.worldToView);
+                cmd.SetComputeVectorParam(_cullingShader, HiZProjectionId, occlusion.projection);
+                cmd.SetComputeVectorParam(_cullingShader, HiZSizeId, occlusion.size);
+            }
+
+            cmd.DispatchCompute(
+                _cullingShader, _kernel, Mathf.CeilToInt(_instances.Count / (float)_threadGroupSize), 1, 1);
 
             for (int lod = 0; lod < lods.Length; lod++)
                 for (int s = 0; s < _subMeshCounts[lod]; s++)
-                    ComputeBuffer.CopyCount(
-                        result.visible[lod], result.args, ArgsOffset(lod, s) + sizeof(uint));
+                    cmd.CopyCounterValue(result.visible[lod], result.args, (uint)(ArgsOffset(lod, s) + sizeof(uint)));
         }
     }
 

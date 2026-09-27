@@ -14,16 +14,22 @@ public class GPUInstanceTracker : MonoBehaviour
     [Tooltip("Cull GPU-instanced products outside each camera's frustum. Off = draw everything within LOD range.")]
     [SerializeField] private bool frustumCulling = true;
 
+    [Tooltip("Also cull products hidden behind this frame's depth prepass (needs HiZOcclusionFeature on the renderer).")]
+    [SerializeField] private bool occlusionCulling = true;
+
     // LOD2/LOD3 are disabled until their mesh scales are fixed.
     [SerializeField] private bool enableLod2AndLod3 = false;
 
     // Ascending max distances; the last is the hard cull distance.
     private static readonly float[] DefaultMaxDistances = { 5f, 7f, 10f, 15f };
     private const int DestroyedCameraPurgeInterval = 120;
+    private const string FrustumCullingFlag = "-sariFrustumCulling";
+    private const string OcclusionCullingFlag = "-sariOcclusionCulling";
 
     private readonly Dictionary<string, BatchInstancer> _batchers = new();
     private readonly Plane[] _unityPlanes = new Plane[6];
     private readonly Vector4[] _planes = new Vector4[6];
+    private CommandBuffer _cullCommands;
 
     public Camera MainCamera => mainCamera;
 
@@ -31,6 +37,12 @@ public class GPUInstanceTracker : MonoBehaviour
     {
         get => frustumCulling;
         set => frustumCulling = value;
+    }
+
+    public bool OcclusionCullingEnabled
+    {
+        get => occlusionCulling;
+        set => occlusionCulling = value;
     }
 
     void Awake()
@@ -41,15 +53,36 @@ public class GPUInstanceTracker : MonoBehaviour
             return;
         }
         Instance = this;
+        frustumCulling = ReadToggleArgument(FrustumCullingFlag, frustumCulling);
+        occlusionCulling = ReadToggleArgument(OcclusionCullingFlag, occlusionCulling);
     }
 
-    void OnEnable() => RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
+    // "-flag off" / "-flag on" overrides the Inspector value in player builds.
+    private static bool ReadToggleArgument(string flag, bool fallback)
+    {
+        string value = CommandLineArgs.Get(flag);
+        if (string.IsNullOrEmpty(value)) return fallback;
+        return !value.Equals("off", System.StringComparison.OrdinalIgnoreCase) && value != "0" &&
+               !value.Equals("false", System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    void OnEnable()
+    {
+        _cullCommands ??= new CommandBuffer { name = "GPU Instance Culling" };
+        RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
+    }
+
     void OnDisable() => RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
 
     void OnDestroy()
     {
+        _cullCommands?.Release();
         if (Instance == this) Instance = null;
     }
+
+    // Cameras that draw products; occlusion only applies to these.
+    public static bool DrawsProducts(Camera cam) =>
+        (cam.cameraType == CameraType.Game || cam.cameraType == CameraType.SceneView) && (cam.cullingMask & 1) != 0;
 
     void LateUpdate()
     {
@@ -60,12 +93,37 @@ public class GPUInstanceTracker : MonoBehaviour
 
     private void OnBeginCameraRendering(ScriptableRenderContext _, Camera cam)
     {
-        bool drawsProducts = cam.cameraType == CameraType.Game || cam.cameraType == CameraType.SceneView;
-        if (!drawsProducts || (cam.cullingMask & 1) == 0) return;
+        if (!DrawsProducts(cam)) return;
 
-        CullView view = CullView.ForCamera(cam.transform.position, frustumCulling ? CalculatePlanes(cam) : null);
+        CullView view = CullView.ForCamera(
+            cam.transform.position,
+            frustumCulling ? CalculatePlanes(cam) : null,
+            occlusionCulling && cam.cameraType == CameraType.Game);
         foreach (BatchInstancer bi in _batchers.Values)
-            bi.RenderForCamera(cam, view);
+            bi.RenderForCamera(_cullCommands, cam, view);
+        ExecuteCullCommands();
+    }
+
+    // Called by HiZOcclusionFeature after the depth prepass, before products draw in the opaque pass.
+    public void RecordOcclusionCull(CommandBuffer cmd, Camera cam, OcclusionView occlusion)
+    {
+        foreach (BatchInstancer bi in _batchers.Values)
+            bi.RecordOcclusionCull(cmd, cam, occlusion);
+    }
+
+    // Debug: total instances drawn for a camera on its last render.
+    public int ReadVisibleCount(Camera cam)
+    {
+        int total = 0;
+        foreach (BatchInstancer bi in _batchers.Values)
+            total += bi.ReadVisibleCount(cam);
+        return total;
+    }
+
+    private void ExecuteCullCommands()
+    {
+        Graphics.ExecuteCommandBuffer(_cullCommands);
+        _cullCommands.Clear();
     }
 
     private Vector4[] CalculatePlanes(Camera cam)
@@ -87,7 +145,8 @@ public class GPUInstanceTracker : MonoBehaviour
     public void CullForLidarRange(Vector3 origin, float maxRange)
     {
         foreach (BatchInstancer bi in _batchers.Values)
-            bi.CullForLidarRange(origin, maxRange);
+            bi.CullForLidarRange(_cullCommands, origin, maxRange);
+        ExecuteCullCommands();
     }
 
     public LidarIndirectDrawStats AddLidarDepthDrawCommands(CommandBuffer cmd, Material depthMaterial)

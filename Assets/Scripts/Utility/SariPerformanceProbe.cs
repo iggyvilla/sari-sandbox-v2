@@ -6,7 +6,6 @@ using System.Linq;
 using Unity.Profiling;
 using Unity.Profiling.LowLevel.Unsafe;
 using UnityEngine;
-using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
@@ -156,7 +155,9 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         {
             try
             {
-                _recorder = UnityEngine.Profiling.Recorder.Get(markerName);
+                // Get() never returns null; unknown markers yield an invalid recorder that reads 0.
+                UnityEngine.Profiling.Recorder recorder = UnityEngine.Profiling.Recorder.Get(markerName);
+                _recorder = recorder != null && recorder.isValid ? recorder : null;
                 if (_recorder != null)
                     _recorder.enabled = true;
             }
@@ -188,7 +189,7 @@ public sealed class SariPerformanceProbe : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void InstallFromCommandLine()
     {
-        if (_installed || !HasCommandLineFlag(ProbeFlag))
+        if (_installed || !CommandLineArgs.Has(ProbeFlag))
             return;
 
         _installed = true;
@@ -233,15 +234,15 @@ public sealed class SariPerformanceProbe : MonoBehaviour
             yield return null;
         }
 
-        ApplyProbeVariant(GetArgument(VariantFlag));
+        ApplyProbeVariant(CommandLineArgs.Get(VariantFlag));
 
-        float warmupSeconds = GetFloatArgument(WarmupSecondsFlag, 8f, 0f, 120f);
-        float sampleSeconds = GetFloatArgument(SampleSecondsFlag, 20f, 2f, 300f);
+        float warmupSeconds = CommandLineArgs.GetFloat(WarmupSecondsFlag, 8f, 0f, 120f);
+        float sampleSeconds = CommandLineArgs.GetFloat(SampleSecondsFlag, 20f, 2f, 300f);
         float warmupEnd = Time.realtimeSinceStartup + warmupSeconds;
         while (Time.realtimeSinceStartup < warmupEnd)
             yield return null;
 
-        string screenshotPath = GetArgument(ScreenshotPathFlag);
+        string screenshotPath = CommandLineArgs.Get(ScreenshotPathFlag);
         if (!string.IsNullOrWhiteSpace(screenshotPath))
         {
             string screenshotDirectory = Path.GetDirectoryName(screenshotPath);
@@ -348,7 +349,7 @@ public sealed class SariPerformanceProbe : MonoBehaviour
             "1% low FPS is derived from the average of the slowest 1% of sampled frames.";
 
         string json = JsonUtility.ToJson(report, true);
-        string reportPath = GetArgument(ReportPathFlag);
+        string reportPath = CommandLineArgs.Get(ReportPathFlag);
         if (string.IsNullOrWhiteSpace(reportPath))
             reportPath = Path.Combine(Application.persistentDataPath, "sari-performance-report.json");
 
@@ -375,7 +376,7 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         RenderPipelineAsset pipeline = GraphicsSettings.currentRenderPipeline;
         return new ProbeReport
         {
-            label = GetArgument(LabelFlag) ?? "unlabelled",
+            label = CommandLineArgs.Get(LabelFlag) ?? "unlabelled",
             timestampUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion,
             scene = SceneManager.GetActiveScene().name,
@@ -399,20 +400,20 @@ public sealed class SariPerformanceProbe : MonoBehaviour
     {
         GetBatchStats(out int batchCount, out int instanceCount, out int drawCommands);
         NearbyItemBBoxManager bboxManager = NearbyItemBBoxManager.TryGetInstance();
-        Light[] lights = FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        Renderer[] renderers =
-            FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        Light[] lights = FindActive<Light>();
+        Renderer[] renderers = FindActive<Renderer>();
+        Camera[] cameras = FindActive<Camera>();
 
         return new SceneSnapshot
         {
-            gameObjects = FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Length,
+            gameObjects = FindActive<Transform>().Length,
             renderers = renderers.Length,
-            colliders = FindObjectsByType<Collider>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Length,
-            rigidbodies = FindObjectsByType<Rigidbody>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Length,
-            behaviours = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Length,
+            colliders = FindActive<Collider>().Length,
+            rigidbodies = FindActive<Rigidbody>().Length,
+            behaviours = FindActive<MonoBehaviour>().Length,
             lights = lights.Length,
             shadowCastingLights = lights.Count(light => light.shadows != LightShadows.None),
-            cameras = FindObjectsByType<Camera>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Length,
+            cameras = cameras.Length,
             batchInstancers = batchCount,
             gpuInstances = instanceCount,
             indirectDrawCommands = drawCommands,
@@ -433,16 +434,11 @@ public sealed class SariPerformanceProbe : MonoBehaviour
                 .OrderByDescending(group => group.Count())
                 .Select(group => $"{group.Count()} material slots x {group.Key}")
                 .ToArray(),
-            batchPositionDetails =
-                FindObjectsByType<BatchInstancer>(
-                        FindObjectsInactive.Exclude,
-                        FindObjectsSortMode.None)
-                    .Select(instancer => instancer.GetPositionDiagnosticSummary())
-                    .OrderBy(detail => detail, StringComparer.Ordinal)
-                    .ToArray(),
-            cameraDetails = FindObjectsByType<Camera>(
-                    FindObjectsInactive.Exclude,
-                    FindObjectsSortMode.None)
+            batchPositionDetails = FindActive<BatchInstancer>()
+                .Select(instancer => instancer.GetPositionDiagnosticSummary())
+                .OrderBy(detail => detail, StringComparer.Ordinal)
+                .ToArray(),
+            cameraDetails = cameras
                 .Select(camera =>
                     $"{camera.name}: enabled={camera.enabled}, depth={camera.depth}, " +
                     $"type={camera.cameraType}, target={camera.targetTexture?.name ?? "screen"}, " +
@@ -481,10 +477,7 @@ public sealed class SariPerformanceProbe : MonoBehaviour
                     SetRendererFeatureActive("OutlineFxFeature", false);
                     break;
                 case "no-price-tags":
-                    foreach (BakedPriceTag priceTag in
-                             FindObjectsByType<BakedPriceTag>(
-                                 FindObjectsInactive.Exclude,
-                                 FindObjectsSortMode.None))
+                    foreach (BakedPriceTag priceTag in FindActive<BakedPriceTag>())
                     {
                         Renderer renderer = priceTag.GetComponent<Renderer>();
                         if (renderer != null)
@@ -492,19 +485,21 @@ public sealed class SariPerformanceProbe : MonoBehaviour
                     }
                     break;
                 case "no-products":
-                    foreach (BatchInstancer instancer in
-                             FindObjectsByType<BatchInstancer>(
-                                 FindObjectsInactive.Exclude,
-                                 FindObjectsSortMode.None))
+                    foreach (BatchInstancer instancer in FindActive<BatchInstancer>())
                     {
                         instancer.enabled = false;
                     }
                     break;
+                case "no-frustum-culling":
+                    if (GPUInstanceTracker.Instance != null)
+                        GPUInstanceTracker.Instance.FrustumCullingEnabled = false;
+                    break;
+                case "no-occlusion-culling":
+                    if (GPUInstanceTracker.Instance != null)
+                        GPUInstanceTracker.Instance.OcclusionCullingEnabled = false;
+                    break;
                 case "no-shadows":
-                    foreach (Light light in
-                             FindObjectsByType<Light>(
-                                 FindObjectsInactive.Exclude,
-                                 FindObjectsSortMode.None))
+                    foreach (Light light in FindActive<Light>())
                     {
                         light.shadows = LightShadows.None;
                     }
@@ -549,8 +544,7 @@ public sealed class SariPerformanceProbe : MonoBehaviour
 
     private static void GetBatchStats(out int batchCount, out int instanceCount, out int drawCommands)
     {
-        BatchInstancer[] instancers =
-            FindObjectsByType<BatchInstancer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        BatchInstancer[] instancers = FindActive<BatchInstancer>();
         batchCount = instancers.Length;
         instanceCount = 0;
         drawCommands = 0;
@@ -643,36 +637,14 @@ public sealed class SariPerformanceProbe : MonoBehaviour
         return meanWorstFrameMs > 0d ? 1000d / meanWorstFrameMs : 0d;
     }
 
-    private static bool HasCommandLineFlag(string flag)
+    private static T[] FindActive<T>() where T : UnityEngine.Object
     {
-        return Environment.GetCommandLineArgs()
-            .Any(argument => string.Equals(argument, flag, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string GetArgument(string flag)
-    {
-        string[] args = Environment.GetCommandLineArgs();
-        for (int i = 0; i < args.Length - 1; i++)
-        {
-            if (string.Equals(args[i], flag, StringComparison.OrdinalIgnoreCase))
-                return args[i + 1];
-        }
-
-        return null;
-    }
-
-    private static float GetFloatArgument(string flag, float fallback, float minimum, float maximum)
-    {
-        string value = GetArgument(flag);
-        return float.TryParse(value, out float parsed)
-            ? Mathf.Clamp(parsed, minimum, maximum)
-            : fallback;
+        return FindObjectsByType<T>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
     }
 
     private static void Quit(int exitCode)
     {
 #if UNITY_EDITOR
-        UnityEditor.EditorApplication.ExitPlaymode();
         UnityEditor.EditorApplication.Exit(exitCode);
 #else
         Application.Quit(exitCode);

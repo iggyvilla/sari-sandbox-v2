@@ -1,0 +1,28 @@
+#pragma kernel Reduce
+
+// Builds Hi-Z mip N from mip N-1, keeping the farthest (max) linear depth.
+RWTexture2D<float> _Src;
+RWTexture2D<float> _Dst;
+// xy = source size, zw = destination size (float4: Metal packs int vectors wrongly via SetInts)
+float4 _Sizes;
+
+[numthreads(8, 8, 1)]
+void Reduce(uint3 id : SV_DispatchThreadID)
+{
+    int2 srcSize = int2(_Sizes.xy);
+    int2 dstSize = int2(_Sizes.zw);
+    if (id.x >= (uint)dstSize.x || id.y >= (uint)dstSize.y) return;
+
+    // The last texel of an odd-sized source also covers its extra row/column.
+    int2 extent = int2(
+        (int)id.x == dstSize.x - 1 && (srcSize.x & 1) ? 3 : 2,
+        (int)id.y == dstSize.y - 1 && (srcSize.y & 1) ? 3 : 2);
+    int2 origin = int2(id.xy) * 2;
+
+    float farthest = 0.0;
+    for (int y = 0; y < extent.y; y++)
+        for (int x = 0; x < extent.x; x++)
+            farthest = max(farthest, _Src[min(origin + int2(x, y), srcSize - 1)]);
+
+    _Dst[id.xy] = farthest;
+}

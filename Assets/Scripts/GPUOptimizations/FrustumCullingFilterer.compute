@@ -1,8 +1,9 @@
 #pragma kernel CSMain
 
-// Keep in sync with BatchInstancer.CullFlags.
-#define CULL_FRUSTUM 1
-#define CULL_RANGE   2
+// Keep in sync with BatchInstancer.CullFrustum / CullRange / CullOcclusion.
+#define CULL_FRUSTUM   1
+#define CULL_RANGE     2
+#define CULL_OCCLUSION 4
 
 // in: per-instance LOD/draw positions shared by all LOD levels
 StructuredBuffer<float4> position_buffer;
@@ -22,6 +23,14 @@ float range_max_distance_sq;
 float4 lod_distances;
 int num_lods;
 
+// in (CULL_OCCLUSION): max-reduced linear eye depth pyramid of this frame's depth prepass
+Texture2D<float> hiz_texture;
+float4x4 hiz_world_to_view;
+// x = proj[0][0], y = proj[1][1], z = near plane, w = depth bias (meters)
+float4 hiz_projection;
+// x = width, y = height, z = mip count (URP stores the depth texture bottom-up, so V needs no flip)
+float4 hiz_size;
+
 // out: one compact visible-instance index list per LOD level
 // (HLSL cannot declare these as an array — named outputs are the unavoidable constraint)
 AppendStructuredBuffer<uint> lod0_buf;
@@ -29,14 +38,47 @@ AppendStructuredBuffer<uint> lod1_buf;
 AppendStructuredBuffer<uint> lod2_buf;
 AppendStructuredBuffer<uint> lod3_buf;
 
+float LoadHiZ(float2 uv, int mip)
+{
+    int2 mipSize = max(int2(hiz_size.xy) >> mip, 1);
+    int2 texel = clamp(int2(uv * mipSize), 0, mipSize - 1);
+    return hiz_texture.Load(int3(texel, mip));
+}
+
+// True when the whole sphere is behind the farthest occluder depth covering its screen rect.
+bool IsOccluded(float4 sphere)
+{
+    float3 viewCenter = mul(hiz_world_to_view, float4(sphere.xyz, 1.0)).xyz;
+    float centerDepth = -viewCenter.z;
+    float nearestDepth = centerDepth - sphere.w;
+    if (nearestDepth <= hiz_projection.z) return false;
+
+    // Conservative screen rect: the projected radius over the nearest depth, plus a 10% margin.
+    float2 ndcCenter = viewCenter.xy * hiz_projection.xy / centerDepth;
+    float2 ndcRadius = 1.1 * sphere.w * hiz_projection.xy / nearestDepth;
+    float2 uvMin = saturate((ndcCenter - ndcRadius) * 0.5 + 0.5);
+    float2 uvMax = saturate((ndcCenter + ndcRadius) * 0.5 + 0.5);
+    // Pick the mip where the rect spans at most one texel, so its 4 corner texels cover it.
+    float2 extentPixels = (uvMax - uvMin) * hiz_size.xy;
+    int mip = (int)ceil(log2(max(max(extentPixels.x, extentPixels.y), 1.0)));
+    mip = clamp(mip, 0, (int)hiz_size.z - 1);
+
+    float occluderDepth = max(
+        max(LoadHiZ(uvMin, mip), LoadHiZ(float2(uvMax.x, uvMin.y), mip)),
+        max(LoadHiZ(float2(uvMin.x, uvMax.y), mip), LoadHiZ(uvMax, mip)));
+
+    return nearestDepth > occluderDepth + hiz_projection.w;
+}
+
 [numthreads(64,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= (uint) num_to_draw) return;
 
+    float4 sphere = sphere_buffer[id.x];
+
     if (cull_flags & CULL_FRUSTUM)
     {
-        float4 sphere = sphere_buffer[id.x];
         [unroll]
         for (int i = 0; i < 6; i++)
         {
@@ -58,6 +100,8 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     {
         return;
     }
+
+    if ((cull_flags & CULL_OCCLUSION) && IsOccluded(sphere)) return;
 
     int lodIdx = num_lods - 1;
     for (int j = 0; j < num_lods - 1; j++)
