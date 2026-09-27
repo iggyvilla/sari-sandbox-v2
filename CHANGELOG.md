@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-09-27)
+
+### Features
+
+- **editor**: Add mirrored LOD mesh baker
+  ([`000fc99`](https://github.com/iggyvilla/sari-sandbox-v2/commit/000fc99bb624b5f02901b11b9b2570f0f5197b1e))
+
+- **editor**: Add tool to snap barcode planes onto printed barcodes
+  ([`5699fd4`](https://github.com/iggyvilla/sari-sandbox-v2/commit/5699fd49c40c75486d339d336f0c56ea2f56a2fb))
+
+- **gpu**: Add batch instancer preview scene
+  ([`0ba7af3`](https://github.com/iggyvilla/sari-sandbox-v2/commit/0ba7af3247d3151400a6c38861f6d019005cc84e))
+
+
 ## v1.1.0 (2026-09-27)
 
 ### Bug Fixes
