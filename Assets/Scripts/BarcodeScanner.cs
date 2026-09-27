@@ -41,7 +41,7 @@ public class BarcodeScanner : MonoBehaviour
     private Vector3           easyCenter;
     private Vector3           easySize;
     private ScanningDifficulty lastAppliedDifficulty;
-    private bool              scanCooldown;
+    private float             nextScanTime;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -86,10 +86,7 @@ public class BarcodeScanner : MonoBehaviour
     {
         if (DataHandler.Instance == null || checkoutUI == null) return;
         if (DataHandler.Instance.scanningDifficulty == ScanningDifficulty.Hard) return;
-        if (scanCooldown) return;
-
-        if (other is MeshCollider && other.CompareTag("Barcode"))
-            RegisterScan(other.transform.parent.gameObject.name);
+        TryRegisterScan(other);
     }
 
     // ─── Raycast scanning (Hard) ───────────────────────────────────────────────
@@ -105,33 +102,31 @@ public class BarcodeScanner : MonoBehaviour
             Color.red
         );
 
-        if (!Physics.Raycast(ray, out RaycastHit hit, scanRange)) return;
-
-        if (hit.collider is MeshCollider && hit.collider.CompareTag("Barcode"))
-            RegisterScan(hit.collider.transform.parent.gameObject.name);
+        if (Physics.Raycast(ray, out RaycastHit hit, scanRange))
+            TryRegisterScan(hit.collider);
     }
 
     // ─── Shared helpers ────────────────────────────────────────────────────────
 
-    private void RegisterScan(string itemId)
+    // Barcode colliders are MeshColliders parented under the item named by its ID.
+    private void TryRegisterScan(Collider scanned)
     {
+        if (Time.time < nextScanTime) return;
+        if (!(scanned is MeshCollider) || !scanned.CompareTag("Barcode")) return;
+
+        Transform item = scanned.transform.parent;
+        if (item == null) return;
+
+        nextScanTime = Time.time + scanCooldownDuration;
         onSuccessfulScan?.Invoke();
-        checkoutUI.AddScannedItem(itemId);
+        checkoutUI.AddScannedItem(item.gameObject.name);
         PlayBeep();
-        StartCoroutine(ScanCooldown());
     }
 
     private void PlayBeep()
     {
         if (beepClip != null)
             audioSource.PlayOneShot(beepClip);
-    }
-
-    private System.Collections.IEnumerator ScanCooldown()
-    {
-        scanCooldown = true;
-        yield return new WaitForSeconds(scanCooldownDuration);
-        scanCooldown = false;
     }
 
     // ─── Difficulty application ────────────────────────────────────────────────

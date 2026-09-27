@@ -196,7 +196,7 @@ public class DataHandler : MonoBehaviour
     public AgentAvatarSetting agentAvatarSetting;
     public AgentInteractionStyle agentInteractionStyle;
     public AgentBasketStyle agentBasketStyle;
-    public AgentController mainAgentController;
+    public AgentControllerBase mainAgentController;
 
     [Header("Self Checkout")]
     public ScanningDifficulty scanningDifficulty;
@@ -248,13 +248,19 @@ public class DataHandler : MonoBehaviour
     public SB_InteractionController interactionController;
     public string agentSandboxScene = "AgentSandboxScene";
 
-    [Header("Store Builder")] public bool debugMode = false;
+    [Header("Debug")] public bool debugMode = false;
     
     // Persists each shelf's intended spawnItems state by shelfId
     public Dictionary<int, bool> shouldShelfSpawnItems = new();
 
+    private const string StoreBuilderSceneName = "StoreBuilder";
+
     private int currentShelfId;
     private GameObject _activeAgentObject;
+
+    public static bool IsStoreBuilderScene => SceneManager.GetActiveScene().name == StoreBuilderSceneName;
+
+    private string StorePath => Path.Combine(Application.persistentDataPath, storeName + ".json");
 
     void Awake()
     {
@@ -297,43 +303,21 @@ public class DataHandler : MonoBehaviour
 
     void ApplyAvatarSetting()
     {
-        if (agentAvatarSetting == AgentAvatarSetting.VR)
+        GameObject prefab = agentAvatarSetting == AgentAvatarSetting.VR ? agentObject : ikHumanoidObject;
+        if (prefab == null) return;
+
+        _activeAgentObject = Instantiate(prefab, agentSpawnPosition, Quaternion.identity);
+
+        // Accessed by ChatUIManager; only the VR controller is socket-controllable.
+        mainAgentController = _activeAgentObject.GetComponentInChildren<AgentControllerBase>(true);
+        if (mainAgentController is AgentController vrController && WebSocketHandler.Instance != null)
+            WebSocketHandler.Instance.SetAgent(vrController);
+
+        Camera cam = _activeAgentObject.GetComponentInChildren<Camera>();
+        if (cam != null)
         {
-            if (agentObject != null)
-            {
-                // agentObject.SetActive(true);
-                // agentObject.transform.position = agentSpawnPosition;
-                GameObject go = Instantiate(agentObject, agentSpawnPosition, Quaternion.identity);
-                _activeAgentObject = go;
-                
-                // AgentController to be accessed by ChatUIManager
-                mainAgentController = go.GetComponentInChildren<AgentController>();
-                WebSocketHandler.Instance?.SetAgent(go.GetComponentInChildren<AgentController>(true));
-                Camera cam = go != null ? go.GetComponentInChildren<Camera>() : null;
-                if (cam != null)
-                {
-                    cam.tag = "MainCamera";
-                    GPUInstanceTracker.Instance.SetCamera(cam);
-                }
-            }
-            // if (ikHumanoidObject != null) ikHumanoidObject.SetActive(false);
-        }
-        else
-        {
-            // if (agentObject != null) agentObject.SetActive(false);
-            if (ikHumanoidObject != null)
-            {
-                // ikHumanoidObject.SetActive(true);
-                // ikHumanoidObject.transform.position = agentSpawnPosition;
-                GameObject go = Instantiate(ikHumanoidObject, agentSpawnPosition, Quaternion.identity);
-                _activeAgentObject = go;
-                Camera cam = go != null ? go.GetComponentInChildren<Camera>() : null;
-                if (cam != null)
-                {
-                    cam.tag = "MainCamera";
-                    GPUInstanceTracker.Instance.SetCamera(cam);
-                }
-            }
+            cam.tag = "MainCamera";
+            GPUInstanceTracker.Instance.SetCamera(cam);
         }
     }
 
@@ -363,37 +347,15 @@ public class DataHandler : MonoBehaviour
 
     public void LoadStore()
     {
-        // Selection boxes are separate scene objects, so clear them along with the
-        // store objects they wrap before rebuilding the scene.
-        foreach (ShelfSelector existing in
-                 FindObjectsByType<ShelfSelector>(FindObjectsSortMode.None))
-            Destroy(existing.gameObject);
+        // Selection boxes wrap store objects, so clear them too before rebuilding the scene.
+        DestroyAll<ShelfSelector>();
+        DestroyAll<PropSelector>();
+        DestroyAll<ShelfBuilder>();
+        DestroyAll<SelfCheckoutMarker>();
+        DestroyAll<AgentSpawnMarker>();
+        DestroyAll<AisleMarker>();
 
-        foreach (PropSelector existing in
-                 FindObjectsByType<PropSelector>(FindObjectsSortMode.None))
-            Destroy(existing.gameObject);
-
-        // Clear all shelves in the scene
-        foreach (ShelfBuilder existing in
-                 FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
-            Destroy(existing.gameObject);
-
-        // Clear all self-checkout counters
-        foreach (SelfCheckoutMarker existing in
-                 FindObjectsByType<SelfCheckoutMarker>(FindObjectsSortMode.None))
-            Destroy(existing.gameObject);
-
-        // Clear any existing agent spawn marker (only in Store Builder)
-        foreach (AgentSpawnMarker existing in
-                 FindObjectsByType<AgentSpawnMarker>(FindObjectsSortMode.None))
-            Destroy(existing.gameObject);
-
-        // Clear all aisle markers
-        foreach (AisleMarker existing in
-                 FindObjectsByType<AisleMarker>(FindObjectsSortMode.None))
-            Destroy(existing.gameObject);
-
-        string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
+        string path = StorePath;
         if (!File.Exists(path))
         {
             // A machine provisioned without its store file would otherwise silently serve an empty
@@ -426,7 +388,7 @@ public class DataHandler : MonoBehaviour
         }
 
         shouldShelfSpawnItems.Clear();
-        string sceneName = SceneManager.GetActiveScene().name;
+        bool isStoreBuilder = IsStoreBuilderScene;
         
         foreach (ShelfSaveData data in storeData.shelves)
         {
@@ -439,13 +401,13 @@ public class DataHandler : MonoBehaviour
             ShelfBuilder builder = go.GetComponent<ShelfBuilder>();
             builder.floor      = floor;
             builder.InitFromSaveData(data);
-            if (sceneName == "StoreBuilder")
+            if (isStoreBuilder)
             {
                 builder.spawnItems = false;
             }
             builder.Rebuild();
             
-            if (sceneName == "StoreBuilder")
+            if (isStoreBuilder)
             {
                 builder.SummonOutlineBox(
                     uiHandler,
@@ -463,7 +425,7 @@ public class DataHandler : MonoBehaviour
                 GameObject go = Instantiate(selfCheckoutCounter, pos, rot);
                 go.AddComponent<SelfCheckoutMarker>();
 
-                if (sceneName == "StoreBuilder")
+                if (isStoreBuilder)
                     interactionController.SummonPropSelectorBox(go);
             }
         }
@@ -474,7 +436,7 @@ public class DataHandler : MonoBehaviour
             Vector3 pos = new Vector3(spawnData.posX, spawnData.posY, spawnData.posZ);
             agentSpawnPosition = pos;
 
-            if (sceneName == "StoreBuilder" && agentSpawnMarkerPrefab != null)
+            if (isStoreBuilder && agentSpawnMarkerPrefab != null)
             {
                 Quaternion rot = Quaternion.Euler(0f, spawnData.rotationY, 0f);
                 GameObject go = Instantiate(agentSpawnMarkerPrefab, pos, rot);
@@ -503,7 +465,7 @@ public class DataHandler : MonoBehaviour
                     );
                 }
 
-                if (sceneName == "StoreBuilder")
+                if (isStoreBuilder)
                     interactionController.SummonPropSelectorBox(go);
             }
         }
@@ -511,10 +473,16 @@ public class DataHandler : MonoBehaviour
         StoreLoaded = true;
     }
 
+    private static void DestroyAll<T>() where T : Component
+    {
+        foreach (T existing in FindObjectsByType<T>(FindObjectsSortMode.None))
+            Destroy(existing.gameObject);
+    }
+
     public void SaveShelfItems(string idString, SaveDataWrapper data)
     {
         currentStoreData.shelfItems[idString] = data;
-        string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
+        string path = StorePath;
         File.WriteAllText(path, JsonConvert.SerializeObject(currentStoreData, Formatting.Indented));
         Debug.Log($"Saved shelf items for {idString} to {path}");
     }
@@ -610,42 +578,17 @@ public class DataHandler : MonoBehaviour
         }
 
         currentStoreData = storeData;
-        string path = Path.Combine(Application.persistentDataPath, storeName + ".json");
+        string path = StorePath;
         File.WriteAllText(path, JsonConvert.SerializeObject(currentStoreData, Formatting.Indented));
         Debug.Log($"Store saved to {path}");
-    }
-
-    public void ResetEnvironment()
-    {
-        ItemPoolingManager.Instance?.ClearPool();
-        ShelfBuilder.DeleteAllPriceTags();
-
-        foreach (GameObject obj in GameObject.FindGameObjectsWithTag("RetailItem"))
-            Destroy(obj);
-
-        GameObject agent = _activeAgentObject != null ? _activeAgentObject : agentObject;
-        if (agent != null)
-        {
-            agent.transform.position = agentSpawnPosition;
-            Rigidbody rb = agent.GetComponentInChildren<Rigidbody>();
-            if (rb != null)
-            {
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-            }
-        }
-
-        LoadStore();
     }
 
     /// <summary>
     /// Restores the environment to its pristine state and does not return until it has settled.
     ///
-    /// Distinct from <see cref="ResetEnvironment"/>, which the Store Builder uses: that one returns
-    /// the instant it has *queued* the work. Unity defers Destroy() to the end of the frame and
-    /// freshly spawned items fall under physics for up to a couple of seconds afterwards, so a
-    /// caller that treats the sync version as "the store is back to normal" is racing it. Every
-    /// benchmark attempt runs through this coroutine instead, so no state leaks between tries.
+    /// Unity defers Destroy() to the end of the frame and freshly spawned items fall under physics
+    /// for up to a couple of seconds afterwards, so every benchmark attempt waits on this coroutine
+    /// and no state leaks between tries.
     ///
     /// <paramref name="agentYawDegrees"/> optionally picks the facing the agent is left in, so a
     /// run can start pointed at a particular aisle instead of the default zero heading.
@@ -676,8 +619,7 @@ public class DataHandler : MonoBehaviour
     }
 
     /// <summary>
-    /// Returns the agent to its spawn pose and clears every piece of carried state the plain
-    /// position reset in <see cref="ResetEnvironment"/> leaves behind: facing, grip, hand pose,
+    /// Returns the agent to its spawn pose and clears carried state: facing, grip, hand pose,
     /// pointing mode, and whether the basket is held up in view.
     ///
     /// <paramref name="agentYawDegrees"/> is the absolute world heading the agent is left facing,
@@ -738,12 +680,13 @@ public class DataHandler : MonoBehaviour
             yield return new WaitForFixedUpdate();
 
         float startedAt = Time.realtimeSinceStartup;
-        while (Time.realtimeSinceStartup - startedAt < maximumSettleSeconds && HasMovingItems())
+        bool stillMoving;
+        while ((stillMoving = HasMovingItems()) && Time.realtimeSinceStartup - startedAt < maximumSettleSeconds)
         {
             yield return new WaitForSecondsRealtime(pollIntervalSeconds);
         }
 
-        if (Time.realtimeSinceStartup - startedAt >= maximumSettleSeconds)
+        if (stillMoving)
             Debug.LogWarning($"Items were still moving {maximumSettleSeconds}s after the reset.");
 
         yield return null;

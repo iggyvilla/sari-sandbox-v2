@@ -2,16 +2,18 @@ using UnityEngine;
 
 public class HandCollisionDetector : MonoBehaviour
 {
+    private const int MaxGrabCandidates = 32;
+
     public ItemBBoxInfo DetectedItemBBoxInfo { get; private set; }
     public GameObject DetectedItem { get; private set; }
     public DoorHandle DetectedDoorHandle { get; private set; }
-    public bool IsPointing { get; set; }
 
     [SerializeField] private float grabRadius = 0.06f;
     [SerializeField] private float grabForwardBias = 0.05f;
     [SerializeField] private float grabUpBias = 0f;
     [SerializeField] private float grabLeftBias = 0f;
 
+    private readonly Collider[] _grabCandidates = new Collider[MaxGrabCandidates];
     private OutlineController _itemOutlineController;
     private int _shelfDoorOverlapCount;
     private LayerMask _itemBBoxMask;
@@ -29,6 +31,11 @@ public class HandCollisionDetector : MonoBehaviour
     private void OnDisable()
     {
         NearbyItemBBoxManager.TryGetInstance()?.UnregisterActivationOrigin(transform);
+
+        // Trigger exits aren't delivered while disabled, so drop overlap state.
+        _shelfDoorOverlapCount = 0;
+        DetectedDoorHandle = null;
+        ClearDetectedItem();
     }
 
     private void Update()
@@ -36,7 +43,8 @@ public class HandCollisionDetector : MonoBehaviour
         UpdateNearestItem();
 
         if (_itemOutlineController != null) _itemOutlineController.OnGaze();
-        if (DetectedDoorHandle != null) DetectedDoorHandle.OutlineController.OnGaze();
+        if (DetectedDoorHandle != null && DetectedDoorHandle.OutlineController != null)
+            DetectedDoorHandle.OutlineController.OnGaze();
     }
 
     private Vector3 GrabCenter =>
@@ -55,32 +63,32 @@ public class HandCollisionDetector : MonoBehaviour
 
         Vector3 grabCenter = GrabCenter;
 
-        Collider[] hits = Physics.OverlapSphere(
+        int hitCount = Physics.OverlapSphereNonAlloc(
             grabCenter,
             grabRadius,
+            _grabCandidates,
             _itemBBoxMask,
             QueryTriggerInteraction.Collide);
 
         Collider nearest = null;
+        ItemBBoxInfo nearestInfo = null;
         float nearestDist = float.MaxValue;
         bool nearestIsPhysics = false;
 
-        foreach (Collider hit in hits)
+        for (int i = 0; i < hitCount; i++)
         {
-            float dist = Vector3.Distance(grabCenter, hit.ClosestPoint(transform.position));
-            bool isPhysics = hit.GetComponentInParent<ItemBBoxInfo>()?.isPhysicsObject ?? false;
+            Collider hit = _grabCandidates[i];
+            float dist = Vector3.Distance(grabCenter, hit.ClosestPoint(grabCenter));
+            ItemBBoxInfo info = hit.GetComponentInParent<ItemBBoxInfo>();
+            bool isPhysics = info != null && info.isPhysicsObject;
 
             // Physics-backed items always win over shelf items.
-            if (isPhysics && !nearestIsPhysics)
+            if ((isPhysics && !nearestIsPhysics) || (isPhysics == nearestIsPhysics && dist < nearestDist))
             {
                 nearest = hit;
+                nearestInfo = info;
                 nearestDist = dist;
-                nearestIsPhysics = true;
-            }
-            else if (isPhysics == nearestIsPhysics && dist < nearestDist)
-            {
-                nearest = hit;
-                nearestDist = dist;
+                nearestIsPhysics = isPhysics;
             }
         }
 
@@ -92,9 +100,8 @@ public class HandCollisionDetector : MonoBehaviour
 
         if (nearest.gameObject == DetectedItem) return;
 
-        ClearDetectedItem();
         DetectedItem = nearest.gameObject;
-        DetectedItemBBoxInfo = nearest.GetComponentInParent<ItemBBoxInfo>();
+        DetectedItemBBoxInfo = nearestInfo;
         _itemOutlineController = DetectedItem.GetComponentInChildren<OutlineController>();
     }
 

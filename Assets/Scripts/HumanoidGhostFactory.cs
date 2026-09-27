@@ -22,20 +22,33 @@ public static class HumanoidGhostFactory
             return null;
         }
 
-        HumanoidGhostFollower follower =
-            humanoidGhost.GetComponent<HumanoidGhostFollower>() ??
-            humanoidGhost.AddComponent<HumanoidGhostFollower>();
+        HumanoidGhostFollower follower = GetOrAddComponent<HumanoidGhostFollower>(humanoidGhost);
         follower.Bind(authority, humanoidController);
 
         Camera ownerCamera = authority.GetComponentInChildren<Camera>(true);
         if (ownerCamera != null)
-        {
-            HumanoidGhostCameraVisibility visibility =
-                ownerCamera.GetComponent<HumanoidGhostCameraVisibility>() ??
-                ownerCamera.gameObject.AddComponent<HumanoidGhostCameraVisibility>();
-            visibility.Bind(follower);
-        }
+            GetOrAddComponent<HumanoidGhostCameraVisibility>(ownerCamera.gameObject).Bind(follower);
 
         return follower;
+    }
+
+    /// <summary>Disables every camera (untagging it) and audio listener under <paramref name="root"/>.</summary>
+    public static void DisableCamerasAndListeners(GameObject root)
+    {
+        foreach (Camera camera in root.GetComponentsInChildren<Camera>(true))
+        {
+            camera.enabled = false;
+            camera.tag = "Untagged";
+        }
+
+        foreach (AudioListener listener in root.GetComponentsInChildren<AudioListener>(true))
+            listener.enabled = false;
+    }
+
+    // Explicit null check: `??` would skip Unity's fake-null returned by GetComponent in the Editor.
+    private static T GetOrAddComponent<T>(GameObject go) where T : Component
+    {
+        T component = go.GetComponent<T>();
+        return component != null ? component : go.AddComponent<T>();
     }
 }

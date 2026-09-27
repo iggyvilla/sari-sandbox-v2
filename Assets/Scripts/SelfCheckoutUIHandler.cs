@@ -48,9 +48,7 @@ public class SelfCheckoutUIHandler : MonoBehaviour
             itemQuantities[itemId] = 1;
         }
 
-        RecalculateTotals();
-        RegenerateItemList();
-        UpdateTotalsUI();
+        RefreshUI();
     }
 
     public void RemoveLastScannedItem()
@@ -66,54 +64,36 @@ public class SelfCheckoutUIHandler : MonoBehaviour
             itemOrder.RemoveAt(itemOrder.Count - 1);
         }
 
-        RecalculateTotals();
-        RegenerateItemList();
-        UpdateTotalsUI();
+        RefreshUI();
     }
 
     public void ResetAllItems()
     {
         itemOrder.Clear();
         itemQuantities.Clear();
-        subtotal     = 0f;
-        tax          = 0f;
         totalSavings = 0f;
 
-        RegenerateItemList();
-        UpdateTotalsUI();
+        RefreshUI();
     }
 
-    private void RecalculateTotals()
+    // Recomputes totals and the item list in one pass over the basket.
+    private void RefreshUI()
     {
         subtotal = 0f;
         tax      = 0f;
-
-        foreach (string id in itemOrder)
-        {
-            if (DataHandler.Instance.itemPriceData.TryGetValue(id, out ItemPriceData priceData))
-            {
-                float lineTotal = priceData.pricePHP * itemQuantities[id];
-                subtotal += lineTotal;
-                tax      += lineTotal * taxRate;
-            }
-        }
-    }
-
-    private void RegenerateItemList()
-    {
         System.Text.StringBuilder sb = new();
 
         foreach (string id in itemOrder)
         {
+            float price = GetUnitPrice(id);
+            int qty = itemQuantities[id];
+            float lineTotal = price * qty;
+            subtotal += lineTotal;
+            tax      += lineTotal * taxRate;
+
             string displayId = id.Length > itemIDStringLength
                 ? id.Substring(0, itemIDStringLength) + "..."
                 : id;
-
-            float price = DataHandler.Instance.itemPriceData.TryGetValue(id, out ItemPriceData priceData)
-                ? priceData.pricePHP
-                : 0f;
-
-            int qty = itemQuantities[id];
 
             sb.AppendLine($"{qty}x {displayId}");
             sb.AppendLine($" - {price:F2}php/pc");
@@ -121,6 +101,17 @@ public class SelfCheckoutUIHandler : MonoBehaviour
 
         if (itemListText != null)
             itemListText.text = sb.ToString();
+
+        UpdateTotalsUI();
+    }
+
+    private static float GetUnitPrice(string id)
+    {
+        return DataHandler.Instance != null &&
+               DataHandler.Instance.itemPriceData != null &&
+               DataHandler.Instance.itemPriceData.TryGetValue(id, out ItemPriceData priceData)
+            ? priceData.pricePHP
+            : 0f;
     }
 
     private void UpdateTotalsUI()

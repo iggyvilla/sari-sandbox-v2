@@ -10,10 +10,31 @@ public enum AgentHandSide
     Right
 }
 
+// Animator parameter hashes shared by agent controllers and ghost followers.
+public static class AgentAnimatorParams
+{
+    public static readonly int Speed = Animator.StringToHash("Speed");
+    public static readonly int Grip = Animator.StringToHash("Grip");
+    public static readonly int Trigger = Animator.StringToHash("Trigger");
+    public static readonly int IsWalking = Animator.StringToHash("isWalking");
+    public static readonly int IsWalkingBackward = Animator.StringToHash("isWalkingBackward");
+    public static readonly int IsWalkingLeft = Animator.StringToHash("isWalkingLeft");
+    public static readonly int IsWalkingRight = Animator.StringToHash("isWalkingRight");
+}
+
 public abstract class AgentControllerBase : MonoBehaviour
 {
     private const float MaximumHeightMargin = 0.2f;
     private const float MinimumFloorScale = 0.0001f;
+    private const float ChatVisibleSeconds = 4f;
+    private const float ChatFadeSeconds = 1f;
+    private static readonly Vector3 HeldItemEulerOffset = new Vector3(0f, -60f, 0f);
+    private static readonly Vector3 PointingColliderCenter = new Vector3(0.06f, -0.01f, 0.04f);
+    private const float PointingColliderHeight = 0.02f;
+    private const float PointingColliderDepth = 0.13f;
+
+    // Number of agents currently holding a door; hand/door layer collisions stay ignored while > 0.
+    private static int s_agentsHoldingDoors;
 
     public bool isMultiplayerAgent = false;
 
@@ -49,22 +70,11 @@ public abstract class AgentControllerBase : MonoBehaviour
     public float doorHandleForce = 5f;
 
     protected Rigidbody rigidbody;
-    protected Animator handAnimator;
-    protected HandCollisionDetector _handCollisionDetector;
-    protected BoxCollider _handCollider;
-    protected Vector3 _defaultColliderSize;
-    protected Vector3 _defaultColliderCenter;
-    protected Vector3 _initialHandLocalPosition;
-    protected Quaternion _initialHandLocalRotation;
-    protected bool isGripped;
-    protected bool isPointing;
-    protected float currentGrip;
-    protected float currentTrigger;
 
     private LayerMask interactableLayerMask;
     private AgentBodyCollisionDetector _bodyCollisionDetector;
-    private readonly AgentHandRuntime _leftHand = new AgentHandRuntime(AgentHandSide.Left);
-    private readonly AgentHandRuntime _rightHand = new AgentHandRuntime(AgentHandSide.Right);
+    private readonly AgentHandRuntime _leftHand = new AgentHandRuntime();
+    private readonly AgentHandRuntime _rightHand = new AgentHandRuntime();
 
     // Body translation requested this physics step via MovePosition (a deferred move that
     // hasn't been applied to the transform yet). ApplyDesiredHandPose adds this so the hand
@@ -85,6 +95,9 @@ public abstract class AgentControllerBase : MonoBehaviour
     private Vector3 _spawnPosition;
     private bool _hasFloorBounds;
     private int _outOfBoundsRecoveryCount;
+    private bool _isHoldingDoor;
+    private bool _gazeActivateRequested;
+    private Transform _lastGazeTransform;
 
     /// <summary>
     /// Fired once after each authoritative out-of-bounds recovery. The pose is absolute and can
@@ -94,12 +107,6 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     private sealed class AgentHandRuntime
     {
-        public AgentHandRuntime(AgentHandSide side)
-        {
-            Side = side;
-        }
-
-        public readonly AgentHandSide Side;
         public GameObject HandObject;
         public Animator Animator;
         public HandCollisionDetector CollisionDetector;
@@ -112,7 +119,6 @@ public abstract class AgentControllerBase : MonoBehaviour
         public Vector3 DesiredLocalPosition;
         public Quaternion DesiredLocalRotation;
         public bool HasDesiredPose;
-        public bool HasPendingPose;
         public bool IsGripped;
         public bool IsPointing;
         public float CurrentGrip;
@@ -123,7 +129,9 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     protected virtual void Start()
     {
-        rigidbody = GetComponentInParent<Rigidbody>() ?? GetComponent<Rigidbody>() ?? GetComponentInChildren<Rigidbody>();
+        // GetComponentInParent includes this GameObject; explicit checks avoid Unity's fake-null with ??.
+        rigidbody = GetComponentInParent<Rigidbody>();
+        if (rigidbody == null) rigidbody = GetComponentInChildren<Rigidbody>();
         if (rigidbody != null)
         {
             _bodyCollisionDetector = rigidbody.GetComponent<AgentBodyCollisionDetector>();
@@ -137,9 +145,17 @@ public abstract class AgentControllerBase : MonoBehaviour
         InitializeHandComponents();
     }
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetDoorGrabCount() => s_agentsHoldingDoors = 0;
+
     protected virtual void OnDestroy()
     {
         _overheadChatSequence?.Kill();
+
+        // Release this agent's share of the global hand/door collision ignore.
+        _leftHand.GrabbedDoor = null;
+        _rightHand.GrabbedDoor = null;
+        UpdateDoorCollisionIgnore();
     }
 
     public void ShowChat(string chatText)
@@ -151,19 +167,18 @@ public abstract class AgentControllerBase : MonoBehaviour
         overheadChatText.alpha = 1f;
 
         _overheadChatSequence = DOTween.Sequence()
-            .AppendInterval(4f)
+            .AppendInterval(ChatVisibleSeconds)
             .Append(DOTween.To(
                 () => overheadChatText.alpha,
                 alpha => overheadChatText.alpha = alpha,
                 0f,
-                1f));
+                ChatFadeSeconds));
     }
 
     protected virtual void InitializeHandComponents()
     {
         InitializeHandRuntime(_rightHand, agentHand);
         InitializeHandRuntime(_leftHand, leftAgentHand);
-        SyncRightHandCompatibilityFields();
     }
 
     protected void InitializeHandRuntime(
@@ -173,9 +188,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         HandCollisionDetector collisionDetector,
         BoxCollider handCollider)
     {
-        AgentHandRuntime hand = GetHand(side);
-        InitializeHandRuntime(hand, handObject, animator, collisionDetector, handCollider);
-        SyncRightHandCompatibilityFields();
+        InitializeHandRuntime(GetHand(side), handObject, animator, collisionDetector, handCollider);
     }
 
     private void InitializeHandRuntime(AgentHandRuntime hand, GameObject handObject)
@@ -246,22 +259,25 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         _pendingBodyTranslation = Vector3.zero;
         RecoverIfOutOfBounds();
-        UpdateHandControlMode();
-        HandleMovement();
+        AgentHandSide? manualHandSide = GetManualHandControlSide();
+        UpdateHandControlMode(manualHandSide);
+        HandleMovement(manualHandSide);
         ApplyDesiredHandPose();
         if (isMultiplayerAgent) return;
 
-        Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.forward) * 10f, Color.yellow);
+        // Consume the Update-latched press so it fires once per key press, not once per physics step.
+        bool activatePressed = _gazeActivateRequested;
+        _gazeActivateRequested = false;
 
-        if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual) return;
-        
-        // Gaze Mode 
+        if (IsManualInteraction) return;
 
-        if (Input.GetKey(KeyCode.Q) && _rightHand.HeldItem?.gameObject != null)
+        // Gaze Mode
+
+        if (Input.GetKey(KeyCode.Q) && HasHeldItem(_rightHand))
         {
             ThrowItem();
         }
-        
+
         RaycastHit hit;
         if (Physics.Raycast(
                 transform.position,
@@ -272,40 +288,49 @@ public abstract class AgentControllerBase : MonoBehaviour
         {
             if (hit.collider.CompareTag("Wall")) return;
 
-            string hitName = hit.transform.name;
-            SariUIHandler.Instance.UpdateInfoText(hitName);
+            if (hit.transform != _lastGazeTransform)
+            {
+                _lastGazeTransform = hit.transform;
+                if (SariUIHandler.Instance != null) SariUIHandler.Instance.UpdateInfoText(hit.transform.name);
+            }
 
             OutlineController outlineControllerScript = hit.collider.GetComponent<OutlineController>();
             if (outlineControllerScript) outlineControllerScript.OnGaze();
 
-            if (Input.GetKey(KeyCode.Return))
+            if (activatePressed || Input.GetKey(KeyCode.Return))
             {
                 HingedDoorBuilder hingedDoorHandler = hit.collider.GetComponentInParent<HingedDoorBuilder>();
                 if (hingedDoorHandler != null)
                 {
-                    hingedDoorHandler.ToggleDoor();
+                    if (activatePressed) hingedDoorHandler.ToggleDoor();
                     return;
                 }
 
-                if (_rightHand.HeldItem == null)
+                ItemBBoxInfo itemBBoxInfo = hit.collider.GetComponent<ItemBBoxInfo>();
+                if (_rightHand.HeldItem == null && itemBBoxInfo != null)
                 {
                     Vector3 handLocation = transform.position
                                            + transform.forward * 0.2f
                                            + transform.right * 0.1f
                                            + transform.up * -0.1f;
 
-                    ItemBBoxInfo itemBBoxInfo = hit.collider.GetComponent<ItemBBoxInfo>();
                     _rightHand.HeldItem = RetailItemRuntimeService.Instance.PickUpFromBBox(
                         itemBBoxInfo,
                         transform,
                         handLocation,
                         transform.rotation,
-                        new Vector3(0f, -60f, 0f)
+                        HeldItemEulerOffset
                     );
                 }
             }
         }
     }
+
+    private static bool IsManualInteraction =>
+        DataHandler.Instance != null &&
+        DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual;
+
+    private static bool HasHeldItem(AgentHandRuntime hand) => hand.HeldItem?.gameObject != null;
 
     private void InitializeOutOfBoundsRecovery()
     {
@@ -370,15 +395,13 @@ public abstract class AgentControllerBase : MonoBehaviour
             rigidbody.angularVelocity = Vector3.zero;
             rigidbody.position = _spawnPosition;
         }
-        else
-        {
-            movementRoot.position = _spawnPosition;
-        }
+        // Rigidbody.position only reaches the Transform after the next simulation step.
+        movementRoot.position = _spawnPosition;
 
         ReleaseTransientEnvironmentalConstraints();
         _outOfBoundsRecoveryCount++;
 
-        Vector3 recoveredPosition = MovementRoot.position;
+        Vector3 recoveredPosition = movementRoot.position;
         Quaternion recoveredRotation = ViewTransform.rotation;
 
         Debug.LogWarning(
@@ -398,10 +421,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         bool releasedDoor = ReleaseGrabbedDoor(_leftHand);
         releasedDoor |= ReleaseGrabbedDoor(_rightHand);
-        if (!releasedDoor) return;
-
-        UpdateDoorCollisionIgnore();
-        SyncRightHandCompatibilityFields();
+        if (releasedDoor) UpdateDoorCollisionIgnore();
     }
 
     private static bool ReleaseGrabbedDoor(AgentHandRuntime hand)
@@ -418,7 +438,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         hand.GrabbedDoor = null;
         // A door-only grip is transient environmental state. Never open a hand that is actually
         // carrying a retail item, even if malformed scene state associated it with both.
-        if (hand.HeldItem?.gameObject == null) hand.IsGripped = false;
+        if (!HasHeldItem(hand)) hand.IsGripped = false;
         return true;
     }
 
@@ -445,11 +465,14 @@ public abstract class AgentControllerBase : MonoBehaviour
                !float.IsNaN(value.z) && !float.IsInfinity(value.z);
     }
 
-    void Update()
+    protected virtual void Update()
     {
         HandleCrouchInput();
+        if (isMultiplayerAgent) return;
 
-        if (!isMultiplayerAgent && DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
+        if (Input.GetKeyDown(KeyCode.Return)) _gazeActivateRequested = true;
+
+        if (IsManualInteraction)
         {
             AgentHandSide? manualHandSide = GetManualHandControlSide();
             if (Input.GetKeyDown(KeyCode.Return) && manualHandSide.HasValue)
@@ -459,7 +482,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         }
     }
 
-    private void HandleMovement()
+    private void HandleMovement(AgentHandSide? manualHandSide)
     {
         if (!isMultiplayerAgent)
         {
@@ -467,7 +490,6 @@ public abstract class AgentControllerBase : MonoBehaviour
             Vector3 right = GetPlanarDirection(transform.right, Vector3.right);
             float m = movementSpeed * Time.deltaTime;
             float r = rotateSpeed * Time.deltaTime;
-            AgentHandSide? manualHandSide = GetManualHandControlSide();
 
             if (!manualHandSide.HasValue)
             {
@@ -484,8 +506,8 @@ public abstract class AgentControllerBase : MonoBehaviour
             }
             else
             {
-                if (DataHandler.Instance.agentInteractionStyle == AgentInteractionStyle.Manual)
-                    HandleManualHandControls(manualHandSide.Value);
+                // GetManualHandControlSide only returns a side in Manual interaction mode.
+                HandleManualHandControls(manualHandSide.Value);
             }
         }
 
@@ -497,24 +519,22 @@ public abstract class AgentControllerBase : MonoBehaviour
         transform.rotation = Quaternion.Euler(e);
     }
 
-    private void UpdateHandControlMode()
+    private void UpdateHandControlMode(AgentHandSide? manualHandSide)
     {
-        UpdateHandControlMode(_leftHand);
-        UpdateHandControlMode(_rightHand);
+        UpdateHandControlMode(_leftHand, manualHandSide == AgentHandSide.Left);
+        UpdateHandControlMode(_rightHand, manualHandSide == AgentHandSide.Right);
     }
 
-    private void UpdateHandControlMode(AgentHandRuntime hand)
+    private void UpdateHandControlMode(AgentHandRuntime hand, bool isManualHand)
     {
         if (hand.Rigidbody == null) return;
 
-        bool isManualHand = IsManualHandControlActive(hand.Side);
         if (isManualHand)
         {
             // Start manual control from the live pose in case tracking drove the hand.
             hand.DesiredLocalPosition = hand.HandObject.transform.localPosition;
             hand.DesiredLocalRotation = hand.HandObject.transform.localRotation;
             hand.HasDesiredPose = true;
-            hand.HasPendingPose = true;
         }
 
         if (!hand.Rigidbody.isKinematic)
@@ -531,12 +551,6 @@ public abstract class AgentControllerBase : MonoBehaviour
         return GetManualHandControlSide().HasValue;
     }
 
-    private bool IsManualHandControlActive(AgentHandSide side)
-    {
-        AgentHandSide? manualHandSide = GetManualHandControlSide();
-        return manualHandSide.HasValue && manualHandSide.Value == side;
-    }
-
     private AgentHandSide? GetManualHandControlSide()
     {
         bool leftPressed = Input.GetKeyDown(KeyCode.LeftShift);
@@ -544,9 +558,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         if (leftPressed) _lastManualHandSide = AgentHandSide.Left;
         if (rightPressed) _lastManualHandSide = AgentHandSide.Right;
 
-        if (isMultiplayerAgent ||
-            DataHandler.Instance == null ||
-            DataHandler.Instance.agentInteractionStyle != AgentInteractionStyle.Manual)
+        if (isMultiplayerAgent || !IsManualInteraction)
             return null;
 
         bool leftHeld = Input.GetKey(KeyCode.LeftShift);
@@ -583,7 +595,6 @@ public abstract class AgentControllerBase : MonoBehaviour
 
         hand.Rigidbody.MovePosition(worldPosition);
         hand.Rigidbody.MoveRotation(worldRotation);
-        hand.HasPendingPose = false;
     }
 
     private Vector3 GetHandLocalPosition(AgentHandRuntime hand)
@@ -612,7 +623,6 @@ public abstract class AgentControllerBase : MonoBehaviour
         hand.DesiredLocalPosition = localPosition;
         hand.DesiredLocalRotation = localRotation;
         hand.HasDesiredPose = true;
-        hand.HasPendingPose = true;
     }
 
     private void SetHandWorldPosition(AgentHandRuntime hand, Vector3 worldPosition)
@@ -628,7 +638,6 @@ public abstract class AgentControllerBase : MonoBehaviour
             ? handParent.InverseTransformPoint(worldPosition)
             : worldPosition;
         hand.HasDesiredPose = true;
-        hand.HasPendingPose = true;
     }
 
     private void SetHandWorldPose(AgentHandRuntime hand, Vector3 worldPosition, Quaternion worldRotation)
@@ -648,7 +657,6 @@ public abstract class AgentControllerBase : MonoBehaviour
             ? Quaternion.Inverse(handParent.rotation) * worldRotation
             : worldRotation;
         hand.HasDesiredPose = true;
-        hand.HasPendingPose = true;
     }
 
     // Override in IKAgentController to route up/down into the head joint only.
@@ -665,7 +673,6 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         AnimateHand(_leftHand);
         AnimateHand(_rightHand);
-        SyncRightHandCompatibilityFields();
     }
 
     private void AnimateHand(AgentHandRuntime hand)
@@ -679,8 +686,8 @@ public abstract class AgentControllerBase : MonoBehaviour
         hand.CurrentGrip = Mathf.MoveTowards(hand.CurrentGrip, gripTarget, gripSpeed * Time.fixedDeltaTime);
         hand.CurrentTrigger = Mathf.MoveTowards(hand.CurrentTrigger, triggerTarget, gripSpeed * Time.fixedDeltaTime);
 
-        hand.Animator.SetFloat("Grip", hand.CurrentGrip);
-        hand.Animator.SetFloat("Trigger", hand.CurrentTrigger);
+        hand.Animator.SetFloat(AgentAnimatorParams.Grip, hand.CurrentGrip);
+        hand.Animator.SetFloat(AgentAnimatorParams.Trigger, hand.CurrentTrigger);
     }
 
     private void HandleManualHandControls(AgentHandSide side)
@@ -696,37 +703,33 @@ public abstract class AgentControllerBase : MonoBehaviour
         }
 
         float speed = handMoveSpeed * Time.fixedDeltaTime;
-        Vector3 localPos = GetHandLocalPosition(hand);
-
-        if (Input.GetKey(KeyCode.E)) localPos += Vector3.up * speed;
-        if (Input.GetKey(KeyCode.Q)) localPos -= Vector3.up * speed;
-        if (Input.GetKey(KeyCode.W)) localPos += Vector3.forward * speed;
-        if (Input.GetKey(KeyCode.S)) localPos -= Vector3.forward * speed;
-        if (Input.GetKey(KeyCode.A)) localPos -= Vector3.right * speed;
-        if (Input.GetKey(KeyCode.D)) localPos += Vector3.right * speed;
-
-        // if (localPos.magnitude > handMoveRange)
-        //     localPos = localPos.normalized * handMoveRange;
-
+        Vector3 localPos = GetHandLocalPosition(hand) + ReadHandInputAxis() * speed;
         SetHandLocalPose(hand, localPos, GetHandLocalRotation(hand));
+    }
+
+    // WASD = planar, E/Q = up/down; unnormalized sum of the held keys.
+    private static Vector3 ReadHandInputAxis()
+    {
+        Vector3 input = Vector3.zero;
+        if (Input.GetKey(KeyCode.W)) input += Vector3.forward;
+        if (Input.GetKey(KeyCode.S)) input -= Vector3.forward;
+        if (Input.GetKey(KeyCode.A)) input -= Vector3.right;
+        if (Input.GetKey(KeyCode.D)) input += Vector3.right;
+        if (Input.GetKey(KeyCode.E)) input += Vector3.up;
+        if (Input.GetKey(KeyCode.Q)) input -= Vector3.up;
+        return input;
     }
 
     private void DriveDoorFromInput(AgentHandRuntime hand)
     {
-        Vector3 inputLocal = Vector3.zero;
-        if (Input.GetKey(KeyCode.W)) inputLocal += Vector3.forward;
-        if (Input.GetKey(KeyCode.S)) inputLocal -= Vector3.forward;
-        if (Input.GetKey(KeyCode.A)) inputLocal -= Vector3.right;
-        if (Input.GetKey(KeyCode.D)) inputLocal += Vector3.right;
-        if (Input.GetKey(KeyCode.E)) inputLocal += Vector3.up;
-        if (Input.GetKey(KeyCode.Q)) inputLocal -= Vector3.up;
-
+        Vector3 inputLocal = ReadHandInputAxis();
         if (inputLocal.sqrMagnitude < 0.001f) return;
 
         Vector3 inputWorld = transform.TransformDirection(inputLocal.normalized);
 
         HingeJoint hinge = hand.GrabbedDoor.Hinge;
         Rigidbody doorRb = hand.GrabbedDoor.DoorRigidbody;
+        if (hinge == null || doorRb == null) return;
 
         Vector3 axisWorld = doorRb.transform.TransformDirection(hinge.axis);
         Vector3 anchorWorld = doorRb.transform.TransformPoint(hinge.anchor);
@@ -778,9 +781,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         rigidbody.linearVelocity = Vector3.zero;
         rigidbody.angularVelocity = Vector3.zero;
-        // MovePosition (instead of writing transform.position) so the body sweeps against
-        // colliders. The move is deferred to the physics step, so record the accumulated
-        // delta for ApplyDesiredHandPose to keep the hand in sync this same step.
+        // MovePosition is deferred (and doesn't sweep); record the delta so ApplyDesiredHandPose keeps the hand in sync.
         _pendingBodyTranslation += deltaTranslation;
         rigidbody.MovePosition(rigidbody.position + _pendingBodyTranslation);
         Vector3 euler = transform.eulerAngles + deltaRotation;
@@ -836,10 +837,14 @@ public abstract class AgentControllerBase : MonoBehaviour
         SetHandLocalPose(hand, hand.InitialLocalPosition, hand.InitialLocalRotation);
     }
 
-    public Transform MovementRoot =>
-        rigidbody != null
-            ? rigidbody.transform
-            : GetComponentInParent<Rigidbody>()?.transform ?? transform;
+    public Transform MovementRoot
+    {
+        get
+        {
+            Rigidbody body = rigidbody != null ? rigidbody : GetComponentInParent<Rigidbody>();
+            return body != null ? body.transform : transform;
+        }
+    }
 
     public Transform ViewTransform => transform;
 
@@ -848,10 +853,6 @@ public abstract class AgentControllerBase : MonoBehaviour
     public Transform RightHandTransform => _rightHand.HandObject != null ? _rightHand.HandObject.transform : null;
 
     public Transform LeftHandTransform => _leftHand.HandObject != null ? _leftHand.HandObject.transform : null;
-
-    public float StandingViewHeight => _standingViewHeight;
-
-    public float MaximumViewHeight => _standingViewHeight + MaximumHeightMargin;
 
     public float MaximumMovementRootHeight => _standingMovementRootHeight + MaximumHeightMargin;
 
@@ -867,21 +868,23 @@ public abstract class AgentControllerBase : MonoBehaviour
 
     public bool IsLeftPointing => _leftHand.IsPointing;
 
-    public string RightHandHoveredItemId => _rightHand.CollisionDetector?.DetectedItemBBoxInfo?.itemId;
+    public string RightHandHoveredItemId => GetHoveredItemId(_rightHand);
 
-    public string LeftHandHoveredItemId => _leftHand.CollisionDetector?.DetectedItemBBoxInfo?.itemId;
+    public string LeftHandHoveredItemId => GetHoveredItemId(_leftHand);
+
+    private static string GetHoveredItemId(AgentHandRuntime hand)
+    {
+        ItemBBoxInfo info = hand.CollisionDetector != null ? hand.CollisionDetector.DetectedItemBBoxInfo : null;
+        return info != null ? info.itemId : null;
+    }
 
     public float GripAmount => _rightHand.CurrentGrip;
 
     public float TriggerAmount => _rightHand.CurrentTrigger;
 
-    public float LeftGripAmount => _leftHand.CurrentGrip;
+    public bool IsHoldingItem() => HasHeldItem(_rightHand);
 
-    public float LeftTriggerAmount => _leftHand.CurrentTrigger;
-
-    public bool IsHoldingItem() => _rightHand.HeldItem?.gameObject != null;
-
-    public bool IsHoldingItem(AgentHandSide side) => GetHand(side).HeldItem?.gameObject != null;
+    public bool IsHoldingItem(AgentHandSide side) => HasHeldItem(GetHand(side));
 
     protected float CurrentLocalViewHeight => _isCrouching ? _standingViewHeight * 0.5f : _standingViewHeight;
 
@@ -903,25 +906,25 @@ public abstract class AgentControllerBase : MonoBehaviour
         AgentHandRuntime hand = GetHand(side);
         hand.IsPointing = !hand.IsPointing;
         hand.IsGripped = false;
-        if (hand.CollisionDetector != null) hand.CollisionDetector.IsPointing = hand.IsPointing;
-        if (hand.Collider != null)
+        if (hand.IsPointing && hand.Collider != null)
         {
-            if (hand.IsPointing)
-            {
-                hand.Collider.center = new Vector3(0.06f, -0.01f, 0.04f);
-                Vector3 s = hand.Collider.size;
-                s.y = 0.02f;
-                s.z = 0.13f;
-                hand.Collider.size = s;
-            }
-            else
-            {
-                hand.Collider.center = hand.DefaultColliderCenter;
-                hand.Collider.size = hand.DefaultColliderSize;
-            }
+            hand.Collider.center = PointingColliderCenter;
+            Vector3 s = hand.Collider.size;
+            s.y = PointingColliderHeight;
+            s.z = PointingColliderDepth;
+            hand.Collider.size = s;
         }
+        else
+        {
+            ResetHandCollider(hand);
+        }
+    }
 
-        SyncRightHandCompatibilityFields();
+    private static void ResetHandCollider(AgentHandRuntime hand)
+    {
+        if (hand.Collider == null) return;
+        hand.Collider.center = hand.DefaultColliderCenter;
+        hand.Collider.size = hand.DefaultColliderSize;
     }
 
     public void ToggleGrip(AgentHandSide side = AgentHandSide.Right)
@@ -929,18 +932,10 @@ public abstract class AgentControllerBase : MonoBehaviour
         AgentHandRuntime hand = GetHand(side);
         if (!hand.IsGripped)
         {
-            // Turn off pointing mode (ensures bounding box is at palm)
+            // Turn off pointing mode so the grip collider sits at the palm.
             hand.IsPointing = false;
-            
-            if (hand.CollisionDetector != null) hand.CollisionDetector.IsPointing = false;
-            
-            // Reset our box collider to the "grip" collider
-            if (hand.Collider != null)
-            {
-                hand.Collider.center = hand.DefaultColliderCenter;
-                hand.Collider.size = hand.DefaultColliderSize;
-            }
-            
+            ResetHandCollider(hand);
+
             if (hand.CollisionDetector != null && hand.CollisionDetector.DetectedDoorHandle != null)
             {
                 hand.GrabbedDoor = hand.CollisionDetector.DetectedDoorHandle;
@@ -957,22 +952,17 @@ public abstract class AgentControllerBase : MonoBehaviour
         }
         else
         {
-            // If we're currently grabbing a door, un-grab it
             if (hand.GrabbedDoor != null)
             {
                 ResetHandPosition(side);
-                hand.GrabbedDoor.DoorRigidbody.linearVelocity = Vector3.zero;
-                hand.GrabbedDoor.DoorRigidbody.angularVelocity = Vector3.zero;
-                hand.GrabbedDoor = null;
+                ReleaseGrabbedDoor(hand);
                 UpdateDoorCollisionIgnore();
             }
             hand.IsGripped = false;
         }
 
-        if (!hand.IsGripped && hand.HeldItem?.gameObject != null)
+        if (!hand.IsGripped && HasHeldItem(hand))
             DropCurrentlyHeldItem(hand);
-
-        SyncRightHandCompatibilityFields();
     }
 
     private void DropCurrentlyHeldItem(AgentHandRuntime hand)
@@ -989,7 +979,7 @@ public abstract class AgentControllerBase : MonoBehaviour
             hand.HandObject.transform,
             hand.HandObject.transform.position - new Vector3(0, 0.1f, 0),
             transform.rotation,
-            new Vector3(0f, -60f, 0f)
+            HeldItemEulerOffset
         );
     }
 
@@ -1016,27 +1006,18 @@ public abstract class AgentControllerBase : MonoBehaviour
         return side == AgentHandSide.Left ? _leftHand : _rightHand;
     }
 
+    // Physics.IgnoreLayerCollision is global, so ref-count across agents.
     private void UpdateDoorCollisionIgnore()
     {
-        Physics.IgnoreLayerCollision(
-            9,
-            12,
-            _leftHand.GrabbedDoor != null || _rightHand.GrabbedDoor != null);
-    }
+        bool isHoldingDoor = _leftHand.GrabbedDoor != null || _rightHand.GrabbedDoor != null;
+        if (isHoldingDoor == _isHoldingDoor) return;
 
-    private void SyncRightHandCompatibilityFields()
-    {
-        handAnimator = _rightHand.Animator;
-        _handCollisionDetector = _rightHand.CollisionDetector;
-        _handCollider = _rightHand.Collider;
-        _defaultColliderSize = _rightHand.DefaultColliderSize;
-        _defaultColliderCenter = _rightHand.DefaultColliderCenter;
-        _initialHandLocalPosition = _rightHand.InitialLocalPosition;
-        _initialHandLocalRotation = _rightHand.InitialLocalRotation;
-        isGripped = _rightHand.IsGripped;
-        isPointing = _rightHand.IsPointing;
-        currentGrip = _rightHand.CurrentGrip;
-        currentTrigger = _rightHand.CurrentTrigger;
+        _isHoldingDoor = isHoldingDoor;
+        s_agentsHoldingDoors = Mathf.Max(0, s_agentsHoldingDoors + (isHoldingDoor ? 1 : -1));
+        Physics.IgnoreLayerCollision(
+            LayerMask.NameToLayer("AgentHand"),
+            LayerMask.NameToLayer("HingeDoor"),
+            s_agentsHoldingDoors > 0);
     }
 }
 

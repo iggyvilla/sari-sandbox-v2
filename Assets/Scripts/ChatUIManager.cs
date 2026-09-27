@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -15,7 +16,9 @@ public class ChatUIManager : MonoBehaviour
     public TMP_InputField chatInput;
     public GameObject chatMenu;
 
-    public string ChatLog { get; private set; } = string.Empty;
+    private readonly StringBuilder _chatLog = new();
+
+    public string ChatLog => _chatLog.ToString();
 
     private bool listeningForEnter;
     private float minimumContentHeight;
@@ -36,7 +39,7 @@ public class ChatUIManager : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Slash))
+        if (Input.GetKeyDown(KeyCode.Slash) && (chatInput == null || !chatInput.isFocused))
             ToggleChatUI();
 
         if (listeningForEnter && Input.GetKeyDown(KeyCode.Return))
@@ -50,14 +53,13 @@ public class ChatUIManager : MonoBehaviour
         
         // If the user hid the chat again, enable PC controls
         if (newState) return;
-        AgentController a = GetAgentController();
-        Debug.Log(a is null);
+        AgentControllerBase a = GetAgentController();
         if (a != null) a.enabled = true;
     }
 
-    AgentController GetAgentController()
+    AgentControllerBase GetAgentController()
     {
-        return DataHandler.Instance.mainAgentController;
+        return DataHandler.Instance != null ? DataHandler.Instance.mainAgentController : null;
     }
 
     /// <summary>
@@ -67,12 +69,12 @@ public class ChatUIManager : MonoBehaviour
     /// </summary>
     public void ClearLog()
     {
-        ChatLog = string.Empty;
+        _chatLog.Clear();
     }
 
     public void Log(string message)
     {
-        ChatLog += $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n";
+        _chatLog.Append($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n");
 
         if (chatText == null || chatContent == null || chatScrollRect == null)
         {
@@ -109,7 +111,7 @@ public class ChatUIManager : MonoBehaviour
     public void UserSelectedEnterField()
     {
         listeningForEnter = true;
-        AgentController a = GetAgentController();
+        AgentControllerBase a = GetAgentController();
         if (a != null) a.enabled = false;
     }
     
@@ -125,6 +127,7 @@ public class ChatUIManager : MonoBehaviour
 
         chatInput.text = string.Empty;
         Log($"User: {message}");
-        GetAgentController()?.ShowChat(message);
+        AgentControllerBase a = GetAgentController();
+        if (a != null) a.ShowChat(message);
     }
 }

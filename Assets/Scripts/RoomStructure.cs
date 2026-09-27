@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.SceneManagement;
 
 [RequireComponent(typeof(MeshRenderer))]
 public class RoomStructure : MonoBehaviour
@@ -84,7 +83,7 @@ public class RoomStructure : MonoBehaviour
 
     void Awake()
     {
-        _isStoreBuilder = SceneManager.GetActiveScene().name == "StoreBuilder";
+        _isStoreBuilder = DataHandler.IsStoreBuilderScene;
         _cam = Camera.main;
         GetComponent<MeshRenderer>().sharedMaterial = _isStoreBuilder ? floorMaterialBuilder : floorMaterialPlay;
         BuildWalls();
@@ -136,7 +135,7 @@ public class RoomStructure : MonoBehaviour
             var mat = new Material(wallMaterialSource);
             if (_isStoreBuilder) EnsureTransparent(mat);
             ApplyWallTextureScale(mat, d.textureScale);
-            go.GetComponent<MeshRenderer>().material = mat;
+            go.GetComponent<MeshRenderer>().sharedMaterial = mat;
             _walls[i] = new WallEntry { go = go, outwardNormal = d.normal, mat = mat };
         }
 
@@ -485,11 +484,12 @@ public class RoomStructure : MonoBehaviour
         go.name = planeName;
         go.AddComponent<Rigidbody>().isKinematic = true;
         go.AddComponent<BoxCollider>();
+        // Drop the primitive's MeshCollider; walls use the BoxCollider.
         // Parent to the floor's parent so floor scale doesn't skew the walls
         go.transform.SetParent(floorTransform.parent, worldPositionStays: true);
         go.transform.SetPositionAndRotation(pos, rot);
         go.transform.localScale = scale;
-        Destroy(go.GetComponent<Collider>());
+        Destroy(go.GetComponent<MeshCollider>());
         return go;
     }
 

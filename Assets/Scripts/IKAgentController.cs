@@ -9,9 +9,10 @@ public class IKAgentController : AgentControllerBase
     [SerializeField] Transform leftIkHandColliderSource;
     [SerializeField] Transform lookAtTarget;
 
+    private Vector3 _lastBodyPosition;
+
     public Animator BodyAnimator => bodyAnimator;
     public Transform HeadJoint => ikHeadJoint;
-    public Transform HandTarget => agentHand != null ? agentHand.transform : null;
     public Transform RightHandTarget => agentHand != null ? agentHand.transform : null;
     public Transform LeftHandTarget => leftAgentHand != null ? leftAgentHand.transform : null;
     public Transform LookAtTarget => lookAtTarget;
@@ -19,19 +20,16 @@ public class IKAgentController : AgentControllerBase
     protected override void Start()
     {
         base.Start();
-        handAnimator = bodyAnimator;
+        if (rigidbody != null) _lastBodyPosition = rigidbody.position;
     }
 
-    private void Update()
+    protected override void Update()
     {
-        HandleCrouchInput();
+        base.Update();
 
         Vector3 pos = transform.position;
         pos.y = CurrentLocalViewHeight;
         transform.position = pos;
-        
-        // Manual hand input is handled in AgentControllerBase so left/right modifiers
-        // can choose the target hand before Enter toggles grip.
     }
 
     protected override void InitializeHandComponents()
@@ -75,7 +73,6 @@ public class IKAgentController : AgentControllerBase
     {
         if (bodyAnimator == null || lookAtTarget == null) return;
         bodyAnimator.SetLookAtPosition(lookAtTarget.position);
-        // bodyAnimator.SetLookAtWeight(1f, 0.5f, 1f, 0f, 0.5f);
         bodyAnimator.SetLookAtWeight(1f);
     }
 
@@ -84,18 +81,21 @@ public class IKAgentController : AgentControllerBase
     {
         if (bodyAnimator == null || rigidbody == null) return;
 
-        Vector3 hVel = rigidbody.linearVelocity;
-        hVel.y = 0;
-        bodyAnimator.SetFloat("Speed", hVel.magnitude);
+        // TranslateAgent zeroes velocity and teleports, so derive speed from the per-step displacement.
+        Vector3 bodyPosition = rigidbody.position;
+        Vector3 delta = bodyPosition - _lastBodyPosition;
+        _lastBodyPosition = bodyPosition;
+        delta.y = 0f;
+        bodyAnimator.SetFloat(AgentAnimatorParams.Speed, delta.magnitude / Time.fixedDeltaTime);
 
         if (isMultiplayerAgent) return;
 
         // Manual hand movement should only move the selected hand.
         if (IsManualHandControlActive()) return;
 
-        bodyAnimator.SetBool("isWalking", Input.GetKey(KeyCode.W));
-        bodyAnimator.SetBool("isWalkingLeft", Input.GetKey(KeyCode.A));
-        bodyAnimator.SetBool("isWalkingRight", Input.GetKey(KeyCode.D));
-        bodyAnimator.SetBool("isWalkingBackward", Input.GetKey(KeyCode.S));
+        bodyAnimator.SetBool(AgentAnimatorParams.IsWalking, Input.GetKey(KeyCode.W));
+        bodyAnimator.SetBool(AgentAnimatorParams.IsWalkingLeft, Input.GetKey(KeyCode.A));
+        bodyAnimator.SetBool(AgentAnimatorParams.IsWalkingRight, Input.GetKey(KeyCode.D));
+        bodyAnimator.SetBool(AgentAnimatorParams.IsWalkingBackward, Input.GetKey(KeyCode.S));
     }
 }

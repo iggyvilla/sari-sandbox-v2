@@ -12,11 +12,9 @@ public class TitleScreenScroller : MonoBehaviour
     [SerializeField] private float recycleZ = -10f;   // z at which an object wraps to the back
 
     private Transform[] _objects;
-    private float _totalLength;
 
     void Start()
     {
-        _totalLength = count * spacing;
         _objects = new Transform[count];
 
         for (int i = 0; i < count; i++)

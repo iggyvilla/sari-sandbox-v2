@@ -2,14 +2,6 @@ using UnityEngine;
 
 public class HumanoidGhostFollower : MonoBehaviour
 {
-    private static readonly int SpeedParameter = Animator.StringToHash("Speed");
-    private static readonly int GripParameter = Animator.StringToHash("Grip");
-    private static readonly int TriggerParameter = Animator.StringToHash("Trigger");
-    private static readonly int IsWalkingParameter = Animator.StringToHash("isWalking");
-    private static readonly int IsWalkingBackwardParameter = Animator.StringToHash("isWalkingBackward");
-    private static readonly int IsWalkingLeftParameter = Animator.StringToHash("isWalkingLeft");
-    private static readonly int IsWalkingRightParameter = Animator.StringToHash("isWalkingRight");
-
     private AgentControllerBase _authority;
     private Animator _bodyAnimator;
     private Transform _headJoint;
@@ -21,6 +13,7 @@ public class HumanoidGhostFollower : MonoBehaviour
     private Quaternion _handRotationOffset;
     private Quaternion _leftHandRotationOffset;
     private Vector3 _lastPosition;
+    private float _lastSampleFixedTime;
     private int _captureSuppressionDepth;
     private bool _hasSpeedParameter;
     private bool _hasGripParameter;
@@ -54,6 +47,7 @@ public class HumanoidGhostFollower : MonoBehaviour
 
         FollowAuthority();
         _lastPosition = transform.position;
+        _lastSampleFixedTime = Time.fixedTime;
     }
 
     public void SetRenderersVisible(bool visible)
@@ -130,24 +124,30 @@ public class HumanoidGhostFollower : MonoBehaviour
     {
         if (_bodyAnimator == null || _authority == null) return;
 
-        Vector3 worldVelocity = (transform.position - _lastPosition) / Mathf.Max(Time.deltaTime, 0.0001f);
+        if (_hasGripParameter)
+            _bodyAnimator.SetFloat(AgentAnimatorParams.Grip, _authority.GripAmount);
+        if (_hasTriggerParameter)
+            _bodyAnimator.SetFloat(AgentAnimatorParams.Trigger, _authority.TriggerAmount);
+
+        // The authority moves in physics steps; only resample velocity once a step has run.
+        float sampleTime = Time.fixedTime - _lastSampleFixedTime;
+        if (sampleTime <= 0f) return;
+        _lastSampleFixedTime = Time.fixedTime;
+
+        Vector3 worldVelocity = (transform.position - _lastPosition) / sampleTime;
         _lastPosition = transform.position;
 
         Vector3 localVelocity = transform.InverseTransformDirection(worldVelocity);
         if (_hasSpeedParameter)
-            _bodyAnimator.SetFloat(SpeedParameter, worldVelocity.magnitude);
-        if (_hasGripParameter)
-            _bodyAnimator.SetFloat(GripParameter, _authority.GripAmount);
-        if (_hasTriggerParameter)
-            _bodyAnimator.SetFloat(TriggerParameter, _authority.TriggerAmount);
+            _bodyAnimator.SetFloat(AgentAnimatorParams.Speed, worldVelocity.magnitude);
         if (_hasIsWalkingParameter)
-            _bodyAnimator.SetBool(IsWalkingParameter, localVelocity.z > 0.01f);
+            _bodyAnimator.SetBool(AgentAnimatorParams.IsWalking, localVelocity.z > 0.01f);
         if (_hasIsWalkingBackwardParameter)
-            _bodyAnimator.SetBool(IsWalkingBackwardParameter, localVelocity.z < -0.01f);
+            _bodyAnimator.SetBool(AgentAnimatorParams.IsWalkingBackward, localVelocity.z < -0.01f);
         if (_hasIsWalkingLeftParameter)
-            _bodyAnimator.SetBool(IsWalkingLeftParameter, localVelocity.x < -0.01f);
+            _bodyAnimator.SetBool(AgentAnimatorParams.IsWalkingLeft, localVelocity.x < -0.01f);
         if (_hasIsWalkingRightParameter)
-            _bodyAnimator.SetBool(IsWalkingRightParameter, localVelocity.x > 0.01f);
+            _bodyAnimator.SetBool(AgentAnimatorParams.IsWalkingRight, localVelocity.x > 0.01f);
     }
 
     private void CacheAnimatorParameters()
@@ -164,19 +164,19 @@ public class HumanoidGhostFollower : MonoBehaviour
 
         foreach (AnimatorControllerParameter parameter in _bodyAnimator.parameters)
         {
-            if (parameter.nameHash == SpeedParameter && parameter.type == AnimatorControllerParameterType.Float)
+            if (parameter.nameHash == AgentAnimatorParams.Speed && parameter.type == AnimatorControllerParameterType.Float)
                 _hasSpeedParameter = true;
-            else if (parameter.nameHash == GripParameter && parameter.type == AnimatorControllerParameterType.Float)
+            else if (parameter.nameHash == AgentAnimatorParams.Grip && parameter.type == AnimatorControllerParameterType.Float)
                 _hasGripParameter = true;
-            else if (parameter.nameHash == TriggerParameter && parameter.type == AnimatorControllerParameterType.Float)
+            else if (parameter.nameHash == AgentAnimatorParams.Trigger && parameter.type == AnimatorControllerParameterType.Float)
                 _hasTriggerParameter = true;
-            else if (parameter.nameHash == IsWalkingParameter && parameter.type == AnimatorControllerParameterType.Bool)
+            else if (parameter.nameHash == AgentAnimatorParams.IsWalking && parameter.type == AnimatorControllerParameterType.Bool)
                 _hasIsWalkingParameter = true;
-            else if (parameter.nameHash == IsWalkingBackwardParameter && parameter.type == AnimatorControllerParameterType.Bool)
+            else if (parameter.nameHash == AgentAnimatorParams.IsWalkingBackward && parameter.type == AnimatorControllerParameterType.Bool)
                 _hasIsWalkingBackwardParameter = true;
-            else if (parameter.nameHash == IsWalkingLeftParameter && parameter.type == AnimatorControllerParameterType.Bool)
+            else if (parameter.nameHash == AgentAnimatorParams.IsWalkingLeft && parameter.type == AnimatorControllerParameterType.Bool)
                 _hasIsWalkingLeftParameter = true;
-            else if (parameter.nameHash == IsWalkingRightParameter && parameter.type == AnimatorControllerParameterType.Bool)
+            else if (parameter.nameHash == AgentAnimatorParams.IsWalkingRight && parameter.type == AnimatorControllerParameterType.Bool)
                 _hasIsWalkingRightParameter = true;
         }
     }
@@ -198,14 +198,7 @@ public class HumanoidGhostFollower : MonoBehaviour
             ghostRigidbody.detectCollisions = false;
         }
 
-        foreach (Camera ghostCamera in GetComponentsInChildren<Camera>(true))
-        {
-            ghostCamera.enabled = false;
-            ghostCamera.tag = "Untagged";
-        }
-
-        foreach (AudioListener listener in GetComponentsInChildren<AudioListener>(true))
-            listener.enabled = false;
+        HumanoidGhostFactory.DisableCamerasAndListeners(gameObject);
 
         if (_bodyAnimator != null) _bodyAnimator.applyRootMotion = false;
 

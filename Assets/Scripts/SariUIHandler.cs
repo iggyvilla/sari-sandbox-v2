@@ -8,7 +8,6 @@ public class SariUIHandler : MonoBehaviour
     [SerializeField] private TextMeshProUGUI interactionStyleText;
     private string lastItemInfo;
     
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Awake()
     {
         if (Instance != null && Instance != this)
@@ -22,10 +21,10 @@ public class SariUIHandler : MonoBehaviour
 
     void Start()
     {
-        UpdateInteractionStyleText(DataHandler.Instance.agentInteractionStyle);
+        if (DataHandler.Instance != null)
+            UpdateInteractionStyleText(DataHandler.Instance.agentInteractionStyle);
     }
 
-    // Update is called once per frame
     public void UpdateInfoText(string itemInfo)
     {
         if (lastItemInfo != itemInfo)
@@ -39,6 +38,6 @@ public class SariUIHandler : MonoBehaviour
     public void UpdateInteractionStyleText(AgentInteractionStyle interactionStyle)
     {
         if (interactionStyleText != null)
-            interactionStyleText.text = $"agent interaction style: {interactionStyle.ToString()}";
+            interactionStyleText.text = $"agent interaction style: {interactionStyle}";
     }
 }

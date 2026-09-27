@@ -40,7 +40,21 @@ public class MultiplayerAgentManager : MonoBehaviour
     private readonly Dictionary<string, MultiplayerAgentRecord> _agents = new();
     private int _nextId = 1;
 
-    void Awake() => Instance = this;
+    void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+    }
 
     public string SpawnAgent()
     {
@@ -124,14 +138,14 @@ public class MultiplayerAgentManager : MonoBehaviour
         var result = new List<AgentState>();
         foreach (var kvp in _agents)
         {
-            if (kvp.Key == excludeId) continue;
-            Transform movementRoot = kvp.Value.controller.MovementRoot;
+            AgentController controller = kvp.Value.controller;
+            if (kvp.Key == excludeId || controller == null) continue;
             result.Add(new AgentState
             {
                 agentId = kvp.Key,
-                position = movementRoot.position,
-                rotation = kvp.Value.controller.ViewTransform.rotation,
-                recoveryCount = kvp.Value.controller.OutOfBoundsRecoveryCount
+                position = controller.MovementRoot.position,
+                rotation = controller.ViewTransform.rotation,
+                recoveryCount = controller.OutOfBoundsRecoveryCount
             });
         }
         return result;
@@ -157,24 +171,14 @@ public class MultiplayerAgentManager : MonoBehaviour
         {
             agentId = recoveredAgentId,
             recoveryCount = recoveryCount,
-            position = Vec3ToArr(position),
-            rotation = Vec3ToArr(rotation.eulerAngles)
+            position = WireVec.ToArray(position),
+            rotation = WireVec.ToArray(rotation.eulerAngles)
         }));
     }
 
-    private static float[] Vec3ToArr(Vector3 value) =>
-        new float[] { value.x, value.y, value.z };
-
     private static void PrepareMultiplayerAuthority(GameObject vrAvatar, AgentController controller)
     {
-        foreach (Camera agentCamera in vrAvatar.GetComponentsInChildren<Camera>(true))
-        {
-            agentCamera.enabled = false;
-            agentCamera.tag = "Untagged";
-        }
-
-        foreach (AudioListener listener in vrAvatar.GetComponentsInChildren<AudioListener>(true))
-            listener.enabled = false;
+        HumanoidGhostFactory.DisableCamerasAndListeners(vrAvatar);
 
         foreach (Behaviour behaviour in vrAvatar.GetComponentsInChildren<Behaviour>(true))
         {
