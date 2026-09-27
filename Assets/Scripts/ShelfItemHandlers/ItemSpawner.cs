@@ -550,7 +550,7 @@ public class ItemSpawner : MonoBehaviour
     }
 
     // Per-product draw data; only the positions change per instance.
-    private readonly struct ProductDrawTemplate
+    public readonly struct ProductDrawTemplate
     {
         private readonly InstanceData _data;
         // Per-LOD bottom-pivot y offset; NaN when no correction applies.
@@ -579,7 +579,7 @@ public class ItemSpawner : MonoBehaviour
         }
     }
 
-    ProductDrawTemplate CreateProductDrawTemplate(GameObject product, Quaternion aisleRot)
+    public static ProductDrawTemplate CreateProductDrawTemplate(GameObject product, Quaternion aisleRot)
     {
         // LOD child transforms (not the root) give correct rotation/scale; lods[i] is never null.
         Transform[] lods = LodHierarchy.ResolveLodTransforms(product);
