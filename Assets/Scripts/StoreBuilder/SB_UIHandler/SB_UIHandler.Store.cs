@@ -34,7 +34,7 @@ public partial class SB_UIHandler
         {
             try
             {
-                StoreData data = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(file));
+                StoreData data = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(file), DataHandler.JsonSettings);
                 if (data == null || data.shelves == null) continue;
                 _validStoreFiles.Add(Path.GetFileNameWithoutExtension(file));
             }

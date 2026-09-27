@@ -17,7 +17,7 @@ public class ItemSpawner : MonoBehaviour
     public float itemOuterPadding;
     public float itemBackPadding;
     // Adjust these constants if you'd like the items to be less dense
-    private const float InterItemPadding = 0.035f;
+    public const float InterItemPadding = 0.035f;
     private const float CanFillFraction = 0.5f;
     private Material _airMaterial;
     private ItemCategory itemCategory;
@@ -123,7 +123,7 @@ public class ItemSpawner : MonoBehaviour
         UpdateShelfDimensions();
 
         // ReadFromSave falls back to a random fill (then saves) when nothing is stored.
-        bool loaded = _itemSpawnOption == ItemSpawnOption.ReadFromSave && shelfItemData.LoadItemsFromJson(_shelfInfo);
+        bool loaded = _itemSpawnOption == ItemSpawnOption.ReadFromSave && shelfItemData.LoadItemsFromJson(_shelfInfo, InterItemPadding);
         if (!loaded)
         {
             shelfItemData.RandomFillFromCategory(itemCategory, InterItemPadding, widthBudget);

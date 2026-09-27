@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using UnityEngine.SceneManagement;
 
 [Serializable]
@@ -160,7 +161,8 @@ public class AisleMarkerSaveData
 [Serializable]
 public class StoreData
 {
-    public int version = 1;
+    // v2: enums saved as names; shelf items saved as names only.
+    public int version = 2;
     public float floorWidth  = 10f;
     public float floorHeight = 10f;
     public float wallHeight  = 3f;
@@ -177,6 +179,9 @@ public class DataHandler : MonoBehaviour
     public ItemCategories itemCategories;
     public Dictionary<string, ItemPriceData> itemPriceData;
     public static DataHandler Instance { get; private set; }
+
+    // Enums are written as names so store files stay readable; ints from older files still load.
+    public static readonly JsonSerializerSettings JsonSettings = new() { Converters = { new StringEnumConverter() } };
 
     public StoreData currentStoreData { get; private set; } = new StoreData();
 
@@ -256,6 +261,7 @@ public class DataHandler : MonoBehaviour
     private const string StoreBuilderSceneName = "StoreBuilder";
 
     private int currentShelfId;
+    private bool _shelfItemsDirty;
     private GameObject _activeAgentObject;
 
     public static bool IsStoreBuilderScene => SceneManager.GetActiveScene().name == StoreBuilderSceneName;
@@ -365,7 +371,7 @@ public class DataHandler : MonoBehaviour
             return;
         }
 
-        StoreData storeData = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(path));
+        StoreData storeData = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(path), JsonSettings);
         storeData.aisleMarkerLocations ??= new List<AisleMarkerSaveData>();
         currentStoreData = storeData;
         Debug.Log($"Loading store '{storeName}' — {storeData.shelves.Count} shelf(ves).");
@@ -479,12 +485,24 @@ public class DataHandler : MonoBehaviour
             Destroy(existing.gameObject);
     }
 
+    // Batched: every shelf that generates items this frame is written in one LateUpdate.
     public void SaveShelfItems(string idString, SaveDataWrapper data)
     {
         currentStoreData.shelfItems[idString] = data;
+        _shelfItemsDirty = true;
+    }
+
+    void LateUpdate()
+    {
+        if (_shelfItemsDirty) WriteStoreFile();
+    }
+
+    private void WriteStoreFile()
+    {
+        _shelfItemsDirty = false;
         string path = StorePath;
-        File.WriteAllText(path, JsonConvert.SerializeObject(currentStoreData, Formatting.Indented));
-        Debug.Log($"Saved shelf items for {idString} to {path}");
+        File.WriteAllText(path, JsonConvert.SerializeObject(currentStoreData, Formatting.Indented, JsonSettings));
+        Debug.Log($"Store saved to {path}");
     }
 
     public bool TryGetShelfItems(string idString, out SaveDataWrapper data)
@@ -498,7 +516,7 @@ public class DataHandler : MonoBehaviour
         RoomStructure roomStructure = floor != null ? floor.GetComponent<RoomStructure>() : null;
         StoreData storeData = new StoreData
         {
-            shelfItems  = currentStoreData.shelfItems,
+            shelfItems  = ShelfItemsFor(builders),
             floorWidth  = floor != null ? floor.transform.localScale.x : currentStoreData.floorWidth,
             floorHeight = floor != null ? floor.transform.localScale.z : currentStoreData.floorHeight,
             wallHeight  = roomStructure != null ? roomStructure.wallHeight : currentStoreData.wallHeight
@@ -578,9 +596,21 @@ public class DataHandler : MonoBehaviour
         }
 
         currentStoreData = storeData;
-        string path = StorePath;
-        File.WriteAllText(path, JsonConvert.SerializeObject(currentStoreData, Formatting.Indented));
-        Debug.Log($"Store saved to {path}");
+        WriteStoreFile();
+    }
+
+    // Saved items of shelves that still exist, so deleted shelves don't leave stale entries.
+    private Dictionary<string, SaveDataWrapper> ShelfItemsFor(ShelfBuilder[] builders)
+    {
+        Dictionary<string, SaveDataWrapper> kept = new();
+        foreach (ShelfBuilder b in builders)
+        {
+            string prefix = ShelfItemData.KeyPrefix(b.shelfId);
+            foreach (var kvp in currentStoreData.shelfItems)
+                if (kvp.Key.StartsWith(prefix, StringComparison.Ordinal)) kept[kvp.Key] = kvp.Value;
+        }
+
+        return kept;
     }
 
     /// <summary>

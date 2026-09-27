@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -157,16 +158,19 @@ public partial class SB_UIHandler
     }
 
     // Returns true when itemSpawnOption is ReadFromSave and at least one saved
-    // sub-shelf for the selected shelf has itemsTotalWidth > current shelfWidth.
+    // sub-shelf for the selected shelf is wider than the current shelfWidth.
     private bool CheckReadFromSaveOverflow()
     {
         if (selectedShelf.itemSpawnOption != ItemSpawnOption.ReadFromSave)
             return false;
 
-        string prefix = $"ID{selectedShelf.shelfId}_";
+        string prefix = ShelfItemData.KeyPrefix(selectedShelf.shelfId);
         foreach (var kvp in DataHandler.Instance.currentStoreData.shelfItems)
         {
-            if (kvp.Key.StartsWith(prefix, StringComparison.Ordinal) && kvp.Value.itemsTotalWidth > selectedShelf.shelfWidth)
+            if (!kvp.Key.StartsWith(prefix, StringComparison.Ordinal) || kvp.Value.items == null) continue;
+
+            List<RetailItemData> items = ShelfItemData.Resolve(kvp.Value.items, kvp.Key);
+            if (ShelfItemData.TotalWidth(items, ItemSpawner.InterItemPadding) > selectedShelf.shelfWidth)
                 return true;
         }
 

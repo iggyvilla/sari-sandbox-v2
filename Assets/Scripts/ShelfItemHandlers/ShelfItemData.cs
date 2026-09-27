@@ -4,15 +4,43 @@ using UnityEngine;
 using Newtonsoft.Json;
 using Random = UnityEngine.Random;
 
+// Only the product name is saved; the prefab and its dimensions are resolved at load time.
 [Serializable]
 public class RetailItemData
 {
+    public string name;
+
     [NonSerialized, JsonIgnore]
     public GameObject prefab;
 
-    public string name;
-    public ItemCategory itemCategory;
+    [NonSerialized, JsonIgnore]
     public RetailItemDimensions dimensions;
+
+    // Null when the product no longer exists or has no mesh.
+    public static RetailItemData FromName(string name)
+    {
+        GameObject product = ProductPrefabs.Load(name);
+        if (product == null) return null;
+
+        MeshRenderer r = product.GetComponentInChildren<MeshRenderer>();
+        if (r == null)
+        {
+            Debug.LogError(name + " has no mesh renderer");
+            return null;
+        }
+
+        return new RetailItemData
+        {
+            name = name,
+            prefab = product,
+            dimensions = new RetailItemDimensions
+            {
+                depth = r.bounds.size.x,
+                width = r.bounds.size.z,
+                height = r.bounds.size.y
+            }
+        };
+    }
 }
 
 [Serializable]
@@ -27,7 +55,6 @@ public class RetailItemDimensions
 public class SaveDataWrapper
 {
     public List<RetailItemData> items;
-    public float itemsTotalWidth;
 }
 
 public class ShelfItemData : MonoBehaviour
@@ -60,52 +87,24 @@ public class ShelfItemData : MonoBehaviour
             if (failedPicks >= MaxFailedPicks)
             {
                 Debug.LogError($"{nameof(ShelfItemData)} on {name}: no usable products in category {itemCategory}.");
-                itemsTotalWidth = lengthwiseOffset;
                 break;
             }
 
-            GameObject product = GetRandomProduct(itemCategory);
-            if (product == null)
+            RetailItemData retailItemData = GetRandomProduct(itemCategory);
+            if (retailItemData == null)
             {
-                Debug.LogWarning("Null product, retrying...");
-                failedPicks++;
-                continue;
-            }
-            
-            MeshRenderer r = product.GetComponentInChildren<MeshRenderer>();
-
-            if (r == null)
-            {
-                Debug.LogError(product.name + " has no mesh renderer");
+                Debug.LogWarning("Unusable product, retrying...");
                 failedPicks++;
                 continue;
             }
 
-            RetailItemDimensions dimensions = new()
-            {
-                depth = r.bounds.size.x,
-                width = r.bounds.size.z,
-                height = r.bounds.size.y
-            };
-            
-            RetailItemData retailItemData = new()
-            {
-                prefab = product,
-                name = product.name,
-                itemCategory = itemCategory,
-                dimensions = dimensions
-            };
-
+            RetailItemDimensions dimensions = retailItemData.dimensions;
             float halfWidth = dimensions.width / 2;
             
             lengthwiseOffset += halfWidth + (!firstItem ? interItemPadding : 0);
             
             // If the item we're about to spawn won't fit anymore, end loop
-            if (lengthwiseOffset + halfWidth + interItemPadding > widthBudget)
-            {
-                itemsTotalWidth = lengthwiseOffset - halfWidth;
-                break;
-            }
+            if (lengthwiseOffset + halfWidth + interItemPadding > widthBudget) break;
             
             // If it does fit within the shelf, add to the item list
             shelfItems.Add(retailItemData);
@@ -113,6 +112,16 @@ public class ShelfItemData : MonoBehaviour
             lengthwiseOffset += halfWidth;
             firstItem = false;
         }
+
+        itemsTotalWidth = TotalWidth(shelfItems, interItemPadding);
+    }
+
+    // Width of the items laid side by side, left to right.
+    public static float TotalWidth(List<RetailItemData> items, float interItemPadding)
+    {
+        float total = 0f;
+        foreach (RetailItemData item in items) total += item.dimensions.width;
+        return total + Mathf.Max(0, items.Count - 1) * interItemPadding;
     }
 
     public void SaveItemsToJson(ShelfInfo si)
@@ -121,42 +130,22 @@ public class ShelfItemData : MonoBehaviour
 
         string idString = SaveKey(si);
 
-        SaveDataWrapper wrapper = new SaveDataWrapper
-        {
-            // Copy so later edits to shelfItems don't mutate the stored data.
-            items = new List<RetailItemData>(shelfItems),
-            itemsTotalWidth = itemsTotalWidth
-        };
+        // Copy so later edits to shelfItems don't mutate the stored data.
+        SaveDataWrapper wrapper = new SaveDataWrapper { items = new List<RetailItemData>(shelfItems) };
 
         DataHandler.Instance.SaveShelfItems(idString, wrapper);
         Debug.Log($"Saved shelf {idString}'s items to store file.");
     }
 
-    public bool LoadItemsFromJson(ShelfInfo si)
+    public bool LoadItemsFromJson(ShelfInfo si, float interItemPadding)
     {
         string idString = SaveKey(si);
 
         if (DataHandler.Instance.TryGetShelfItems(idString, out SaveDataWrapper wrapper) && wrapper.items != null)
         {
             Debug.Log($"Loading shelf {idString}'s items from store file.");
-            itemsTotalWidth = wrapper.itemsTotalWidth;
-
-            // Copy so later edits to shelfItems don't mutate the stored data; skip removed products.
-            shelfItems = new List<RetailItemData>(wrapper.items.Count);
-            foreach (RetailItemData itemData in wrapper.items)
-            {
-                if (itemData == null) continue;
-
-                itemData.prefab = ProductPrefabs.Load(itemData.name);
-                if (itemData.prefab == null)
-                {
-                    Debug.LogWarning($"Shelf {idString}: product '{itemData.name}' no longer exists, skipping.");
-                    continue;
-                }
-
-                shelfItems.Add(itemData);
-            }
-
+            shelfItems = Resolve(wrapper.items, idString);
+            itemsTotalWidth = TotalWidth(shelfItems, interItemPadding);
             return true;
         }
 
@@ -164,15 +153,37 @@ public class ShelfItemData : MonoBehaviour
         return false;
     }
 
-    
-    static string SaveKey(ShelfInfo si) => $"ID{si.shelfId}_{si.subShelfId}_{si.subSubShelfId}";
+    // Fresh resolved copies of saved items, so later edits don't mutate the stored data; skips removed products.
+    public static List<RetailItemData> Resolve(List<RetailItemData> saved, string idString)
+    {
+        List<RetailItemData> resolved = new(saved.Count);
+        foreach (RetailItemData itemData in saved)
+        {
+            if (itemData == null) continue;
 
-    GameObject GetRandomProduct(ItemCategory itemCategory)
+            RetailItemData item = RetailItemData.FromName(itemData.name);
+            if (item == null)
+            {
+                Debug.LogWarning($"Shelf {idString}: product '{itemData.name}' no longer exists, skipping.");
+                continue;
+            }
+
+            resolved.Add(item);
+        }
+
+        return resolved;
+    }
+
+    public static string KeyPrefix(int shelfId) => $"ID{shelfId}_";
+
+    static string SaveKey(ShelfInfo si) => $"{KeyPrefix(si.shelfId)}{si.subShelfId}_{si.subSubShelfId}";
+
+    RetailItemData GetRandomProduct(ItemCategory itemCategory)
     {
         string[] categoryIds = itemCategories.Categories[(int)itemCategory].Items;
         if (categoryIds == null || categoryIds.Length == 0) return null;
 
-        return ProductPrefabs.Load(categoryIds[Random.Range(0, categoryIds.Length)]);
+        return RetailItemData.FromName(categoryIds[Random.Range(0, categoryIds.Length)]);
     }
 
     private bool TryInitialize()
