@@ -144,14 +144,8 @@
                 "REPUBLIC_BISCUIT_FROOTEES_GRAPE_JAM_32G",
                 "REPUBLIC_BISCUIT_FROOTEES_MANGO_JAM_32G",
                 "REPUBLIC_BISCUIT_FROOTEES_STRAWBERRY_JAM_32G",
-                "SCHOGETTEN_ALPINE_MILK_100G",
+                "SCHOGETTEN_ALPINE_MILK_100G"
 
-                "LINDT_HELLO_CARAMEL_BROWNIE_100G",
-                "LINDT_HELLO_COOKIES_AND_CREAM_100G",
-                "LINDT_HELLO_CRUNCHY_NOUGAT_100G",
-                "LINDT_HELLO_STRAWBERRY_CHEESECAKE_100G",
-                "M&M'S_MILK_CHOCOLATE_87.9G",
-                "OREO_WAFER_ROLL_3x18G"
             ]
         },
         {
@@ -238,7 +232,6 @@
                 "JACKNJILL_MRCHIPS_NACHOCHEESE_24G",
                 "JACKNJILL_VCUT_POTATOCHIPS_CHEESE_25G",
                 "JACKNJILL_VCUT_POTATOCHIPS_SPICY_BBQ_25G",
-                "JACKNJILL_CHOCOLATE_PRETZELS_40G",
                 "KANGKONGKING_ORIGINAL_60G",
                 "LESLIE_S_CHEEZY_CORN_CRUNCH_24G",
                 "LESLIE_S_CLOVER_CHIPS_CHEESE_24G",
@@ -290,8 +283,7 @@
                 "AJINOMOTO_SOUP&GO_CREAMY_POTATO_3x19.2G",
                 "AJINOMOTO_SOUP&GO_CREAMY_PUMPKIN_3x19.2G",
                 "MAYA_CHAMPORADO_227G",
-                "WHITEKING_CHAMPORADO_113G",
-                "CHAMPOLA_CHOCOLATE_BELGE_30G"
+                "WHITEKING_CHAMPORADO_113G"
             ]
         },
         {
@@ -301,9 +293,7 @@
             "JIN_RAMEN_MILD_120G",
             "LUCKY_ME_PANCIT_CANTON_CHILIMANSI_80G",
             "NISSIN_CUP_NOODLES_CREAMY_SEAFOOD_45G",
-            "NISSIN_CUP_NOODLES_SPICY_SEAFOOD_45G",
-            "NISSIN_CUP_NOODLES_SEAFOOD_40G",
-            "NISSIN_CUP_NOODLES_SOTANGHON_30G"
+            "NISSIN_CUP_NOODLES_SPICY_SEAFOOD_45G"
             ]
         }
     ]
