@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sari store spec",
+  "description": "A convenience-store layout for the Sari Sandbox. Units are meters and degrees. The floor is centered on the origin: x runs from -floor.width/2 to +floor.width/2, z from -floor.depth/2 to +floor.depth/2. Positions are [x, z] on the floor. Yaw turns clockwise seen from above: yaw 0 faces +z, 90 faces +x, 180 faces -z, 270 faces -x.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "floor", "agent_spawn", "shelves"],
+  "properties": {
+    "version": { "const": 1 },
+    "notes": { "type": "string", "description": "Free text; ignored." },
+    "floor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "depth"],
+      "properties": {
+        "width": { "type": "number", "minimum": 3, "maximum": 60, "description": "Size along x." },
+        "depth": { "type": "number", "minimum": 3, "maximum": 60, "description": "Size along z." }
+      }
+    },
+    "wall_height": { "type": "number", "minimum": 2.5, "maximum": 10, "default": 4 },
+    "agent_spawn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position"],
+      "properties": {
+        "position": { "$ref": "#/$defs/position" },
+        "yaw": { "type": "number", "default": 0 }
+      }
+    },
+    "shelves": { "type": "array", "items": { "$ref": "#/$defs/shelf" } },
+    "checkouts": {
+      "type": "array",
+      "description": "Self-checkout counters (about 1.5 m wide by 0.7 m deep).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["position"],
+        "properties": {
+          "position": { "$ref": "#/$defs/position" },
+          "yaw": { "$ref": "#/$defs/yaw" }
+        }
+      }
+    },
+    "aisle_markers": {
+      "type": "array",
+      "description": "Signs hanging from the ceiling.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["position", "number"],
+        "properties": {
+          "position": { "$ref": "#/$defs/position" },
+          "yaw": { "$ref": "#/$defs/yaw" },
+          "number": { "type": "integer", "minimum": 0 },
+          "categories": {
+            "type": "array",
+            "maxItems": 3,
+            "items": { "type": "string" },
+            "description": "Up to three labels shown on the sign, usually category names."
+          },
+          "cable_length": { "type": "number", "minimum": 0, "default": 1.5, "description": "Distance from the ceiling down to the sign." }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "position": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "[x, z] in meters."
+    },
+    "yaw": { "enum": [0, 90, 180, 270], "default": 0 },
+    "category": {
+      "enum": ["Water", "Soda", "Juice", "Dairies", "Liquor", "Biscuit", "Can", "Chips", "Nuts", "Soup", "Noodles"]
+    },
+    "level": {
+      "description": "What one shelf level holds. A category name fills it with random products from that category. An object can list exact products (names from catalog.json), placed in order along the level and must fit its width; the category is inferred from the first product when omitted.",
+      "oneOf": [
+        { "$ref": "#/$defs/category" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "category": { "$ref": "#/$defs/category" },
+            "products": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          },
+          "anyOf": [{ "required": ["category"] }, { "required": ["products"] }]
+        }
+      ]
+    },
+    "side": {
+      "description": "Stock for one side of a shelf: a single level value for every level, or an array with one entry per level, bottom level first.",
+      "oneOf": [
+        { "$ref": "#/$defs/level" },
+        { "type": "array", "items": { "$ref": "#/$defs/level" }, "minItems": 1 }
+      ]
+    },
+    "shelf": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "position"],
+      "description": "A shelving unit. position is the center of its back panel (spine); the front side faces the yaw direction. Stocked sides per type: wall = front (put the spine against a store wall); island = front and back (double-sided aisle shelf); gondola = front, back, left and right (island with end caps; left/right are as seen by a shopper facing the front); fridge = front, behind glass doors. Every stocked side must be given, and no others.",
+      "properties": {
+        "type": { "enum": ["wall", "island", "gondola", "fridge"] },
+        "position": { "$ref": "#/$defs/position" },
+        "yaw": { "$ref": "#/$defs/yaw" },
+        "width": { "type": "number", "minimum": 0.5, "maximum": 10, "description": "Length of the front. Defaults: wall 1.5, island 4, gondola 4, fridge 1.25." },
+        "levels": { "type": "integer", "minimum": 1, "maximum": 10, "description": "Stocked levels per side. Default 4." },
+        "level_spacing": { "type": "number", "minimum": 0.2, "maximum": 1, "description": "Vertical distance between levels. Defaults: 0.41, fridge 0.38." },
+        "base_height": { "type": "number", "minimum": 0.02, "maximum": 1, "description": "Height of the bottom level. Defaults: 0.2, fridge 0.15." },
+        "door_style": { "enum": ["single", "double"], "description": "Fridge only. Default double." },
+        "price_tags": { "type": "boolean", "default": true },
+        "randomize_each_reset": {
+          "type": "boolean",
+          "default": false,
+          "description": "false: random picks are made once and then kept. true: category levels are re-rolled on every reset (not allowed with explicit products)."
+        },
+        "front": { "$ref": "#/$defs/side" },
+        "back": { "$ref": "#/$defs/side" },
+        "left": { "$ref": "#/$defs/side" },
+        "right": { "$ref": "#/$defs/side" }
+      }
+    }
+  }
+}

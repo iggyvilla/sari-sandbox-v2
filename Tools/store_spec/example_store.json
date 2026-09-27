@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "notes": "Example store: wall shelves along the west wall, two double-sided islands, three fridges and a wall shelf along the north wall.",
+  "floor": {
+    "width": 12.0,
+    "depth": 12.0
+  },
+  "wall_height": 4.0,
+  "agent_spawn": {
+    "position": [-3.0, -5.0]
+  },
+  "shelves": [
+    {
+      "type": "wall",
+      "position": [-6.0, -2.0],
+      "yaw": 90,
+      "front": [
+        {
+          "products": ["ABSOLUTE_PURE_500ML", "NATURE_SPRING_500ML", "POCARI_SWEAT_500ML"]
+        },
+        "Water",
+        "Water",
+        "Water"
+      ]
+    },
+    {
+      "type": "wall",
+      "position": [-6.0, 0.25],
+      "yaw": 90,
+      "front": ["Noodles", "Chips", "Noodles", "Chips"]
+    },
+    {
+      "type": "wall",
+      "position": [-6.0, 2.5],
+      "yaw": 90,
+      "front": ["Chips", "Noodles", "Chips", "Noodles"]
+    },
+    {
+      "type": "island",
+      "position": [0.0, -2.0],
+      "yaw": 0,
+      "back": "Biscuit",
+      "front": "Biscuit"
+    },
+    {
+      "type": "island",
+      "position": [0.0, 2.5],
+      "yaw": 0,
+      "back": "Can",
+      "front": "Chips"
+    },
+    {
+      "type": "fridge",
+      "position": [-4.5, 6.0],
+      "yaw": 180,
+      "front": "Water"
+    },
+    {
+      "type": "fridge",
+      "position": [-3.0, 6.0],
+      "yaw": 180,
+      "front": "Soda"
+    },
+    {
+      "type": "fridge",
+      "position": [-1.5, 6.0],
+      "yaw": 180,
+      "front": "Dairies"
+    },
+    {
+      "type": "wall",
+      "position": [0.25, 6.0],
+      "yaw": 180,
+      "front": "Soup"
+    }
+  ],
+  "checkouts": [
+    {
+      "position": [-5.25, -5.25],
+      "yaw": 90
+    }
+  ],
+  "aisle_markers": [
+    {
+      "position": [-1.0, -3.75],
+      "number": 1,
+      "categories": ["Chips"],
+      "cable_length": 1.5
+    },
+    {
+      "position": [-1.0, 0.5],
+      "number": 2,
+      "categories": ["Chips", "Canned Food"],
+      "cable_length": 1.5
+    },
+    {
+      "position": [-3.75, 3.75],
+      "number": 3,
+      "categories": ["Water/Soda", "Dairies", "Soup"],
+      "cable_length": 1.5
+    },
+    {
+      "position": [-4.0, -2.0],
+      "number": 2,
+      "categories": ["Noodles", "Chips"],
+      "cable_length": 1.5
+    }
+  ]
+}
