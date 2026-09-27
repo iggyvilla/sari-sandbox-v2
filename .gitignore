@@ -53,3 +53,5 @@ __pycache__
 HiZDebug
 TestScripts/lidar_outputs
 SariAgent
+Assets/Resources/Meshes
+Assets/Resources/Meshes.meta
