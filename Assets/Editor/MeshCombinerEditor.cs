@@ -6,6 +6,8 @@ using UnityEngine;
 [CustomEditor(typeof(MeshCombiner))]
 public class MeshCombinerEditor : Editor
 {
+	private static readonly Regex ProhibitedPathChars = new Regex("[:*?\"<>|]");
+
 	public override void OnInspectorGUI()
 	{
 		MeshCombiner meshCombiner = (MeshCombiner)target;
@@ -33,6 +35,9 @@ public class MeshCombinerEditor : Editor
 		{
 			meshCombiner.CombineMeshes(true);
 		}
+
+		// Records toggle/path edits for undo and marks the object dirty so they are saved.
+		Undo.RecordObject(meshCombiner, "Edit Mesh Combiner");
 
 		// Toggles:
 		meshCombiner.CreateMultiMaterialMesh = GUILayout.Toggle(meshCombiner.CreateMultiMaterialMesh, "Create Multi-Material Mesh");
@@ -89,9 +94,7 @@ public class MeshCombinerEditor : Editor
 
 	private bool IsValidPath(string folderPath)
 	{
-		string pattern = "[:*?\"<>|]"; // Prohibited characters.
-		Regex regex = new Regex(pattern);
-		return (!regex.IsMatch(folderPath));
+		return folderPath != null && !ProhibitedPathChars.IsMatch(folderPath);
 	}
 
 	private string SaveCombinedMesh(Mesh mesh, string folderPath)
@@ -117,18 +120,19 @@ public class MeshCombinerEditor : Editor
 				}
 				folderPath += folderNames[i]+"/";
 			}
-			folderPath = folderPath.Substring(1, folderPath.Length-2); // Delete first and last "/" character.
+			folderPath = folderPath.Length > 1 ? folderPath.Substring(1, folderPath.Length-2) : ""; // Delete first and last "/" character.
 		}
 		#endregion Create directories if Mesh and path doesn't exists.
 
 		#region Save Mesh:
 		if(!meshIsSaved)
 		{
-			string meshPath = "Assets/"+folderPath+"/"+mesh.name+".asset";
+			string folder = folderPath.Length > 0 ? "Assets/"+folderPath : "Assets";
+			string meshPath = folder+"/"+mesh.name+".asset";
 			int assetNumber = 1;
 			while(AssetDatabase.LoadAssetAtPath(meshPath, typeof(Mesh)) != null) // If Mesh with same name exists, change name.
 			{
-				meshPath = "Assets/"+folderPath+"/"+mesh.name+" ("+assetNumber+").asset";
+				meshPath = folder+"/"+mesh.name+" ("+assetNumber+").asset";
 				assetNumber++;
 			}
 

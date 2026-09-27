@@ -4,6 +4,9 @@ using UnityEngine;
 
 public static class ScreenshotUtility
 {
+    // Delay so the frame captures movement that already happened; real time so a paused simulation cannot hang it.
+    private const float SettleDelaySeconds = 0.5f;
+
     public static IEnumerator GetScreenshotBase64(Action<string> callback)
     {
         yield return GetScreenshotBytes(bytes => callback?.Invoke(Convert.ToBase64String(bytes)));
@@ -11,8 +14,7 @@ public static class ScreenshotUtility
 
     public static IEnumerator GetScreenshotBytes(Action<byte[]> callback)
     {
-        // Delay so the frame captures movement that already happened
-        yield return new WaitForSeconds(0.5f);
+        yield return new WaitForSecondsRealtime(SettleDelaySeconds);
 
         yield return new WaitForEndOfFrame();
 
@@ -23,19 +25,6 @@ public static class ScreenshotUtility
         callback?.Invoke(bytes);
     }
 
-    public static IEnumerator GetScreenshotBase64(
-        Camera cam,
-        Action<string> callback,
-        Action beforeRender = null,
-        Action afterRender = null)
-    {
-        yield return GetScreenshotBytes(
-            cam,
-            bytes => callback?.Invoke(Convert.ToBase64String(bytes)),
-            beforeRender,
-            afterRender);
-    }
-
     public static IEnumerator GetScreenshotBytes(
         Camera cam,
         Action<byte[]> callback,
@@ -43,18 +32,14 @@ public static class ScreenshotUtility
         Action afterRender = null,
         Func<bool> isCancelled = null)
     {
-        // This path renders the requested camera into its own RenderTexture, so it does not depend
-        // on Unity's end-of-frame backbuffer callback. A real-time delay retains the existing
-        // movement-settling behavior without hanging when scaled simulation time is paused.
-        yield return new WaitForSecondsRealtime(0.5f);
+        // Renders the camera into its own RenderTexture, so it does not depend on the end-of-frame callback.
+        yield return new WaitForSecondsRealtime(SettleDelaySeconds);
 
         if (isCancelled?.Invoke() == true) yield break;
         if (cam == null) yield break;
 
-        RenderTexture rt = new RenderTexture(Screen.width, Screen.height, 24);
+        RenderTexture rt = RenderTexture.GetTemporary(Screen.width, Screen.height, 24);
         RenderTexture prevTarget = cam.targetTexture;
-        RenderTexture prevActive = RenderTexture.active;
-        Texture2D tex = null;
 
         try
         {
@@ -62,21 +47,13 @@ public static class ScreenshotUtility
             cam.targetTexture = rt;
             cam.Render();
 
-            RenderTexture.active = rt;
-            tex = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);
-            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-            tex.Apply();
-
-            byte[] bytes = tex.EncodeToPNG();
-            callback?.Invoke(bytes);
+            callback?.Invoke(RenderTextureUtility.EncodeToPng(rt, TextureFormat.RGB24));
         }
         finally
         {
             cam.targetTexture = prevTarget;
-            RenderTexture.active = prevActive;
             afterRender?.Invoke();
-            UnityEngine.Object.Destroy(rt);
-            if (tex != null) UnityEngine.Object.Destroy(tex);
+            RenderTexture.ReleaseTemporary(rt);
         }
     }
 }

@@ -65,23 +65,18 @@ public static class PrefabSpriteBaker
 
         try
         {
-            int bakedCount = 0;
+            List<string> outputPaths = new List<string>(values.Count);
             foreach (T value in values)
             {
                 BakeSetup setup = CreateBakeSetup(previewScene, settings, true, true);
                 try
                 {
-                    configureInstance(setup.SourceInstance, value);
-                    ForceTextUpdate(setup.SourceInstance);
-
-                    Bounds bounds = setup.BackingRenderer.bounds;
-                    PositionCameraAndLight(setup, bounds);
+                    Bounds bounds = PrepareSetup(setup, instance => configureInstance(instance, value));
 
                     string assetName = SanitizeAssetFileName(getAssetName(value));
                     string outputPath = $"{settings.OutputDirectory}/{assetName}.png";
                     RenderPng(setup.Camera, ref renderTexture, bounds, outputPath, settings.MaxTextureDimension);
-                    ConfigureSpriteImport(outputPath);
-                    bakedCount++;
+                    outputPaths.Add(outputPath);
                 }
                 finally
                 {
@@ -89,10 +84,10 @@ public static class PrefabSpriteBaker
                 }
             }
 
+            ConfigureSpriteImports(outputPaths);
             AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
             RebuildAtlas(settings.OutputDirectory, settings.AtlasPath);
-            return bakedCount;
+            return outputPaths.Count;
         }
         finally
         {
@@ -175,7 +170,21 @@ public static class PrefabSpriteBaker
         if (setup.SourceInstance != null) Object.DestroyImmediate(setup.SourceInstance);
     }
 
-    public static void ForceTextUpdate(GameObject root)
+    /// <summary>
+    /// Applies per-sprite values to the source instance, refreshes its text, and frames the camera/light.
+    /// Returns the framing bounds used for rendering.
+    /// </summary>
+    public static Bounds PrepareSetup(BakeSetup setup, Action<GameObject> configureInstance)
+    {
+        configureInstance(setup.SourceInstance);
+        ForceTextUpdate(setup.SourceInstance);
+
+        Bounds bounds = setup.BackingRenderer.bounds;
+        PositionCameraAndLight(setup, bounds);
+        return bounds;
+    }
+
+    private static void ForceTextUpdate(GameObject root)
     {
         Canvas.ForceUpdateCanvases();
 
@@ -185,7 +194,7 @@ public static class PrefabSpriteBaker
         }
     }
 
-    public static void PositionCameraAndLight(BakeSetup setup, Bounds bounds)
+    private static void PositionCameraAndLight(BakeSetup setup, Bounds bounds)
     {
         setup.Camera.transform.position = new Vector3(
             bounds.center.x,
@@ -225,12 +234,7 @@ public static class PrefabSpriteBaker
             GL.Clear(true, true, new Color(0f, 0f, 0f, 0f));
             camera.Render();
 
-            Texture2D texture = new(textureSize.x, textureSize.y, TextureFormat.RGBA32, false);
-            texture.ReadPixels(new Rect(0, 0, textureSize.x, textureSize.y), 0, 0);
-            texture.Apply();
-
-            File.WriteAllBytes(outputPath, texture.EncodeToPNG());
-            Object.DestroyImmediate(texture);
+            File.WriteAllBytes(outputPath, RenderTextureUtility.EncodeToPng(renderTexture, TextureFormat.RGBA32));
         }
         finally
         {
@@ -242,7 +246,29 @@ public static class PrefabSpriteBaker
     public static void ConfigureSpriteImport(string outputPath)
     {
         AssetDatabase.ImportAsset(outputPath);
+        ApplySpriteImportSettings(outputPath);
+    }
 
+    // Imports freshly written PNGs once, then applies sprite settings in a single batched reimport.
+    private static void ConfigureSpriteImports(IEnumerable<string> outputPaths)
+    {
+        AssetDatabase.Refresh();
+        AssetDatabase.StartAssetEditing();
+        try
+        {
+            foreach (string outputPath in outputPaths)
+            {
+                ApplySpriteImportSettings(outputPath);
+            }
+        }
+        finally
+        {
+            AssetDatabase.StopAssetEditing();
+        }
+    }
+
+    private static void ApplySpriteImportSettings(string outputPath)
+    {
         TextureImporter importer = AssetImporter.GetAtPath(outputPath) as TextureImporter;
         if (importer == null)
         {
@@ -258,17 +284,25 @@ public static class PrefabSpriteBaker
         importer.maxTextureSize = 1024;
         importer.textureCompression = TextureImporterCompression.CompressedHQ;
 
-        TextureImporterPlatformSettings standaloneSettings =
-            importer.GetPlatformTextureSettings("Standalone");
-        standaloneSettings.name = "Standalone";
-        standaloneSettings.overridden = true;
-        standaloneSettings.maxTextureSize = 1024;
-        standaloneSettings.format = TextureImporterFormat.BC7;
-        standaloneSettings.textureCompression = TextureImporterCompression.CompressedHQ;
-        standaloneSettings.compressionQuality = 100;
-        standaloneSettings.crunchedCompression = false;
-        importer.SetPlatformTextureSettings(standaloneSettings);
+        importer.SetPlatformTextureSettings(
+            ApplyStandaloneBc7(importer.GetPlatformTextureSettings("Standalone"), 1024)
+        );
         importer.SaveAndReimport();
+    }
+
+    private static TextureImporterPlatformSettings ApplyStandaloneBc7(
+        TextureImporterPlatformSettings settings,
+        int maxTextureSize
+    )
+    {
+        settings.name = "Standalone";
+        settings.overridden = true;
+        settings.maxTextureSize = maxTextureSize;
+        settings.format = TextureImporterFormat.BC7;
+        settings.textureCompression = TextureImporterCompression.CompressedHQ;
+        settings.compressionQuality = 100;
+        settings.crunchedCompression = false;
+        return settings;
     }
 
     public static void RebuildAtlas(string outputDirectory, string atlasPath)
@@ -307,17 +341,10 @@ public static class PrefabSpriteBaker
         textureSettings.filterMode = FilterMode.Bilinear;
         atlas.SetTextureSettings(textureSettings);
 
-        var standaloneSettings = new TextureImporterPlatformSettings
-        {
-            name = "Standalone",
-            overridden = true,
-            maxTextureSize = 2048,
-            format = TextureImporterFormat.BC7,
-            textureCompression = TextureImporterCompression.CompressedHQ,
-            compressionQuality = 100,
-            crunchedCompression = false
-        };
-        SpriteAtlasExtensions.SetPlatformSettings(atlas, standaloneSettings);
+        SpriteAtlasExtensions.SetPlatformSettings(
+            atlas,
+            ApplyStandaloneBc7(new TextureImporterPlatformSettings(), 2048)
+        );
 
         EditorUtility.SetDirty(atlas);
         AssetDatabase.SaveAssets();
@@ -395,7 +422,7 @@ public static class PrefabSpriteBaker
         int largestDimension = Math.Max(textureWidth, textureHeight);
         if (largestDimension > effectiveMaxDimension)
         {
-            double scale = effectiveMaxDimension / largestDimension;
+            double scale = (double)effectiveMaxDimension / largestDimension;
             textureWidth = AlignToCompressionBlock((int)Math.Floor(textureWidth * scale));
             textureHeight = AlignToCompressionBlock((int)Math.Floor(textureHeight * scale));
 

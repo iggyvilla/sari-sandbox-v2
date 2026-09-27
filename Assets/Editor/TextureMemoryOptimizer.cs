@@ -48,6 +48,8 @@ public static class TextureMemoryOptimizer
         }
 
         int changedCount = 0;
+        // Batch reimports so each SaveAndReimport doesn't trigger a separate import pass.
+        AssetDatabase.StartAssetEditing();
         try
         {
             int index = 0;
@@ -99,6 +101,7 @@ public static class TextureMemoryOptimizer
         }
         finally
         {
+            AssetDatabase.StopAssetEditing();
             EditorUtility.ClearProgressBar();
         }
 

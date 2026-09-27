@@ -22,8 +22,6 @@ float _MinRange;
 float _MaxRange;
 float _AzimuthStartDeg;
 float _AzimuthStepDeg;
-float4 _ZBufferParamsForLidar;
-int _UsesReversedZBuffer;
 
 float LoadFaceDepth(int face, int2 pixel)
 {

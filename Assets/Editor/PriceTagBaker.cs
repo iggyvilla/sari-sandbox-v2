@@ -28,14 +28,7 @@ public static class PriceTagBaker
             CreateSettings(prefab),
             priceData,
             item => item.Key,
-            (instance, item) =>
-            {
-                instance.GetComponent<PriceTag>().SetValues(
-                    item.Key,
-                    item.Value.pricePHP,
-                    item.Value.netWeight
-                );
-            },
+            ApplyPrice,
             false
         );
 
@@ -55,6 +48,7 @@ public static class PriceTagBaker
         }
 
         if (!ValidatePriceTagPrefab(prefab)) return;
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
         Scene debugScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         debugScene.name = "Price Tag Bake Debug";
@@ -63,15 +57,7 @@ public static class PriceTagBaker
             PrefabSpriteBaker.CreateBakeSetup(debugScene, CreateSettings(prefab), true, false);
 
         KeyValuePair<string, ItemPriceData> sample = GetFirstItem(priceData);
-        setup.SourceInstance.GetComponent<PriceTag>().SetValues(
-            sample.Key,
-            sample.Value.pricePHP,
-            sample.Value.netWeight
-        );
-        PrefabSpriteBaker.ForceTextUpdate(setup.SourceInstance);
-
-        Bounds bounds = setup.BackingRenderer.bounds;
-        PrefabSpriteBaker.PositionCameraAndLight(setup, bounds);
+        PrefabSpriteBaker.PrepareSetup(setup, instance => ApplyPrice(instance, sample));
 
         Selection.objects = new Object[] { setup.SourceInstance, setup.CameraObject, setup.LightObject };
         SceneView.lastActiveSceneView?.FrameSelected();
@@ -107,15 +93,7 @@ public static class PriceTagBaker
             setup = PrefabSpriteBaker.CreateBakeSetup(previewScene, CreateSettings(prefab), true, true);
 
             KeyValuePair<string, ItemPriceData> sample = GetFirstItem(priceData);
-            setup.SourceInstance.GetComponent<PriceTag>().SetValues(
-                sample.Key,
-                sample.Value.pricePHP,
-                sample.Value.netWeight
-            );
-            PrefabSpriteBaker.ForceTextUpdate(setup.SourceInstance);
-
-            Bounds bounds = setup.BackingRenderer.bounds;
-            PrefabSpriteBaker.PositionCameraAndLight(setup, bounds);
+            Bounds bounds = PrefabSpriteBaker.PrepareSetup(setup, instance => ApplyPrice(instance, sample));
 
             string outputPath = $"{DebugOutputDirectory}/__DEBUG_SAMPLE.png";
             PrefabSpriteBaker.RenderPng(setup.Camera, ref renderTexture, bounds, outputPath);
@@ -130,6 +108,11 @@ public static class PriceTagBaker
             PrefabSpriteBaker.DestroyBakeSetup(setup);
             EditorSceneManager.ClosePreviewScene(previewScene);
         }
+    }
+
+    private static void ApplyPrice(GameObject instance, KeyValuePair<string, ItemPriceData> item)
+    {
+        instance.GetComponent<PriceTag>().SetValues(item.Key, item.Value.pricePHP, item.Value.netWeight);
     }
 
     private static PrefabSpriteBaker.BakeSettings CreateSettings(GameObject prefab)

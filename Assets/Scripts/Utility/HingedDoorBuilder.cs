@@ -1,9 +1,4 @@
-using System;
-using System.Numerics;
-using Unity.Mathematics.Geometry;
 using UnityEngine;
-using Quaternion = UnityEngine.Quaternion;
-using Vector3 = UnityEngine.Vector3;
 
 public enum DoorDirection
 {
@@ -14,15 +9,18 @@ public enum DoorDirection
 public class HingedDoorBuilder : MonoBehaviour
 {
     private HingeJoint _hingeJoint;
+    private Rigidbody _rigidbody;
     [SerializeField] private GameObject glassDoor;
     [SerializeField] private GameObject doorHandle;
     [SerializeField] private BoxCollider doorTrigger;
     // Cube with a special texture for border
     [SerializeField] private GameObject borderCube;
-    private bool _doorStatus;
 
     // How wide (along the door face) each border strip is.
     private const float FridgeBorderWidth = 0.05f;
+    // Yaw tolerance (degrees) for treating the door as closed.
+    private const float ClosedAngleTolerance = 5f;
+    private const float ToggleForce = 15f;
     // Glass is scaled down slightly so its edges don't sit exactly on the border
     // faces, which would otherwise z-fight.
     private const float FridgeGlassShrink = 0.99f;
@@ -32,12 +30,15 @@ public class HingedDoorBuilder : MonoBehaviour
 
     private Vector3 _closedTriggerSize;
     private Vector3 _closedTriggerCenter;
+    // Last trigger shape applied; null forces the next Update to apply one.
+    private bool? _appliedClosedTrigger;
 
     [SerializeField] private float startAngle;
 
     void Awake()
     {
         _hingeJoint = GetComponentInChildren<HingeJoint>();
+        _rigidbody = GetComponent<Rigidbody>();
         startAngle = transform.rotation.eulerAngles.y;
     }
 
@@ -63,11 +64,10 @@ public class HingedDoorBuilder : MonoBehaviour
         {
             _hingeJoint.anchor = new Vector3(-doorDimensions.x/2, 0, 0);
             handleSide = 1f;
-            JointLimits limits = new JointLimits
-            {
-                min = 0,
-                max = -90
-            };
+            // Mirror the prefab's 0..90 range, keeping its bounce settings.
+            JointLimits limits = _hingeJoint.limits;
+            limits.min = -90;
+            limits.max = 0;
             _hingeJoint.limits = limits;
         }
 
@@ -77,14 +77,14 @@ public class HingedDoorBuilder : MonoBehaviour
         float borderFrontZ = (doorDimensions.z + _borderThicknessPadding) / 2f;
         doorHandle.transform.position += transform.right * handleX + transform.forward * borderFrontZ;
 
-        // doorTrigger is parented to glassDoor whose localScale == doorDimensions,
-        // so divide world-space extents by that scale to get local collider values.
+        // doorTrigger is parented to glassDoor, so divide world-space extents by its scale.
         Vector3 scale = glassDoor.transform.localScale;
         float colliderDepth = subShelfDepth + doorDimensions.z;
         _closedTriggerSize = new Vector3(1f, 1f, colliderDepth / scale.z);
         _closedTriggerCenter = new Vector3(0, 0, (doorDimensions.z - subShelfDepth) / 2f / scale.z);
         doorTrigger.size = _closedTriggerSize;
         doorTrigger.center = _closedTriggerCenter;
+        _appliedClosedTrigger = true;
 
         BuildFridgeBorder(doorDimensions);
     }
@@ -122,7 +122,6 @@ public class HingedDoorBuilder : MonoBehaviour
     // the parent's localScale (== doorDimensions) doesn't distort it.
     private void CreateBorderCube(Vector3 worldSize, Vector3 worldOffset)
     {
-        // GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
         GameObject cube = Instantiate(borderCube, glassDoor.transform);
         cube.name = "FridgeBorder";
 
@@ -130,7 +129,6 @@ public class HingedDoorBuilder : MonoBehaviour
         Destroy(cube.GetComponent<BoxCollider>());
 
         Vector3 parentScale = glassDoor.transform.localScale;
-        // cube.transform.SetParent(glassDoor.transform, false);
         cube.transform.localScale = new Vector3(
             worldSize.x / parentScale.x,
             worldSize.y / parentScale.y,
@@ -144,40 +142,27 @@ public class HingedDoorBuilder : MonoBehaviour
 
     public bool IsDoorClosed()
     {
-        float yDeg = transform.rotation.eulerAngles.y;
-        return yDeg <= startAngle + 5 && yDeg >= startAngle - 5;
+        return Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, startAngle)) <= ClosedAngleTolerance;
     }
 
     void Update()
     {
-        if (IsDoorClosed())
-        {
-            doorTrigger.size = _closedTriggerSize;
-            doorTrigger.center = _closedTriggerCenter;
-        }
-        else
-        {
-            doorTrigger.size = Vector3.one;
-            doorTrigger.center = Vector3.zero;
-        }
+        // Only touch the collider when the state flips; resizing it every frame forces a physics shape update.
+        bool closed = IsDoorClosed();
+        if (_appliedClosedTrigger == closed) return;
+
+        _appliedClosedTrigger = closed;
+        doorTrigger.size = closed ? _closedTriggerSize : Vector3.one;
+        doorTrigger.center = closed ? _closedTriggerCenter : Vector3.zero;
     }
 
     public void ApplyHandForce(Vector3 worldForce)
     {
-        Rigidbody rb = GetComponent<Rigidbody>();
-        rb.AddForce(worldForce);
+        _rigidbody.AddForce(worldForce);
     }
 
     public void ToggleDoor()
     {
-        Rigidbody rb = GetComponent<Rigidbody>();
-
-        float closeForce = 15.0f;
-        
-        if (IsDoorClosed())
-            rb.AddForce(transform.forward * closeForce);
-        else
-            rb.AddForce(-transform.forward * closeForce);
+        _rigidbody.AddForce((IsDoorClosed() ? transform.forward : -transform.forward) * ToggleForce);
     }
-    
 }

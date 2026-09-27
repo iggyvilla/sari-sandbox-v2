@@ -129,18 +129,23 @@ public class AgentOutOfBoundsRecoveryTests
         handleObject.transform.SetParent(doorObject.transform, false);
         DoorHandle doorHandle = handleObject.AddComponent<DoorHandle>();
 
-        Vector3 handPose = new Vector3(0.2f, 0.3f, 0.4f);
-        _leftHand.transform.localPosition = handPose;
-        SetHandRuntimeField("_leftHand", "GrabbedDoor", doorHandle);
-        SetHandRuntimeField("_leftHand", "IsGripped", true);
-        _agentObject.transform.position = new Vector3(6f, 0f, 0f);
+        try
+        {
+            Vector3 handPose = new Vector3(0.2f, 0.3f, 0.4f);
+            _leftHand.transform.localPosition = handPose;
+            SetHandRuntimeField("_leftHand", "GrabbedDoor", doorHandle);
+            SetHandRuntimeField("_leftHand", "IsGripped", true);
+            _agentObject.transform.position = new Vector3(6f, 0f, 0f);
 
-        Assert.That(_agent.RecoverIfOutOfBounds(), Is.True);
-        Assert.That(GetHandRuntimeField("_leftHand", "GrabbedDoor"), Is.Null);
-        Assert.That(_agent.IsLeftGripped, Is.False);
-        Assert.That(_leftHand.transform.localPosition, Is.EqualTo(handPose));
-
-        Object.DestroyImmediate(doorObject);
+            Assert.That(_agent.RecoverIfOutOfBounds(), Is.True);
+            Assert.That(GetHandRuntimeField("_leftHand", "GrabbedDoor"), Is.Null);
+            Assert.That(_agent.IsLeftGripped, Is.False);
+            Assert.That(_leftHand.transform.localPosition, Is.EqualTo(handPose));
+        }
+        finally
+        {
+            Object.DestroyImmediate(doorObject);
+        }
     }
 
     [Test]

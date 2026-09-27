@@ -24,6 +24,31 @@ public class LidarSensor : MonoBehaviour
     private const float RangeMissTolerance = 0.001f;
     private const float PlanarForwardEpsilonSqr = 0.000001f;
     private const float GpuReadbackTimeoutSeconds = 6f;
+    private const int ThreadGroupSize = 8;
+    private const int PayloadHeaderBytes = 36;
+    private const int ForwardFace = 4;
+
+    private static readonly int ChannelsId = Shader.PropertyToID("_Channels");
+    private static readonly int AzimuthSamplesId = Shader.PropertyToID("_AzimuthSamples");
+    private static readonly int FaceResolutionId = Shader.PropertyToID("_FaceResolution");
+    private static readonly int MinRangeId = Shader.PropertyToID("_MinRange");
+    private static readonly int MaxRangeId = Shader.PropertyToID("_MaxRange");
+    private static readonly int AzimuthStartDegId = Shader.PropertyToID("_AzimuthStartDeg");
+    private static readonly int AzimuthStepDegId = Shader.PropertyToID("_AzimuthStepDeg");
+    private static readonly int VerticalAnglesDegId = Shader.PropertyToID("_VerticalAnglesDeg");
+    private static readonly int RangesId = Shader.PropertyToID("_Ranges");
+    private static readonly int DebugDepthId = Shader.PropertyToID("_DebugDepth");
+    private static readonly int DebugTextureId = Shader.PropertyToID("_DebugTexture");
+    private static readonly int DepthStatsId = Shader.PropertyToID("_DepthStats");
+    private static readonly int[] FaceDepthIds =
+    {
+        Shader.PropertyToID("_Face0Depth"),
+        Shader.PropertyToID("_Face1Depth"),
+        Shader.PropertyToID("_Face2Depth"),
+        Shader.PropertyToID("_Face3Depth"),
+        Shader.PropertyToID("_Face4Depth"),
+        Shader.PropertyToID("_Face5Depth")
+    };
 
     [SerializeField] private SweepMode sweepMode = SweepMode.EgocentricView;
     [SerializeField] private int channels = 32;
@@ -44,7 +69,7 @@ public class LidarSensor : MonoBehaviour
     private readonly Camera[] _faceCameras = new Camera[FaceCount];
     private readonly RenderTexture[] _colorTargets = new RenderTexture[FaceCount];
     private readonly RenderTexture[] _depthTargets = new RenderTexture[FaceCount];
-    private readonly Quaternion[] _faceLocalRotations =
+    private static readonly Quaternion[] FaceLocalRotations =
     {
         Quaternion.LookRotation(Vector3.right, Vector3.up),
         Quaternion.LookRotation(Vector3.left, Vector3.up),
@@ -57,8 +82,9 @@ public class LidarSensor : MonoBehaviour
     private ComputeBuffer _verticalAnglesBuffer;
     private ComputeBuffer _rangeBuffer;
     private Material _linearDepthMaterial;
+    private readonly Plane[] _frustumPlanes = new Plane[6];
+    private readonly List<RendererCandidate> _rendererCandidates = new List<RendererCandidate>();
     private Camera _sourceCamera;
-    private AgentControllerBase _sourceAgent;
     private Transform _sourceSelfRoot;
     private Transform _excludedHiddenGhostRoot;
     private int _rangeBufferCount;
@@ -82,6 +108,83 @@ public class LidarSensor : MonoBehaviour
         _captureGeneration++;
         _excludedHiddenGhostRoot = null;
         _isBusy = false;
+    }
+
+    private bool TryBeginCapture(Action<string> onError, out int generation)
+    {
+        generation = 0;
+        if (_isBusy)
+        {
+            onError?.Invoke("Error: LiDAR scan already in progress");
+            return false;
+        }
+
+        generation = ++_captureGeneration;
+        _isBusy = true;
+        _excludedHiddenGhostRoot = null;
+        return true;
+    }
+
+    private void EndCapture(int generation)
+    {
+        if (generation != _captureGeneration) return;
+
+        _excludedHiddenGhostRoot = null;
+        _isBusy = false;
+    }
+
+    /// <summary>
+    /// Waits for a GPU readback. Completed stays false when the capture was cancelled or timed out
+    /// (timeouts, and GPU errors when requireSuccess is set, are reported through onError).
+    /// </summary>
+    private IEnumerator WaitForReadback(
+        ReadbackWait wait,
+        int generation,
+        string label,
+        bool requireSuccess,
+        Action<string> onError)
+    {
+        float deadline = Time.realtimeSinceStartup + GpuReadbackTimeoutSeconds;
+        while (
+            !wait.Request.done &&
+            generation == _captureGeneration &&
+            Time.realtimeSinceStartup < deadline)
+            yield return null;
+
+        if (generation != _captureGeneration) yield break;
+        if (!wait.Request.done)
+        {
+            onError?.Invoke($"Error: {label} timed out after {GpuReadbackTimeoutSeconds:0.#}s");
+            yield break;
+        }
+
+        if (requireSuccess && wait.Request.hasError)
+        {
+            onError?.Invoke($"Error: {label} failed");
+            yield break;
+        }
+
+        wait.Completed = true;
+    }
+
+    private sealed class ReadbackWait
+    {
+        public readonly AsyncGPUReadbackRequest Request;
+        public bool Completed;
+
+        public ReadbackWait(AsyncGPUReadbackRequest request) => Request = request;
+    }
+
+    /// <summary>
+    /// Range-culls GPU-instanced items for this sensor. Returns null when no tracker is alive.
+    /// </summary>
+    private GPUInstanceTracker CullIndirectForRange()
+    {
+        GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+        if (tracker == null) return null;
+
+        tracker.CullForLidarRange(transform.position, maxRange);
+        return tracker;
     }
 
     public struct CenterSample
@@ -135,16 +238,7 @@ public class LidarSensor : MonoBehaviour
         Action<byte[]> onComplete,
         Action<string> onError)
     {
-        if (_isBusy)
-        {
-            onError?.Invoke("Error: LiDAR scan already in progress");
-            yield break;
-        }
-
-        int captureGeneration = ++_captureGeneration;
-        _isBusy = true;
-        HumanoidGhostFollower activeHiddenGhost = hiddenGhost;
-        _excludedHiddenGhostRoot = null;
+        if (!TryBeginCapture(onError, out int captureGeneration)) yield break;
 
         try
         {
@@ -159,49 +253,21 @@ public class LidarSensor : MonoBehaviour
             EnsureRangeBuffer();
             AzimuthSweep azimuthSweep = ResolveAzimuthSweep();
 
-            activeHiddenGhost = ResolveHiddenGhost(sourceCamera, hiddenGhost);
-            _excludedHiddenGhostRoot = activeHiddenGhost != null ? activeHiddenGhost.transform : null;
-
-            GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
-            tracker?.CullForLidarRange(transform.position, maxRange);
-
-            for (int face = 0; face < FaceCount; face++)
-                RenderFace(face, tracker);
-
+            ExcludeHiddenGhost(sourceCamera, hiddenGhost);
+            GPUInstanceTracker tracker = CullIndirectForRange();
+            CollectRendererCandidates();
+            RenderFaces(tracker);
             DispatchRangeSampler(azimuthSweep);
 
-            AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(_rangeBuffer);
-            float readbackDeadline = Time.realtimeSinceStartup + GpuReadbackTimeoutSeconds;
-            while (
-                !request.done &&
-                captureGeneration == _captureGeneration &&
-                Time.realtimeSinceStartup < readbackDeadline)
-                yield return null;
+            ReadbackWait readback = new ReadbackWait(AsyncGPUReadback.Request(_rangeBuffer));
+            yield return WaitForReadback(readback, captureGeneration, "LiDAR GPU readback", true, onError);
+            if (!readback.Completed) yield break;
 
-            if (captureGeneration != _captureGeneration) yield break;
-            if (!request.done)
-            {
-                onError?.Invoke(
-                    $"Error: LiDAR GPU readback timed out after {GpuReadbackTimeoutSeconds:0.#}s");
-                yield break;
-            }
-
-            if (request.hasError)
-            {
-                onError?.Invoke("Error: LiDAR GPU readback failed");
-                yield break;
-            }
-
-            NativeArray<float> ranges = request.GetData<float>();
-            onComplete?.Invoke(BuildPayload(angles, ranges, azimuthSweep));
+            onComplete?.Invoke(BuildPayload(angles, readback.Request.GetData<float>(), azimuthSweep));
         }
         finally
         {
-            if (captureGeneration == _captureGeneration)
-            {
-                _excludedHiddenGhostRoot = null;
-                _isBusy = false;
-            }
+            EndCapture(captureGeneration);
         }
     }
 
@@ -217,15 +283,7 @@ public class LidarSensor : MonoBehaviour
         Action<CenterSample> onComplete,
         Action<string> onError)
     {
-        if (_isBusy)
-        {
-            onError?.Invoke("Error: LiDAR scan already in progress");
-            yield break;
-        }
-
-        int captureGeneration = ++_captureGeneration;
-        _isBusy = true;
-        _excludedHiddenGhostRoot = null;
+        if (!TryBeginCapture(onError, out int captureGeneration)) yield break;
 
         try
         {
@@ -235,18 +293,16 @@ public class LidarSensor : MonoBehaviour
                 yield break;
             }
 
-            HumanoidGhostFollower activeHiddenGhost = ResolveHiddenGhost(sourceCamera, hiddenGhost);
-            _excludedHiddenGhostRoot = activeHiddenGhost != null ? activeHiddenGhost.transform : null;
-
-            GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
-            tracker?.CullForLidarRange(transform.position, maxRange);
+            ExcludeHiddenGhost(sourceCamera, hiddenGhost);
+            GPUInstanceTracker tracker = CullIndirectForRange();
+            CollectRendererCandidates();
 
             // Face 4 is the forward cube face. Giving it the source camera rotation makes its
             // optical center match sourceCamera.transform.forward exactly. Roll only rotates the
             // surrounding image and has no effect on the center pixel's ray.
-            RenderFace(4, tracker, captureRotation: sourceCamera.transform.rotation);
+            RenderFace(ForwardFace, tracker, captureRotation: sourceCamera.transform.rotation);
 
-            Camera centerCamera = _faceCameras[4];
+            Camera centerCamera = _faceCameras[ForwardFace];
             Ray centerRay = centerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
             Vector3 direction = centerRay.direction;
             float pitchDeg = Mathf.Atan2(
@@ -255,37 +311,19 @@ public class LidarSensor : MonoBehaviour
             float cameraHeight = centerRay.origin.y;
 
             int centerPixel = faceResolution / 2;
-            AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(
-                _depthTargets[4],
+            ReadbackWait readback = new ReadbackWait(AsyncGPUReadback.Request(
+                _depthTargets[ForwardFace],
                 0,
                 centerPixel,
                 1,
                 centerPixel,
                 1,
                 0,
-                1);
-            float readbackDeadline = Time.realtimeSinceStartup + GpuReadbackTimeoutSeconds;
-            while (
-                !request.done &&
-                captureGeneration == _captureGeneration &&
-                Time.realtimeSinceStartup < readbackDeadline)
-                yield return null;
+                1));
+            yield return WaitForReadback(readback, captureGeneration, "LiDAR center GPU readback", true, onError);
+            if (!readback.Completed) yield break;
 
-            if (captureGeneration != _captureGeneration) yield break;
-            if (!request.done)
-            {
-                onError?.Invoke(
-                    $"Error: LiDAR center GPU readback timed out after {GpuReadbackTimeoutSeconds:0.#}s");
-                yield break;
-            }
-
-            if (request.hasError)
-            {
-                onError?.Invoke("Error: LiDAR center GPU readback failed");
-                yield break;
-            }
-
-            NativeArray<float> depthData = request.GetData<float>();
+            NativeArray<float> depthData = readback.Request.GetData<float>();
             if (depthData.Length == 0)
             {
                 onError?.Invoke("Error: LiDAR center GPU readback returned no data");
@@ -315,12 +353,14 @@ public class LidarSensor : MonoBehaviour
         }
         finally
         {
-            if (captureGeneration == _captureGeneration)
-            {
-                _excludedHiddenGhostRoot = null;
-                _isBusy = false;
-            }
+            EndCapture(captureGeneration);
         }
+    }
+
+    private void ExcludeHiddenGhost(Camera sourceCamera, HumanoidGhostFollower hiddenGhost)
+    {
+        HumanoidGhostFollower activeHiddenGhost = ResolveHiddenGhost(sourceCamera, hiddenGhost);
+        _excludedHiddenGhostRoot = activeHiddenGhost != null ? activeHiddenGhost.transform : null;
     }
 
     private static bool IsFinite(float value)
@@ -334,11 +374,11 @@ public class LidarSensor : MonoBehaviour
     /// </summary>
     private static LidarSensor ResolveCameraSensor(Camera sourceCamera)
     {
-        LidarSensor sensor =
-            sourceCamera.GetComponent<LidarSensor>() ??
-            sourceCamera.GetComponentInParent<LidarSensor>() ??
-            sourceCamera.GetComponentInChildren<LidarSensor>(true);
-
+        // Explicit checks: `??` skips Unity's fake-null for missing components in the Editor.
+        if (!sourceCamera.TryGetComponent(out LidarSensor sensor))
+            sensor = sourceCamera.GetComponentInParent<LidarSensor>();
+        if (sensor == null)
+            sensor = sourceCamera.GetComponentInChildren<LidarSensor>(true);
         if (sensor == null)
             sensor = sourceCamera.gameObject.AddComponent<LidarSensor>();
 
@@ -387,19 +427,10 @@ public class LidarSensor : MonoBehaviour
         Action<string> onComplete,
         Action<string> onError)
     {
-        if (_isBusy)
-        {
-            onError?.Invoke("Error: LiDAR scan already in progress");
-            yield break;
-        }
-
-        int captureGeneration = ++_captureGeneration;
-        _isBusy = true;
+        if (!TryBeginCapture(onError, out int captureGeneration)) yield break;
 
         RenderTexture debugTexture = null;
         ComputeBuffer depthStatsBuffer = null;
-        HumanoidGhostFollower activeHiddenGhost = hiddenGhost;
-        _excludedHiddenGhostRoot = null;
 
         try
         {
@@ -408,7 +439,7 @@ public class LidarSensor : MonoBehaviour
                 onError?.Invoke(error);
                 yield break;
             }
-            activeHiddenGhost = ResolveHiddenGhost(sourceCamera, hiddenGhost);
+            HumanoidGhostFollower activeHiddenGhost = ResolveHiddenGhost(sourceCamera, hiddenGhost);
 
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
             string directory = Path.Combine(Application.persistentDataPath, "LidarDebug");
@@ -424,7 +455,7 @@ public class LidarSensor : MonoBehaviour
                 $"sensorRot={transform.rotation.eulerAngles}, " +
                 $"selfRoot={(_sourceSelfRoot != null ? _sourceSelfRoot.name : "none")}, " +
                 $"cullingMask={sourceCamera.cullingMask}, " +
-                $"near={_faceCameras[4].nearClipPlane}, far={_faceCameras[4].farClipPlane}, " +
+                $"near={_faceCameras[ForwardFace].nearClipPlane}, far={_faceCameras[ForwardFace].farClipPlane}, " +
                 $"reversedZ={SystemInfo.usesReversedZBuffer}");
 
             _excludedHiddenGhostRoot = activeHiddenGhost != null ? activeHiddenGhost.transform : null;
@@ -450,13 +481,12 @@ public class LidarSensor : MonoBehaviour
             }
             Debug.Log("LiDAR debug step 1 result:\n" + colorOnlySummary);
 
-            GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
+            GPUInstanceTracker tracker = CullIndirectForRange();
             Debug.Log(
                 "LiDAR debug step 2: " +
                 (tracker != null
                     ? "GPUInstanceTracker found; running range cull and linear-depth render path."
                     : "GPUInstanceTracker not found; linear-depth path will only include normal scene renderers."));
-            tracker?.CullForLidarRange(transform.position, maxRange);
 
             debugTexture = new RenderTexture(faceResolution, faceResolution, 0, RenderTextureFormat.ARGB32)
             {
@@ -466,75 +496,37 @@ public class LidarSensor : MonoBehaviour
             };
             debugTexture.Create();
 
-            RenderFace(4, null, true, false, true, "step2 scene-only");
-            WriteLinearDepthPreview(4, debugTexture);
-
-            string sceneDepthPath = Path.Combine(directory, $"{timestamp}_step2_scene_linear_depth_forward.png");
-            TextureStats sceneDepthImageStats = SaveRenderTexturePng(debugTexture, sceneDepthPath);
-            Debug.Log(
-                "LiDAR debug step 2 result: " +
-                $"scene-only linear-depth visualization saved to {sceneDepthPath}; " +
-                $"nonBlackPixels={sceneDepthImageStats.nonBlackPixels}/{sceneDepthImageStats.totalPixels}, " +
-                $"min={sceneDepthImageStats.minValue}, max={sceneDepthImageStats.maxValue}");
-
-            RenderFace(4, tracker, false, true, true, "step3 indirect-only");
-            WriteLinearDepthPreview(4, debugTexture);
-
-            string indirectDepthPath = Path.Combine(directory, $"{timestamp}_step3_indirect_linear_depth_forward.png");
-            TextureStats indirectDepthImageStats = SaveRenderTexturePng(debugTexture, indirectDepthPath);
-            Debug.Log(
-                "LiDAR debug step 3 result: " +
-                $"indirect-only linear-depth visualization saved to {indirectDepthPath}; " +
-                $"nonBlackPixels={indirectDepthImageStats.nonBlackPixels}/{indirectDepthImageStats.totalPixels}, " +
-                $"min={indirectDepthImageStats.minValue}, max={indirectDepthImageStats.maxValue}");
-
-            RenderFace(4, tracker, true, true, true, "step4 combined");
-            WriteLinearDepthPreview(4, debugTexture);
-
-            string combinedDepthPath = Path.Combine(directory, $"{timestamp}_step4_combined_linear_depth_forward.png");
-            TextureStats combinedDepthImageStats = SaveRenderTexturePng(debugTexture, combinedDepthPath);
-            Debug.Log(
-                "LiDAR debug step 4 result: " +
-                $"scene+indirect linear-depth visualization saved to {combinedDepthPath}; " +
-                $"nonBlackPixels={combinedDepthImageStats.nonBlackPixels}/{combinedDepthImageStats.totalPixels}, " +
-                $"min={combinedDepthImageStats.minValue}, max={combinedDepthImageStats.maxValue}");
+            CollectRendererCandidates();
+            string sceneDepthPath = SaveLinearDepthStep(
+                2, "scene-only", "scene", null, true, false, debugTexture, directory, timestamp);
+            string indirectDepthPath = SaveLinearDepthStep(
+                3, "indirect-only", "indirect", tracker, false, true, debugTexture, directory, timestamp);
+            string combinedDepthPath = SaveLinearDepthStep(
+                4, "scene+indirect", "combined", tracker, true, true, debugTexture, directory, timestamp);
 
             depthStatsBuffer = new ComputeBuffer(4, sizeof(uint));
             depthStatsBuffer.SetData(new uint[] { 0u, 1000000u, 0u, 0u });
 
             int statsKernel = depthSampler.FindKernel("DepthStats");
-            depthSampler.SetInt("_FaceResolution", faceResolution);
-            depthSampler.SetFloat("_MaxRange", maxRange);
-            depthSampler.SetVector("_ZBufferParamsForLidar", BuildZBufferParams(_faceCameras[4]));
-            depthSampler.SetInt("_UsesReversedZBuffer", SystemInfo.usesReversedZBuffer ? 1 : 0);
-            depthSampler.SetTexture(statsKernel, "_DebugDepth", _depthTargets[4]);
-            depthSampler.SetBuffer(statsKernel, "_DepthStats", depthStatsBuffer);
-            depthSampler.Dispatch(statsKernel, Mathf.CeilToInt(faceResolution / 8f), Mathf.CeilToInt(faceResolution / 8f), 1);
+            depthSampler.SetInt(FaceResolutionId, faceResolution);
+            depthSampler.SetFloat(MaxRangeId, maxRange);
+            depthSampler.SetTexture(statsKernel, DebugDepthId, _depthTargets[ForwardFace]);
+            depthSampler.SetBuffer(statsKernel, DepthStatsId, depthStatsBuffer);
+            DispatchPerPixel(statsKernel);
 
-            AsyncGPUReadbackRequest depthStatsRequest = AsyncGPUReadback.Request(depthStatsBuffer);
-            float depthStatsDeadline = Time.realtimeSinceStartup + GpuReadbackTimeoutSeconds;
-            while (
-                !depthStatsRequest.done &&
-                captureGeneration == _captureGeneration &&
-                Time.realtimeSinceStartup < depthStatsDeadline)
-                yield return null;
-
-            if (captureGeneration != _captureGeneration) yield break;
-            if (!depthStatsRequest.done)
-            {
-                onError?.Invoke(
-                    $"Error: LiDAR debug depth readback timed out after {GpuReadbackTimeoutSeconds:0.#}s");
-                yield break;
-            }
+            ReadbackWait depthStatsReadback = new ReadbackWait(AsyncGPUReadback.Request(depthStatsBuffer));
+            yield return WaitForReadback(
+                depthStatsReadback, captureGeneration, "LiDAR debug depth readback", false, onError);
+            if (!depthStatsReadback.Completed) yield break;
 
             string depthStatsMessage;
-            if (depthStatsRequest.hasError)
+            if (depthStatsReadback.Request.hasError)
             {
                 depthStatsMessage = "LiDAR debug step 5 result: GPU readback failed for linear depth stats.";
             }
             else
             {
-                NativeArray<uint> stats = depthStatsRequest.GetData<uint>();
+                NativeArray<uint> stats = depthStatsReadback.Request.GetData<uint>();
                 depthStatsMessage =
                     "LiDAR debug step 5 result: " +
                     $"linearDepthHitPixels={stats[0]}/{faceResolution * faceResolution}, " +
@@ -544,11 +536,9 @@ public class LidarSensor : MonoBehaviour
             }
             Debug.Log(depthStatsMessage);
 
-            for (int face = 0; face < FaceCount; face++)
-            {
-                if (face == 4) continue;
-                RenderFace(face, tracker);
-            }
+            // Frames have passed since step 4, so refresh the renderer snapshot before the remaining faces.
+            CollectRendererCandidates();
+            RenderFaces(tracker, ForwardFace);
 
             float[] angles = GetVerticalAngles();
             UploadVerticalAngles(angles);
@@ -556,31 +546,20 @@ public class LidarSensor : MonoBehaviour
             AzimuthSweep azimuthSweep = ResolveAzimuthSweep();
             DispatchRangeSampler(azimuthSweep);
 
-            AsyncGPUReadbackRequest rangeRequest = AsyncGPUReadback.Request(_rangeBuffer);
-            float rangeDeadline = Time.realtimeSinceStartup + GpuReadbackTimeoutSeconds;
-            while (
-                !rangeRequest.done &&
-                captureGeneration == _captureGeneration &&
-                Time.realtimeSinceStartup < rangeDeadline)
-                yield return null;
-
-            if (captureGeneration != _captureGeneration) yield break;
-            if (!rangeRequest.done)
-            {
-                onError?.Invoke(
-                    $"Error: LiDAR debug range readback timed out after {GpuReadbackTimeoutSeconds:0.#}s");
-                yield break;
-            }
+            ReadbackWait rangeReadback = new ReadbackWait(AsyncGPUReadback.Request(_rangeBuffer));
+            yield return WaitForReadback(
+                rangeReadback, captureGeneration, "LiDAR debug range readback", false, onError);
+            if (!rangeReadback.Completed) yield break;
 
             string rangeMessage;
             string probeMessage = "LiDAR debug step 7 probe: skipped because range buffer readback failed.";
-            if (rangeRequest.hasError)
+            if (rangeReadback.Request.hasError)
             {
                 rangeMessage = "LiDAR debug step 6 result: GPU readback failed for range buffer.";
             }
             else
             {
-                NativeArray<float> ranges = rangeRequest.GetData<float>();
+                NativeArray<float> ranges = rangeReadback.Request.GetData<float>();
                 RangeStats rangeStats = CalculateRangeStats(ranges);
                 rangeMessage =
                     "LiDAR debug step 6 result: " +
@@ -613,14 +592,37 @@ public class LidarSensor : MonoBehaviour
         }
         finally
         {
-            if (captureGeneration == _captureGeneration)
-            {
-                _excludedHiddenGhostRoot = null;
-                _isBusy = false;
-            }
+            EndCapture(captureGeneration);
             if (debugTexture != null) Destroy(debugTexture);
             depthStatsBuffer?.Release();
         }
+    }
+
+    /// <summary>
+    /// Renders the forward face with the given draw sources, saves its linear-depth preview PNG, and logs stats.
+    /// </summary>
+    private string SaveLinearDepthStep(
+        int step,
+        string label,
+        string fileTag,
+        GPUInstanceTracker tracker,
+        bool drawScene,
+        bool drawIndirect,
+        RenderTexture debugTexture,
+        string directory,
+        string timestamp)
+    {
+        RenderFace(ForwardFace, tracker, drawScene, drawIndirect, true, $"step{step} {label}");
+        WriteLinearDepthPreview(ForwardFace, debugTexture);
+
+        string path = Path.Combine(directory, $"{timestamp}_step{step}_{fileTag}_linear_depth_forward.png");
+        TextureStats stats = SaveRenderTexturePng(debugTexture, path);
+        Debug.Log(
+            $"LiDAR debug step {step} result: " +
+            $"{label} linear-depth visualization saved to {path}; " +
+            $"nonBlackPixels={stats.nonBlackPixels}/{stats.totalPixels}, " +
+            $"min={stats.minValue}, max={stats.maxValue}");
+        return path;
     }
 
     /// <summary>
@@ -637,7 +639,6 @@ public class LidarSensor : MonoBehaviour
             return false;
         }
         _sourceCamera = sourceCamera;
-        _sourceAgent = sourceCamera.GetComponentInParent<AgentControllerBase>();
         _sourceSelfRoot = ResolveSelfRoot(sourceCamera);
 
         if (depthSampler == null)
@@ -666,8 +667,9 @@ public class LidarSensor : MonoBehaviour
             };
         }
 
-        channels = Mathf.Max(1, channels);
-        azimuthSamples = Mathf.Max(1, azimuthSamples);
+        // Payload stores both counts as ushort.
+        channels = Mathf.Clamp(channels, 1, ushort.MaxValue);
+        azimuthSamples = Mathf.Clamp(azimuthSamples, 1, ushort.MaxValue);
         faceResolution = Mathf.Max(16, faceResolution);
         minRange = Mathf.Max(0.01f, minRange);
         maxRange = Mathf.Max(minRange + 0.01f, maxRange);
@@ -678,7 +680,7 @@ public class LidarSensor : MonoBehaviour
                 _faceCameras[face] = CreateFaceCamera(face);
 
             ConfigureFaceCamera(_faceCameras[face], sourceCamera);
-            EnsureRenderTargets(face);
+            EnsureDepthTarget(face);
         }
 
         return true;
@@ -693,15 +695,9 @@ public class LidarSensor : MonoBehaviour
         cameraObject.hideFlags = HideFlags.HideAndDontSave;
         cameraObject.transform.SetParent(transform, false);
 
+        // Remaining settings are applied per capture by ConfigureFaceCamera.
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.enabled = false;
-        camera.fieldOfView = 90f;
-        camera.aspect = 1f;
-        camera.allowHDR = false;
-        camera.allowMSAA = false;
-        camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = Color.black;
-        camera.depthTextureMode = DepthTextureMode.Depth;
         return camera;
     }
 
@@ -721,43 +717,62 @@ public class LidarSensor : MonoBehaviour
         faceCamera.allowMSAA = false;
         faceCamera.clearFlags = CameraClearFlags.SolidColor;
         faceCamera.backgroundColor = Color.black;
-        faceCamera.depthTextureMode = DepthTextureMode.Depth;
         faceCamera.stereoTargetEye = StereoTargetEyeMask.None;
         faceCamera.cameraType = CameraType.Game;
         faceCamera.forceIntoRenderTexture = true;
     }
 
     /// <summary>
-    /// Ensures each cube face has a color target for debugging and an RFloat target for linear depth.
+    /// Ensures a cube face has its RFloat linear-depth target. No depth buffer: the depth pass uses ZTest Always.
     /// </summary>
-    private void EnsureRenderTargets(int face)
+    private void EnsureDepthTarget(int face)
     {
-        if (_colorTargets[face] == null || _colorTargets[face].width != faceResolution || _colorTargets[face].depth != 24)
+        EnsureFaceTarget(ref _depthTargets[face], 0, RenderTextureFormat.RFloat);
+    }
+
+    /// <summary>
+    /// Ensures a cube face has its debug color target (only used by the forward depth debug capture).
+    /// </summary>
+    private void EnsureColorTarget(int face)
+    {
+        EnsureFaceTarget(ref _colorTargets[face], 24, RenderTextureFormat.ARGB32);
+    }
+
+    private void EnsureFaceTarget(ref RenderTexture target, int depthBits, RenderTextureFormat format)
+    {
+        if (target != null && target.width == faceResolution && target.depth == depthBits && target.format == format)
+            return;
+
+        ReleaseRenderTexture(target);
+        target = new RenderTexture(faceResolution, faceResolution, depthBits, format)
         {
-            ReleaseRenderTexture(_colorTargets[face]);
-            _colorTargets[face] = new RenderTexture(faceResolution, faceResolution, 24, RenderTextureFormat.ARGB32)
-            {
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp
-            };
-            _colorTargets[face].Create();
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp
+        };
+        target.Create();
+    }
+
+    /// <summary>
+    /// Renders all cube faces (optionally skipping one) in a single command buffer.
+    /// Expects CollectRendererCandidates to have run this frame.
+    /// </summary>
+    private void RenderFaces(GPUInstanceTracker tracker, int skipFace = -1)
+    {
+        CommandBuffer cmd = CommandBufferPool.Get("LiDAR Indirect Depth Draws");
+        for (int face = 0; face < FaceCount; face++)
+        {
+            if (face != skipFace)
+                RecordFace(cmd, face, tracker, true, true, false, null, out _, out _);
         }
 
-        if (_depthTargets[face] == null || _depthTargets[face].width != faceResolution || _depthTargets[face].format != RenderTextureFormat.RFloat)
-        {
-            ReleaseRenderTexture(_depthTargets[face]);
-            _depthTargets[face] = new RenderTexture(faceResolution, faceResolution, 24, RenderTextureFormat.RFloat)
-            {
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp
-            };
-            _depthTargets[face].Create();
-        }
+        Graphics.ExecuteCommandBuffer(cmd);
+        CommandBufferPool.Release(cmd);
     }
 
     /// <summary>
     /// Renders one cube face into the RFloat linear-depth target, including regular scene renderers
     /// and GPU-instanced/indirect objects that need explicit draw commands.
+    /// Expects CollectRendererCandidates to have run this frame.
     /// </summary>
     private void RenderFace(
         int face,
@@ -768,32 +783,23 @@ public class LidarSensor : MonoBehaviour
         string passLabel = null,
         Quaternion? captureRotation = null)
     {
-        Camera faceCamera = _faceCameras[face];
-        faceCamera.transform.SetPositionAndRotation(
-            transform.position,
-            (captureRotation ?? transform.rotation) * _faceLocalRotations[face]);
-
         CommandBuffer cmd = CommandBufferPool.Get("LiDAR Indirect Depth Draws");
-        cmd.SetRenderTarget(_depthTargets[face]);
-        cmd.SetViewport(new Rect(0, 0, faceResolution, faceResolution));
-        cmd.ClearRenderTarget(true, true, new Color(maxRange, 0f, 0f, 1f));
-        cmd.SetViewProjectionMatrices(
-            faceCamera.worldToCameraMatrix,
-            GL.GetGPUProjectionMatrix(faceCamera.projectionMatrix, false));
-
-        LidarDrawStats sceneStats = drawScene
-            ? DrawSceneRenderersForFace(cmd, faceCamera, logForwardStats && face == 4)
-            : LidarDrawStats.Empty;
-
-        LidarIndirectDrawStats indirectStats =
-            drawIndirect && tracker != null
-                ? tracker.AddLidarDepthDrawCommands(cmd, _linearDepthMaterial)
-                : new LidarIndirectDrawStats();
+        bool logStats = logForwardStats && face == ForwardFace;
+        RecordFace(
+            cmd,
+            face,
+            tracker,
+            drawScene,
+            drawIndirect,
+            logStats,
+            captureRotation,
+            out LidarDrawStats sceneStats,
+            out LidarIndirectDrawStats indirectStats);
 
         Graphics.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
 
-        if (logForwardStats && face == 4)
+        if (logStats)
         {
             Debug.Log(
                 $"LiDAR depth face forward draw stats ({passLabel ?? "unnamed"}): " +
@@ -803,6 +809,83 @@ public class LidarSensor : MonoBehaviour
         }
     }
 
+    private void RecordFace(
+        CommandBuffer cmd,
+        int face,
+        GPUInstanceTracker tracker,
+        bool drawScene,
+        bool drawIndirect,
+        bool collectSamples,
+        Quaternion? captureRotation,
+        out LidarDrawStats sceneStats,
+        out LidarIndirectDrawStats indirectStats)
+    {
+        Camera faceCamera = _faceCameras[face];
+        faceCamera.transform.SetPositionAndRotation(
+            transform.position,
+            (captureRotation ?? transform.rotation) * FaceLocalRotations[face]);
+
+        cmd.SetRenderTarget(_depthTargets[face]);
+        cmd.SetViewport(new Rect(0, 0, faceResolution, faceResolution));
+        cmd.ClearRenderTarget(false, true, new Color(maxRange, 0f, 0f, 1f));
+        cmd.SetViewProjectionMatrices(
+            faceCamera.worldToCameraMatrix,
+            GL.GetGPUProjectionMatrix(faceCamera.projectionMatrix, false));
+
+        sceneStats = drawScene
+            ? DrawSceneRenderersForFace(cmd, faceCamera, collectSamples)
+            : LidarDrawStats.Empty;
+
+        indirectStats =
+            drawIndirect && tracker != null
+                ? tracker.AddLidarDepthDrawCommands(cmd, _linearDepthMaterial)
+                : new LidarIndirectDrawStats();
+    }
+
+    /// <summary>
+    /// Snapshots scene renderers once per capture and classifies the face-independent filters
+    /// (self/ghost suppression, layer mask, supported renderer type). Faces then only frustum-test.
+    /// </summary>
+    private void CollectRendererCandidates()
+    {
+        _rendererCandidates.Clear();
+        Renderer[] renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
+        int cullingMask = _faceCameras[0].cullingMask;
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            LidarCullReason reason = ClassifyRenderer(renderer, cullingMask);
+            _rendererCandidates.Add(new RendererCandidate
+            {
+                renderer = renderer,
+                reason = reason,
+                subMeshCount = reason == LidarCullReason.None ? GetRendererSubMeshCount(renderer) : 0
+            });
+        }
+    }
+
+    private LidarCullReason ClassifyRenderer(Renderer renderer, int cullingMask)
+    {
+        if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+            return LidarCullReason.Skip;
+        if (IsExcludedSelf(renderer.transform)) return LidarCullReason.Self;
+        if (renderer.GetComponentInParent<LidarSensor>() != null) return LidarCullReason.Skip;
+        if ((cullingMask & (1 << renderer.gameObject.layer)) == 0) return LidarCullReason.Layer;
+        if (!(renderer is MeshRenderer) && !(renderer is SkinnedMeshRenderer)) return LidarCullReason.Type;
+        return LidarCullReason.None;
+    }
+
+    /// <summary>
+    /// Self/ghost suppression shared by the depth render filter and the debug probe raycast.
+    /// </summary>
+    private bool IsExcludedSelf(Transform target)
+    {
+        return
+            (_sourceSelfRoot != null && target.IsChildOf(_sourceSelfRoot)) ||
+            (_excludedHiddenGhostRoot != null && target.IsChildOf(_excludedHiddenGhostRoot));
+    }
+
     /// <summary>
     /// Adds standard MeshRenderer/SkinnedMeshRenderer depth draw commands for one face.
     /// Debug mode can collect a bounded sample of what was drawn or culled.
@@ -810,18 +893,18 @@ public class LidarSensor : MonoBehaviour
     private LidarDrawStats DrawSceneRenderersForFace(CommandBuffer cmd, Camera faceCamera, bool collectSamples)
     {
         LidarDrawStats stats = LidarDrawStats.Empty;
-        Plane[] planes = GeometryUtility.CalculateFrustumPlanes(faceCamera);
-        Renderer[] renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
+        GeometryUtility.CalculateFrustumPlanes(faceCamera, _frustumPlanes);
 
-        for (int i = 0; i < renderers.Length; i++)
+        for (int i = 0; i < _rendererCandidates.Count; i++)
         {
-            Renderer renderer = renderers[i];
+            RendererCandidate candidate = _rendererCandidates[i];
+            Renderer renderer = candidate.renderer;
             stats.candidates++;
+            if (renderer == null) continue;
             if (collectSamples) stats.AddCandidateCategory(renderer);
-            if (!ShouldDrawRendererForLidar(renderer, faceCamera, planes, ref stats, collectSamples)) continue;
+            if (!ShouldDrawCandidate(candidate, ref stats, collectSamples)) continue;
 
-            int subMeshCount = GetRendererSubMeshCount(renderer);
-            for (int subMesh = 0; subMesh < subMeshCount; subMesh++)
+            for (int subMesh = 0; subMesh < candidate.subMeshCount; subMesh++)
             {
                 cmd.DrawRenderer(renderer, _linearDepthMaterial, subMesh);
                 stats.drawnSubmeshes++;
@@ -839,61 +922,30 @@ public class LidarSensor : MonoBehaviour
     }
 
     /// <summary>
-    /// Applies LiDAR-specific renderer filtering: self/ghost suppression, layer mask checks,
-    /// supported renderer types, and face frustum culling.
+    /// Applies the cached classification plus the per-face frustum test, recording debug counters.
     /// </summary>
-    private bool ShouldDrawRendererForLidar(
-        Renderer renderer,
-        Camera faceCamera,
-        Plane[] planes,
-        ref LidarDrawStats stats,
-        bool collectSamples)
+    private bool ShouldDrawCandidate(RendererCandidate candidate, ref LidarDrawStats stats, bool collectSamples)
     {
-        if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) return false;
-        if (_sourceAgent != null && renderer.transform.IsChildOf(_sourceAgent.transform))
+        Renderer renderer = candidate.renderer;
+        switch (candidate.reason)
         {
-            stats.culledBySelf++;
-            if (collectSamples) stats.AddSelfSample(renderer);
-            return false;
+            case LidarCullReason.Skip:
+                return false;
+            case LidarCullReason.Self:
+                stats.culledBySelf++;
+                if (collectSamples) stats.AddSelfSample(renderer);
+                return false;
+            case LidarCullReason.Layer:
+                stats.culledByLayer++;
+                if (collectSamples) stats.AddLayerSample(renderer);
+                return false;
+            case LidarCullReason.Type:
+                stats.culledByType++;
+                if (collectSamples) stats.AddTypeSample(renderer);
+                return false;
         }
 
-        if (_sourceSelfRoot != null && renderer.transform.IsChildOf(_sourceSelfRoot))
-        {
-            stats.culledBySelf++;
-            if (collectSamples) stats.AddSelfSample(renderer);
-            return false;
-        }
-
-        if (_excludedHiddenGhostRoot != null && renderer.transform.IsChildOf(_excludedHiddenGhostRoot))
-        {
-            stats.culledBySelf++;
-            if (collectSamples) stats.AddSelfSample(renderer);
-            return false;
-        }
-
-        if ((_sourceCamera != null && renderer.GetComponentInParent<LidarSensor>() != null)) return false;
-        if ((faceCamera.cullingMask & (1 << renderer.gameObject.layer)) == 0)
-        {
-            stats.culledByLayer++;
-            if (collectSamples) stats.AddLayerSample(renderer);
-            return false;
-        }
-
-        if (renderer is ParticleSystemRenderer)
-        {
-            stats.culledByType++;
-            if (collectSamples) stats.AddTypeSample(renderer);
-            return false;
-        }
-
-        if (!(renderer is MeshRenderer) && !(renderer is SkinnedMeshRenderer))
-        {
-            stats.culledByType++;
-            if (collectSamples) stats.AddTypeSample(renderer);
-            return false;
-        }
-
-        if (!GeometryUtility.TestPlanesAABB(planes, renderer.bounds))
+        if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, renderer.bounds))
         {
             stats.culledByFrustum++;
             if (collectSamples) stats.AddFrustumSample(renderer);
@@ -990,6 +1042,7 @@ public class LidarSensor : MonoBehaviour
     /// </summary>
     private void RenderFaceColorOnly(int face)
     {
+        EnsureColorTarget(face);
         Camera faceCamera = _faceCameras[face];
         RenderTexture previousTarget = faceCamera.targetTexture;
 
@@ -997,7 +1050,7 @@ public class LidarSensor : MonoBehaviour
         {
             faceCamera.transform.SetPositionAndRotation(
                 transform.position,
-                transform.rotation * _faceLocalRotations[face]);
+                transform.rotation * FaceLocalRotations[face]);
             faceCamera.targetTexture = _colorTargets[face];
             faceCamera.Render();
         }
@@ -1015,26 +1068,29 @@ public class LidarSensor : MonoBehaviour
     {
         int kernel = depthSampler.FindKernel("CSMain");
 
-        depthSampler.SetInt("_Channels", channels);
-        depthSampler.SetInt("_AzimuthSamples", azimuthSamples);
-        depthSampler.SetInt("_FaceResolution", faceResolution);
-        depthSampler.SetFloat("_MinRange", minRange);
-        depthSampler.SetFloat("_MaxRange", maxRange);
-        depthSampler.SetFloat("_AzimuthStartDeg", azimuthSweep.startDeg);
-        depthSampler.SetFloat("_AzimuthStepDeg", azimuthSweep.stepDeg);
-        depthSampler.SetVector("_ZBufferParamsForLidar", BuildZBufferParams(_faceCameras[0]));
-        depthSampler.SetInt("_UsesReversedZBuffer", SystemInfo.usesReversedZBuffer ? 1 : 0);
-        depthSampler.SetBuffer(kernel, "_VerticalAnglesDeg", _verticalAnglesBuffer);
-        depthSampler.SetBuffer(kernel, "_Ranges", _rangeBuffer);
+        depthSampler.SetInt(ChannelsId, channels);
+        depthSampler.SetInt(AzimuthSamplesId, azimuthSamples);
+        depthSampler.SetInt(FaceResolutionId, faceResolution);
+        depthSampler.SetFloat(MinRangeId, minRange);
+        depthSampler.SetFloat(MaxRangeId, maxRange);
+        depthSampler.SetFloat(AzimuthStartDegId, azimuthSweep.startDeg);
+        depthSampler.SetFloat(AzimuthStepDegId, azimuthSweep.stepDeg);
+        depthSampler.SetBuffer(kernel, VerticalAnglesDegId, _verticalAnglesBuffer);
+        depthSampler.SetBuffer(kernel, RangesId, _rangeBuffer);
 
         for (int face = 0; face < FaceCount; face++)
-            depthSampler.SetTexture(kernel, $"_Face{face}Depth", _depthTargets[face]);
+            depthSampler.SetTexture(kernel, FaceDepthIds[face], _depthTargets[face]);
 
-        depthSampler.Dispatch(
-            kernel,
-            Mathf.CeilToInt(azimuthSamples / 8f),
-            Mathf.CeilToInt(channels / 8f),
-            1);
+        depthSampler.Dispatch(kernel, ThreadGroups(azimuthSamples), ThreadGroups(channels), 1);
+    }
+
+    private static int ThreadGroups(int threads) => Mathf.CeilToInt(threads / (float)ThreadGroupSize);
+
+    // Dispatches a debug kernel over every pixel of one face.
+    private void DispatchPerPixel(int kernel)
+    {
+        int groups = ThreadGroups(faceResolution);
+        depthSampler.Dispatch(kernel, groups, groups, 1);
     }
 
     /// <summary>
@@ -1098,11 +1154,11 @@ public class LidarSensor : MonoBehaviour
     private void WriteLinearDepthPreview(int face, RenderTexture target)
     {
         int kernel = depthSampler.FindKernel("DepthDebug");
-        depthSampler.SetInt("_FaceResolution", faceResolution);
-        depthSampler.SetFloat("_MaxRange", maxRange);
-        depthSampler.SetTexture(kernel, "_DebugDepth", _depthTargets[face]);
-        depthSampler.SetTexture(kernel, "_DebugTexture", target);
-        depthSampler.Dispatch(kernel, Mathf.CeilToInt(faceResolution / 8f), Mathf.CeilToInt(faceResolution / 8f), 1);
+        depthSampler.SetInt(FaceResolutionId, faceResolution);
+        depthSampler.SetFloat(MaxRangeId, maxRange);
+        depthSampler.SetTexture(kernel, DebugDepthId, _depthTargets[face]);
+        depthSampler.SetTexture(kernel, DebugTextureId, target);
+        DispatchPerPixel(kernel);
     }
 
     /// <summary>
@@ -1178,9 +1234,26 @@ public class LidarSensor : MonoBehaviour
     /// </summary>
     private byte[] BuildPayload(float[] angles, NativeArray<float> ranges, AzimuthSweep azimuthSweep)
     {
-        using MemoryStream stream = new MemoryStream();
-        using BinaryWriter writer = new BinaryWriter(stream);
+        int anglesBytes = angles.Length * sizeof(float);
+        int rangesBytes = ranges.Length * sizeof(float);
+        byte[] payload = new byte[PayloadHeaderBytes + anglesBytes + rangesBytes];
 
+        using (BinaryWriter writer = new BinaryWriter(new MemoryStream(payload)))
+            WritePayloadHeader(writer, azimuthSweep);
+
+        // Bulk-copy float arrays; all Unity targets are little-endian, matching BinaryWriter.
+        Buffer.BlockCopy(angles, 0, payload, PayloadHeaderBytes, anglesBytes);
+        NativeArray<byte>.Copy(
+            ranges.Reinterpret<byte>(sizeof(float)),
+            0,
+            payload,
+            PayloadHeaderBytes + anglesBytes,
+            rangesBytes);
+        return payload;
+    }
+
+    private void WritePayloadHeader(BinaryWriter writer, AzimuthSweep azimuthSweep)
+    {
         writer.Write(new[] { (byte)Magic[0], (byte)Magic[1], (byte)Magic[2], (byte)Magic[3] });
         writer.Write((ushort)channels);
         writer.Write((ushort)azimuthSamples);
@@ -1190,29 +1263,6 @@ public class LidarSensor : MonoBehaviour
         writer.Write(azimuthSweep.stepDeg);
         writer.Write((uint)++_sequence);
         writer.Write(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0);
-
-        for (int i = 0; i < angles.Length; i++)
-            writer.Write(angles[i]);
-
-        for (int i = 0; i < ranges.Length; i++)
-            writer.Write(ranges[i]);
-
-        return stream.ToArray();
-    }
-
-    /// <summary>
-    /// Mirrors Unity's z-buffer parameter math for debug compute kernels that need depth conversion.
-    /// </summary>
-    private static Vector4 BuildZBufferParams(Camera camera)
-    {
-        float near = camera.nearClipPlane;
-        float far = camera.farClipPlane;
-        float farOverNear = far / near;
-
-        if (SystemInfo.usesReversedZBuffer)
-            return new Vector4(farOverNear - 1f, 1f, (farOverNear - 1f) / far, 1f / far);
-
-        return new Vector4(1f - farOverNear, farOverNear, (1f - farOverNear) / far, farOverNear / far);
     }
 
     /// <summary>
@@ -1237,24 +1287,17 @@ public class LidarSensor : MonoBehaviour
     /// </summary>
     private TextureStats SaveRenderTexturePng(RenderTexture source, string path)
     {
-        RenderTexture previous = RenderTexture.active;
-        Texture2D readable = null;
+        Texture2D readable = RenderTextureUtility.ReadToTexture(source, TextureFormat.RGB24);
 
         try
         {
-            RenderTexture.active = source;
-            readable = new Texture2D(source.width, source.height, TextureFormat.RGB24, false);
-            readable.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
-            readable.Apply();
-
             TextureStats stats = CalculateTextureStats(readable);
             File.WriteAllBytes(path, readable.EncodeToPNG());
             return stats;
         }
         finally
         {
-            RenderTexture.active = previous;
-            if (readable != null) Destroy(readable);
+            Destroy(readable);
         }
     }
 
@@ -1298,7 +1341,7 @@ public class LidarSensor : MonoBehaviour
         for (int i = 0; i < ranges.Length; i++)
         {
             float range = ranges[i];
-            if (range >= maxRange - 0.001f)
+            if (range >= maxRange - RangeMissTolerance)
             {
                 stats.maxRangeCount++;
                 continue;
@@ -1458,21 +1501,10 @@ public class LidarSensor : MonoBehaviour
 
     private bool ShouldUseProbeRaycastHit(Transform hitTransform)
     {
-        if (hitTransform == null) return false;
-
-        if (_sourceAgent != null && hitTransform.IsChildOf(_sourceAgent.transform))
-            return false;
-
-        if (_sourceSelfRoot != null && hitTransform.IsChildOf(_sourceSelfRoot))
-            return false;
-
-        if (_excludedHiddenGhostRoot != null && hitTransform.IsChildOf(_excludedHiddenGhostRoot))
-            return false;
-
-        if (hitTransform.GetComponentInParent<LidarSensor>() != null)
-            return false;
-
-        return true;
+        return
+            hitTransform != null &&
+            !IsExcludedSelf(hitTransform) &&
+            hitTransform.GetComponentInParent<LidarSensor>() == null;
     }
 
     private string FormatLidarProbeMessage(LidarProbeSample probe)
@@ -1545,35 +1577,6 @@ public class LidarSensor : MonoBehaviour
     }
 
     /// <summary>
-    /// Legacy renderer-toggle helper retained for debugging paths that need to hide the source avatar.
-    /// Current LiDAR rendering primarily uses renderer filtering instead of mutating visibility.
-    /// </summary>
-    private static List<RendererState> HideSourceAgentRenderers(Camera sourceCamera)
-    {
-        Transform root = ResolveSelfRoot(sourceCamera);
-
-        if (root == null) return null;
-
-        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
-        List<RendererState> states = new List<RendererState>(renderers.Length);
-
-        for (int i = 0; i < renderers.Length; i++)
-        {
-            Renderer renderer = renderers[i];
-            if (renderer == null) continue;
-
-            states.Add(new RendererState
-            {
-                renderer = renderer,
-                wasEnabled = renderer.enabled
-            });
-            renderer.enabled = false;
-        }
-
-        return states;
-    }
-
-    /// <summary>
     /// Finds the hidden ghost corresponding to the source camera so it can be excluded from LiDAR renders.
     /// </summary>
     private static HumanoidGhostFollower ResolveHiddenGhost(Camera sourceCamera, HumanoidGhostFollower explicitGhost)
@@ -1611,6 +1614,8 @@ public class LidarSensor : MonoBehaviour
         {
             HumanoidGhostFollower ghost = ghosts[i];
             if (ghost == null || !ghost.isActiveAndEnabled) continue;
+            // Never hide a ghost that belongs to a different agent.
+            if (sourceAgent != null && ghost.Authority != null && ghost.Authority != sourceAgent) continue;
 
             float sqrDistance = (ghost.transform.position - referencePosition).sqrMagnitude;
             if (sqrDistance > closestSqrDistance) continue;
@@ -1636,21 +1641,6 @@ public class LidarSensor : MonoBehaviour
         if (body != null) return body.transform;
 
         return sourceCamera.transform.root;
-    }
-
-    /// <summary>
-    /// Restores renderer enabled states captured by HideSourceAgentRenderers.
-    /// </summary>
-    private static void RestoreRenderers(List<RendererState> states)
-    {
-        if (states == null) return;
-
-        for (int i = 0; i < states.Count; i++)
-        {
-            Renderer renderer = states[i].renderer;
-            if (renderer != null)
-                renderer.enabled = states[i].wasEnabled;
-        }
     }
 
     private struct LidarDrawStats
@@ -1820,10 +1810,20 @@ public class LidarSensor : MonoBehaviour
         public Vector3 point;
     }
 
-    private struct RendererState
+    private enum LidarCullReason
+    {
+        None,
+        Skip,
+        Self,
+        Layer,
+        Type
+    }
+
+    private struct RendererCandidate
     {
         public Renderer renderer;
-        public bool wasEnabled;
+        public LidarCullReason reason;
+        public int subMeshCount;
     }
 
     /// <summary>

@@ -19,8 +19,9 @@ public class LidarDepthDebugCapture : MonoBehaviour
             return;
         }
 
-        if (sourceCamera == null)
-            sourceCamera = GetComponent<Camera>() ?? Camera.main;
+        // Explicit checks: `??` skips Unity's destroyed/missing-object null semantics.
+        if (sourceCamera == null && !TryGetComponent(out sourceCamera))
+            sourceCamera = Camera.main;
 
         if (sourceCamera == null)
         {
@@ -32,7 +33,8 @@ public class LidarDepthDebugCapture : MonoBehaviour
             ? lidarSensor
             : LidarSensor.ResolveLevelSensor(sourceCamera);
 
-        StartCoroutine(activeLidarSensor.CaptureForwardDepthDebug(
+        // Run on the sensor so the capture (and its cleanup) is not tied to this component's lifetime.
+        activeLidarSensor.StartCoroutine(activeLidarSensor.CaptureForwardDepthDebug(
             sourceCamera,
             hiddenGhost,
             Debug.Log,
