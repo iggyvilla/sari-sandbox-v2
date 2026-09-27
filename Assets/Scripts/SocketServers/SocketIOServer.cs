@@ -78,6 +78,7 @@ public class SocketIOServer : MonoBehaviour
         socket.OnUnityThread("SARI_AGENT_UPDATE_PATH", (data) =>
         {
             NavMeshPathCorners corners = data.GetValue<NavMeshPathCorners>();
+            if (corners.corners == null || corners.corners.Count == 0) return;
 
             isWalkingToPath = true;
             pathCorners = corners.corners;

@@ -148,26 +148,41 @@ public class BenchCoordinatorClient : MonoBehaviour
     {
         CloseSocket();
 
+        WebSocket socket;
         try
         {
-            _socket = new WebSocket(_url);
+            socket = new WebSocket(_url);
         }
         catch (Exception error)
         {
             Debug.LogError($"Invalid coordinator URL '{_url}': {error.Message}");
+            // Disabling alone does not stop the running coroutines.
+            _shuttingDown = true;
             enabled = false;
             return;
         }
 
+        _socket = socket;
+
         // WebSocketSharp raises these on its own threads, so nothing here may touch Unity state
-        // directly - everything hops back through the handler's main-thread queue.
-        _socket.OnOpen += (_, __) => _handler.Enqueue(OnSocketOpen);
-        _socket.OnMessage += (_, e) => _handler.Enqueue(() => OnSocketMessage(e.Data));
-        _socket.OnClose += (_, e) => _handler.Enqueue(() => OnSocketClosed(e.Reason));
-        _socket.OnError += (_, e) => _handler.Enqueue(() => Debug.LogWarning(
+        // directly - everything hops back through the handler's main-thread queue. Events from a
+        // socket that has since been replaced are dropped so they cannot flip _connected.
+        socket.OnOpen += (_, __) => _handler.Enqueue(() =>
+        {
+            if (socket == _socket) OnSocketOpen();
+        });
+        socket.OnMessage += (_, e) => _handler.Enqueue(() =>
+        {
+            if (socket == _socket) OnSocketMessage(e.Data);
+        });
+        socket.OnClose += (_, e) => _handler.Enqueue(() =>
+        {
+            if (socket == _socket) OnSocketClosed(e.Reason);
+        });
+        socket.OnError += (_, e) => _handler.Enqueue(() => Debug.LogWarning(
             $"Coordinator socket error: {e.Message}"));
 
-        _socket.ConnectAsync();
+        socket.ConnectAsync();
     }
 
     private void OnSocketOpen()
@@ -228,13 +243,14 @@ public class BenchCoordinatorClient : MonoBehaviour
             case "coord.reset":
                 // The coordinator resets on release, so this is what guarantees the next attempt
                 // starts clean even when the previous agent process died mid-run.
+                // Release the lease inside the reset so the sandbox never reports a transient Ready
+                // (which the coordinator treats as "back in the pool") before Resetting.
                 _activeLeaseId = message.lease_id ?? string.Empty;
-                _handler.SetLeased(false);
                 _handler.BeginReset(() =>
                 {
                     _activeLeaseId = string.Empty;
                     PublishState();
-                });
+                }, releaseLease: true);
                 break;
 
             case "coord.release":

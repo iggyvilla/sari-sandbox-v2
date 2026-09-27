@@ -56,8 +56,6 @@ public class PendingCommandQueue
         _timeoutSeconds = timeoutSeconds;
     }
 
-    public int Count => _entries.Count;
-
     /// <summary>
     /// Parks a command until the sandbox is ready. Returns false when the queue is full, in which
     /// case the caller must answer the client itself - silently dropping would hang the agent.
@@ -100,9 +98,16 @@ public class PendingCommandQueue
             Debug.LogWarning(
                 $"Parked command '{entry.Command}' timed out after {_timeoutSeconds}s waiting for the " +
                 "sandbox to become ready.");
-            entry.OnTimeout?.Invoke(
-                $"Error: sandbox not ready after {_timeoutSeconds}s (command '{entry.Command}' was " +
-                "parked while the environment was resetting).");
+            try
+            {
+                entry.OnTimeout?.Invoke(
+                    $"Error: sandbox not ready after {_timeoutSeconds}s (command '{entry.Command}' was " +
+                    "parked while the environment was resetting).");
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning($"Could not answer timed-out command '{entry.Command}': {error.Message}");
+            }
         }
     }
 }

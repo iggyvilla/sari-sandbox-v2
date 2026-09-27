@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 public partial class SB_UIHandler
 {
     public void OnAgentSettingsMenuPressed()
@@ -13,37 +11,19 @@ public partial class SB_UIHandler
 
     void PopulateAgentSettingsDropdowns()
     {
-        if (agentAvatarSettingDropdown != null)
-        {
-            agentAvatarSettingDropdown.ClearOptions();
-            agentAvatarSettingDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(AgentAvatarSetting))));
-        }
-
-        if (agentInteractionStyleDropdown != null)
-        {
-            agentInteractionStyleDropdown.ClearOptions();
-            agentInteractionStyleDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(AgentInteractionStyle))));
-        }
-
-        if (agentBasketStyleDropdown != null)
-        {
-            agentBasketStyleDropdown.ClearOptions();
-            agentBasketStyleDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(AgentBasketStyle))));
-        }
-
-        if (scanningDifficultyDropdown != null)
-        {
-            scanningDifficultyDropdown.ClearOptions();
-            scanningDifficultyDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(ScanningDifficulty))));
-        }
+        FillEnumDropdown<AgentAvatarSetting>(agentAvatarSettingDropdown);
+        FillEnumDropdown<AgentInteractionStyle>(agentInteractionStyleDropdown);
+        FillEnumDropdown<AgentBasketStyle>(agentBasketStyleDropdown);
+        FillEnumDropdown<ScanningDifficulty>(scanningDifficultyDropdown);
     }
 
     void SyncAgentSettingsDropdowns()
     {
-        agentAvatarSettingDropdown?.SetValueWithoutNotify((int)DataHandler.Instance.agentAvatarSetting);
-        agentInteractionStyleDropdown?.SetValueWithoutNotify((int)DataHandler.Instance.agentInteractionStyle);
-        agentBasketStyleDropdown?.SetValueWithoutNotify((int)DataHandler.Instance.agentBasketStyle);
-        scanningDifficultyDropdown?.SetValueWithoutNotify((int)DataHandler.Instance.scanningDifficulty);
+        DataHandler data = DataHandler.Instance;
+        ShelfEditGroupHandler.SetValue(agentAvatarSettingDropdown, (int)data.agentAvatarSetting);
+        ShelfEditGroupHandler.SetValue(agentInteractionStyleDropdown, (int)data.agentInteractionStyle);
+        ShelfEditGroupHandler.SetValue(agentBasketStyleDropdown, (int)data.agentBasketStyle);
+        ShelfEditGroupHandler.SetValue(scanningDifficultyDropdown, (int)data.scanningDifficulty);
     }
 
     public void OnAgentAvatarSettingChanged(int index)

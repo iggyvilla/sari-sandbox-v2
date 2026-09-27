@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -89,10 +90,18 @@ public partial class SB_UIHandler : MonoBehaviour
 
     void Start()
     {
-        // spawnItemsToggle.isOn = false;
         UpdateSelectedShelfText();
-        PopulateShelfCategoryDropdown();
+        FillEnumDropdown<ItemCategory>(shelfCategoryDropdown);
+        FillEnumDropdown<ItemCategory>(itemCategoryDropdown);
         PopulateAgentSettingsDropdowns();
+    }
+
+    // Replaces a dropdown's options with the names of enum T.
+    static void FillEnumDropdown<T>(TMP_Dropdown dropdown) where T : Enum
+    {
+        if (dropdown == null) return;
+        dropdown.ClearOptions();
+        dropdown.AddOptions(new List<string>(Enum.GetNames(typeof(T))));
     }
 
     // Enables/disables the SB_InteractionController's input handling (Input.GetKeyDown,
@@ -103,8 +112,4 @@ public partial class SB_UIHandler : MonoBehaviour
     {
         interactionControlsEnabled = isEnabled;
     }
-
-    // Convenience wrappers for wiring up to UI events that don't pass a bool argument.
-    public void DisableInteractionControls() => SetInteractionControlsEnabled(false);
-    public void EnableInteractionControls() => SetInteractionControlsEnabled(true);
 }

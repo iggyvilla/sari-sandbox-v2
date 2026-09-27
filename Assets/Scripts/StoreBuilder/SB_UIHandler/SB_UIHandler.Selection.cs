@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 public partial class SB_UIHandler
@@ -48,6 +47,7 @@ public partial class SB_UIHandler
         selectedShelf = selector.assignedShelf;
         _userWantsSpawnItems = DataHandler.Instance.shouldShelfSpawnItems.TryGetValue(selectedShelf.shelfId, out bool saved) && saved;
         shelfEditGroupHandler.UpdateFromShelf(selectedShelf, _userWantsSpawnItems);
+        priceTagToggle.interactable = _userWantsSpawnItems;
 
         SetSelectionUIView(true);
         UpdateSelectedShelfText();
@@ -78,8 +78,7 @@ public partial class SB_UIHandler
         if (_activeSubShelf != null)
             _activeSubShelf.EnableOutline(false);
 
-        // Deselect the main shelf without recursing into DeselectSubShelf
-        // (_activeSubShelf is null at this point so the call is a no-op there)
+        // Also clears the previous sub-shelf; the new one is selected below.
         DeselectShelf();
 
         _activeSubShelf = marker;
@@ -97,14 +96,12 @@ public partial class SB_UIHandler
             itemCategorySelection.SetActive(false);
     }
 
-    public bool IsSubShelfSelected() => _activeSubShelf != null;
+    // Key into ShelfBuilder.subShelfCategories (same format as ShelfBuilder.Items).
+    static string CategoryKey(ShelfInfo info) => $"{info.subShelfId}_{info.subSubShelfId}";
 
     void PopulateSubShelfCategoryDropdown(SubShelfMarker marker)
     {
-        itemCategoryDropdown.ClearOptions();
-        itemCategoryDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(ItemCategory))));
-
-        string key = $"{marker.shelfInfo.subShelfId}_{marker.shelfInfo.subSubShelfId}";
+        string key = CategoryKey(marker.shelfInfo);
         int value = marker.parentShelf.subShelfCategories.TryGetValue(key, out ItemCategory cat)
             ? (int)cat
             : 0;
@@ -115,15 +112,7 @@ public partial class SB_UIHandler
     public void OnSubShelfCategoryChanged(int index)
     {
         if (_activeSubShelf == null) return;
-        string key = $"{_activeSubShelf.shelfInfo.subShelfId}_{_activeSubShelf.shelfInfo.subSubShelfId}";
-        _activeSubShelf.parentShelf.subShelfCategories[key] = (ItemCategory)index;
-    }
-
-    void PopulateShelfCategoryDropdown()
-    {
-        if (shelfCategoryDropdown == null) return;
-        shelfCategoryDropdown.ClearOptions();
-        shelfCategoryDropdown.AddOptions(new List<string>(System.Enum.GetNames(typeof(ItemCategory))));
+        _activeSubShelf.parentShelf.subShelfCategories[CategoryKey(_activeSubShelf.shelfInfo)] = (ItemCategory)index;
     }
 
     // Wired to ApplyShelfCategory button's OnClick in the Inspector
@@ -132,10 +121,7 @@ public partial class SB_UIHandler
         if (selectedShelf == null) return;
         ItemCategory category = (ItemCategory)shelfCategoryDropdown.value;
         foreach (SubShelfMarker marker in selectedShelf.GetComponentsInChildren<SubShelfMarker>())
-        {
-            string key = $"{marker.shelfInfo.subShelfId}_{marker.shelfInfo.subSubShelfId}";
-            selectedShelf.subShelfCategories[key] = category;
-        }
+            selectedShelf.subShelfCategories[CategoryKey(marker.shelfInfo)] = category;
     }
 
     void SetSelectionUIView(bool show)

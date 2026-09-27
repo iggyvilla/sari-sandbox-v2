@@ -77,7 +77,16 @@ public class SariAgentCommandBehavior : WebSocketBehavior
     {
         Debug.Log($"WebSocket recv: {e.Data}");
 
-        CommandData cmd = JsonUtility.FromJson<CommandData>(e.Data);
+        CommandData cmd;
+        try
+        {
+            cmd = JsonUtility.FromJson<CommandData>(e.Data);
+        }
+        catch (ArgumentException)
+        {
+            cmd = null; // malformed JSON throws rather than returning null
+        }
+
         if (cmd == null)
         {
             Send("Error: invalid JSON");
@@ -85,7 +94,7 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         }
 
         SariAgentCommandBehavior session = this;
-        WebSocketHandler.Instance.Enqueue(() => Dispatch(cmd, session));
+        WebSocketHandler.Instance?.Enqueue(() => Dispatch(cmd, session));
     }
 
     private static void Dispatch(CommandData cmd, SariAgentCommandBehavior session)
@@ -117,238 +126,138 @@ public class SariAgentCommandBehavior : WebSocketBehavior
     {
         WebSocketHandler handler = WebSocketHandler.Instance;
         AgentController agent = handler.Agent;
-        bool sariSandboxV1CompatibilityLayer = handler.SariSandboxV1CompatibilityLayer;
+        bool v1 = handler.SariSandboxV1CompatibilityLayer;
+        Action<string> sendText = text => session.Send(text);
+
+        // Checked before mutating the agent so a rejected command leaves it untouched.
+        bool CanRun(bool queuesReply = true)
+        {
+            if (agent == null)
+            {
+                session.Send("Error: AgentController not assigned");
+                return false;
+            }
+            return !queuesReply || handler.HasCoroutineCapacity(cmd.command, sendText);
+        }
+
+        void ReplyHandState() => handler.EnqueueCoroutine(
+            cmd.command, SendHandStateAfterPhysics(agent, session, v1), sendText);
 
         switch (cmd.command)
         {
+            // V1 name; it translates exactly like TranslateAgent.
             case "TransformAgent":
-                // if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                // if (!sariSandboxV1CompatibilityLayer) goto case "TranslateAgent";
-                // Vector3 worldPosition = ToVec3(cmd.translation);
-                // worldPosition.y = Mathf.Min(worldPosition.y, agent.MaximumMovementRootHeight);
-                // agent.TransformAgent(worldPosition, ToVec3(cmd.rotation));
-                // handler.EnqueueCoroutine(SendAgentStateAfterPhysics(
-                //     agent,
-                //     session,
-                //     sariSandboxV1CompatibilityLayer));
-                // break;
-
             case "TranslateAgent":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                Vector3 deltaTranslation = agent.ClampTranslationToMaximumHeight(
-                    agent.EgocentricToWorldTranslation(ToVec3(cmd.translation)));
-                agent.TranslateAgent(deltaTranslation, ToVec3(cmd.rotation));
-                handler.EnqueueCoroutine(cmd.command, SendAgentStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
+                if (!CanRun()) return;
+                agent.TranslateAgent(
+                    agent.ClampTranslationToMaximumHeight(
+                        agent.EgocentricToWorldTranslation(WireVec.ToVector3(cmd.translation))),
+                    WireVec.ToVector3(cmd.rotation));
+                handler.EnqueueCoroutine(
+                    cmd.command, SendAgentStateAfterPhysics(agent, session, v1), sendText);
                 break;
 
             case "TransformHand":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                if (!sariSandboxV1CompatibilityLayer) goto case "TranslateHand";
-                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
-                break;
+                if (!v1) goto case "TranslateHand";
+                goto case "TransformRightHand";
 
             case "TransformRightHand":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
+            case "TransformLeftHand":
+                if (!CanRun()) return;
+                agent.TransformHand(WireVec.ToVector3(cmd.handPosition), WireVec.ToVector3(cmd.handRotation), SideOf(cmd.command));
+                ReplyHandState();
                 break;
 
-            case "TransformLeftHand":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Left);
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
-                break;
-            
             // The command is called TransformHands in the Sari V1
             // communication protocol, but it TRANSLATES, not transforms
             case "TransformHands":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TranslateHand(ToVec3(cmd.leftTranslation), ToVec3(cmd.leftRotation), AgentHandSide.Left);
-                agent.TranslateHand(ToVec3(cmd.rightTranslation), ToVec3(cmd.rightRotation), AgentHandSide.Right);
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
+                if (!CanRun()) return;
+                agent.TranslateHand(WireVec.ToVector3(cmd.leftTranslation), WireVec.ToVector3(cmd.leftRotation), AgentHandSide.Left);
+                agent.TranslateHand(WireVec.ToVector3(cmd.rightTranslation), WireVec.ToVector3(cmd.rightRotation), AgentHandSide.Right);
+                ReplyHandState();
                 break;
 
             case "TranslateHand":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TranslateHand(ToVec3(cmd.translation), ToVec3(cmd.rotation), AgentHandSide.Right);
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
-                break;
-
             case "TranslateRightHand":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TranslateHand(ToVec3(cmd.translation), ToVec3(cmd.rotation), AgentHandSide.Right);
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
-                break;
-
             case "TranslateLeftHand":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TranslateHand(ToVec3(cmd.translation), ToVec3(cmd.rotation), AgentHandSide.Left);
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
+                if (!CanRun()) return;
+                agent.TranslateHand(WireVec.ToVector3(cmd.translation), WireVec.ToVector3(cmd.rotation), SideOf(cmd.command));
+                ReplyHandState();
                 break;
 
             case "ResetHandPosition":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.ResetHandPosition(AgentHandSide.Right);
-                if (sariSandboxV1CompatibilityLayer)
-                {
-                    session.Send("Hand position reset");
-                    break;
-                }
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
-                break;
-
             case "ResetRightHandPosition":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.ResetHandPosition(AgentHandSide.Right);
-                if (sariSandboxV1CompatibilityLayer)
-                {
-                    session.Send("Right hand position reset");
-                    break;
-                }
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
-                break;
-
             case "ResetLeftHandPosition":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.ResetHandPosition(AgentHandSide.Left);
-                if (sariSandboxV1CompatibilityLayer)
+                if (!CanRun(!v1)) return;
+                agent.ResetHandPosition(SideOf(cmd.command));
+                if (v1)
                 {
-                    session.Send("Left hand position reset");
+                    session.Send(cmd.command switch
+                    {
+                        "ResetHandPosition" => "Hand position reset",
+                        "ResetLeftHandPosition" => "Left hand position reset",
+                        _ => "Right hand position reset"
+                    });
                     break;
                 }
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
+                ReplyHandState();
                 break;
 
             case "ResetHands":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                if (!CanRun()) return;
                 agent.ResetHandPosition(AgentHandSide.Left);
                 agent.ResetHandPosition(AgentHandSide.Right);
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
+                ReplyHandState();
                 break;
 
             case "IsHoldingItem":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
+                if (!CanRun(false)) return;
                 session.Send(agent.IsHoldingItem() ? "true" : "false");
                 break;
 
             case "ToggleRightHandGrip":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.ToggleGrip(AgentHandSide.Right);
-                if (sariSandboxV1CompatibilityLayer)
-                {
-                    session.Send("Right Grip: " + agent.IsGripped);
-                    break;
-                }
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
-                break;
-
             case "ToggleLeftHandGrip":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.ToggleGrip(AgentHandSide.Left);
-                if (sariSandboxV1CompatibilityLayer)
+            {
+                if (!CanRun(!v1)) return;
+                AgentHandSide side = SideOf(cmd.command);
+                agent.ToggleGrip(side);
+                if (v1)
                 {
-                    session.Send("Left Grip: " + agent.IsLeftGripped);
+                    session.Send(side == AgentHandSide.Left
+                        ? "Left Grip: " + agent.IsLeftGripped
+                        : "Right Grip: " + agent.IsGripped);
                     break;
                 }
-                handler.EnqueueCoroutine(cmd.command, SendHandStateAfterPhysics(
-                    agent,
-                    session,
-                    sariSandboxV1CompatibilityLayer), error => session.Send(error));
+                ReplyHandState();
                 break;
+            }
 
             case "ToggleRightPoke":
             case "ToggleRightPoint":
             case "TogglePoke":
             case "TogglePoint":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TogglePoint(AgentHandSide.Right);
-                session.Send("Right Poke: " + agent.IsPointing);
-                break;
-
             case "ToggleLeftPoke":
             case "ToggleLeftPoint":
-                if (agent == null) { session.Send("Error: AgentController not assigned"); return; }
-                agent.TogglePoint(AgentHandSide.Left);
-                session.Send("Left Poke: " + agent.IsLeftPointing);
+            {
+                if (!CanRun(false)) return;
+                AgentHandSide side = SideOf(cmd.command);
+                agent.TogglePoint(side);
+                session.Send(side == AgentHandSide.Left
+                    ? "Left Poke: " + agent.IsLeftPointing
+                    : "Right Poke: " + agent.IsPointing);
                 break;
+            }
 
             case "RequestScreenshot":
-            {
-                Camera camera = handler.AgentCamera;
-                if (camera == null) { session.Send("Error: no camera found for agent"); return; }
-                handler.EnqueueScreenshot(
-                    camera,
-                    handler.AgentGhost,
-                    bytes => session.Send(bytes),
-                    error => session.Send(error));
-                break;
-            }
-
             case "RequestLidarScan":
-            {
-                Camera camera = handler.AgentCamera;
-                if (camera == null) { session.Send("Error: no camera found for agent"); return; }
-                handler.EnqueueLidarScan(
-                    camera,
-                    handler.AgentGhost,
-                    // WebSocketSharp.Send(byte[]) sends a binary frame. The bytes are the LDR1
-                    // payload built in LidarSensor.BuildPayload, not JSON or base64 text.
-                    bytes => session.Send(bytes),
-                    error => session.Send(error));
-                break;
-            }
-
             case "RequestLidarCenter":
-            {
-                Camera camera = handler.AgentCamera;
-                if (camera == null) { session.Send("Error: no camera found for agent"); return; }
-                handler.EnqueueLidarCenterSample(
-                    camera,
+                handler.EnqueueCapture(
+                    cmd.command,
+                    handler.AgentCamera,
                     handler.AgentGhost,
-                    sample => session.Send(JsonUtility.ToJson(sample)),
-                    error => session.Send(error));
+                    sendText,
+                    bytes => session.Send(bytes));
                 break;
-            }
 
             case "ResetEnvironment":
                 // Answered only once the reset has genuinely settled. The old implementation acked
@@ -368,7 +277,7 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                     sandbox_id = handler.SandboxId,
                     port = handler.BoundPort,
                     benchmark_build = handler.IsBenchmarkBuild,
-                    v1_compatibility = sariSandboxV1CompatibilityLayer,
+                    v1_compatibility = v1,
                     active_queued_command = handler.ActiveQueuedCommand,
                     active_queued_command_age_seconds = handler.ActiveQueuedCommandAgeSeconds,
                     queued_command_count = handler.QueuedCommandCount
@@ -386,6 +295,10 @@ public class SariAgentCommandBehavior : WebSocketBehavior
                 break;
         }
     }
+
+    /// <summary>Hand named by the command; unqualified commands address the right hand.</summary>
+    private static AgentHandSide SideOf(string command) =>
+        command.Contains("Left") ? AgentHandSide.Left : AgentHandSide.Right;
 
     private static IEnumerator SendAgentStateAfterPhysics(
         AgentControllerBase agent,
@@ -407,8 +320,8 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         {
             session.Send(JsonUtility.ToJson(new AgentStateResponse
             {
-                current_position = Vec3ToArr(view.position),
-                current_rotation = Vec3ToArr(view.rotation.eulerAngles),
+                current_position = WireVec.ToArray(view.position),
+                current_rotation = WireVec.ToArray(view.rotation.eulerAngles),
                 collision = agent.IsAgentColliding,
                 out_of_bounds_recovery_count = agent.OutOfBoundsRecoveryCount
             }));
@@ -461,13 +374,13 @@ public class SariAgentCommandBehavior : WebSocketBehavior
         {
             session.Send(JsonUtility.ToJson(new HandStateResponse
             {
-                current_left_hand_position = Vec3ToArr(leftHandPosition),
-                current_left_hand_rotation = Vec3ToArr(leftHandRotation),
+                current_left_hand_position = WireVec.ToArray(leftHandPosition),
+                current_left_hand_rotation = WireVec.ToArray(leftHandRotation),
                 left_hand_can_grab = !string.IsNullOrEmpty(leftHandHoveredItemId),
                 left_hand_gripping = agent.IsLeftGripped,
                 left_hand_holding_item = agent.IsHoldingItem(AgentHandSide.Left),
-                current_right_hand_position = Vec3ToArr(rightHandPosition),
-                current_right_hand_rotation = Vec3ToArr(rightHandRotation),
+                current_right_hand_position = WireVec.ToArray(rightHandPosition),
+                current_right_hand_rotation = WireVec.ToArray(rightHandRotation),
                 right_hand_can_grab = !string.IsNullOrEmpty(rightHandHoveredItemId),
                 right_hand_gripping = agent.IsGripped,
                 right_hand_holding_item = agent.IsHoldingItem(AgentHandSide.Right)
@@ -480,6 +393,7 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             "\nCurrent left hand rotation: " + leftHandRotation +
             "\nLeft hand hovering: " + (leftHandHoveredItemId ?? "null") +
             "\nLeft hand gripping: " + agent.IsLeftGripped +
+            // Deliberate V1 quirk: clients expect this empty line before the real one.
             "\nCurrent right hand position: " +
             "\nCurrent right hand position: " + rightHandPosition +
             "\nCurrent right hand rotation: " + rightHandRotation +
@@ -488,8 +402,6 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             "\nLeft hand holding item: " + agent.IsHoldingItem(AgentHandSide.Left) +
             "\nRight hand holding item: " + agent.IsHoldingItem(AgentHandSide.Right));
     }
-
-    private static float[] Vec3ToArr(Vector3 v) => new float[] { v.x, v.y, v.z };
 
     private static Vector3 GetRelativePosition(Transform reference, Transform target)
     {
@@ -504,11 +416,5 @@ public class SariAgentCommandBehavior : WebSocketBehavior
             ? Quaternion.Inverse(reference.rotation) * target.rotation
             : target.rotation;
         return relativeRotation.eulerAngles;
-    }
-
-    private static Vector3 ToVec3(float[] arr)
-    {
-        if (arr == null || arr.Length < 3) return Vector3.zero;
-        return new Vector3(arr[0], arr[1], arr[2]);
     }
 }

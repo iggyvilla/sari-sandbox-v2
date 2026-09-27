@@ -2,20 +2,13 @@ using UnityEngine;
 
 public partial class ShelfBuilder
 {
+    /// <summary>The outline box created by <see cref="SummonOutlineBox"/>, if any.</summary>
+    public ShelfSelector Selector { get; private set; }
+
     public void SummonOutlineBox(SB_UIHandler uiHandler, SB_InteractionController interactionController)
     {
-        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        cube.layer = LayerMask.NameToLayer("SariInteractable");
-        cube.GetComponent<Renderer>().sharedMaterial = airMaterial;
-
-        // Keep selection bounds raycastable without interfering with physics.
-        cube.GetComponent<BoxCollider>().isTrigger = true;
-        cube.AddComponent<OutlineFx.OutlineFx>();
-
-        ShelfSelector selector = cube.AddComponent<ShelfSelector>();
-        selector.assignedShelf = this;
-        selector.uiHandler = uiHandler;
-        selector.interactionController = interactionController;
-        selector.EncapsulateShelf(this);
+        Selector = OutlineSelector.CreateBox<ShelfSelector>(airMaterial, uiHandler, interactionController);
+        Selector.assignedShelf = this;
+        Selector.EncapsulateShelf(this);
     }
 }

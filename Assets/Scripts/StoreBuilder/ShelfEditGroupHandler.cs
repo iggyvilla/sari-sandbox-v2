@@ -54,41 +54,56 @@ public class ShelfEditGroupHandler : MonoBehaviour
     {
         if (shelf == null) return;
 
-        // Input fields
-        shelfWidth?.SetTextWithoutNotify(shelf.shelfWidth.ToString());
-        shelfLevels?.SetTextWithoutNotify(shelf.shelfLevels.ToString());
-        distanceBetweenLevels?.SetTextWithoutNotify(shelf.distanceBetweenLevels.ToString());
-        bootHeight?.SetTextWithoutNotify(shelf.shelfBootHeight.ToString());
-        roofHeight?.SetTextWithoutNotify(shelf.shelfRoofHeight.ToString());
+        SetText(shelfWidth, shelf.shelfWidth.ToString());
+        SetText(shelfLevels, shelf.shelfLevels.ToString());
+        SetText(distanceBetweenLevels, shelf.distanceBetweenLevels.ToString());
+        SetText(bootHeight, shelf.shelfBootHeight.ToString());
+        SetText(roofHeight, shelf.shelfRoofHeight.ToString());
 
-        // Dropdowns
-        // rotationY: 0°→0, 90°→1, 180°→2, 270°→3
-        rotationY?.SetValueWithoutNotify(Mathf.RoundToInt(shelf.rotationY / 90f) % 4);
-        itemSpawnOption?.SetValueWithoutNotify((int)shelf.itemSpawnOption);
-        fridgeDoorStyle?.SetValueWithoutNotify((int)shelf.fridgeDoorStyle);
+        SetValue(rotationY, RotationIndex(shelf.rotationY));
+        SetValue(itemSpawnOption, (int)shelf.itemSpawnOption);
+        SetValue(fridgeDoorStyle, (int)shelf.fridgeDoorStyle);
 
-        spawnItems?.SetIsOnWithoutNotify(selectedShelfSpawnItem);
-        spawnPriceTags?.SetIsOnWithoutNotify(shelf.spawnPriceTags);
-        
+        SetOn(spawnItems, selectedShelfSpawnItem);
+        SetOn(spawnPriceTags, shelf.spawnPriceTags);
+
         // Shelf face toggles
-        spawnFrontShelf?.SetIsOnWithoutNotify(shelf.frontShelfConfig.buildShelves);
-        spawnBackShelf?.SetIsOnWithoutNotify(shelf.backShelfConfig.buildShelves);
-        spawnLShelf?.SetIsOnWithoutNotify(shelf.leftShelfConfig.buildShelves);
-        spawnRShelf?.SetIsOnWithoutNotify(shelf.rightShelfConfig.buildShelves);
-        
-        // Hinge door toggle
-        spawnHingeDoors?.SetIsOnWithoutNotify(shelf.isFridge);
-        
+        SetOn(spawnFrontShelf, shelf.frontShelfConfig.buildShelves);
+        SetOn(spawnBackShelf, shelf.backShelfConfig.buildShelves);
+        SetOn(spawnLShelf, shelf.leftShelfConfig.buildShelves);
+        SetOn(spawnRShelf, shelf.rightShelfConfig.buildShelves);
+
+        SetOn(spawnHingeDoors, shelf.isFridge);
+
         // Roof configuration
-        spawnLShelfRoof?.SetIsOnWithoutNotify(shelf.leftShelfConfig.buildShelfRoof);
-        spawnRShelfRoof?.SetIsOnWithoutNotify(shelf.rightShelfConfig.buildShelfRoof);
-        spawnBShelfRoof?.SetIsOnWithoutNotify(shelf.backShelfConfig.buildShelfRoof);
-        spawnFShelfRoof?.SetIsOnWithoutNotify(shelf.frontShelfConfig.buildShelfRoof);
+        SetOn(spawnLShelfRoof, shelf.leftShelfConfig.buildShelfRoof);
+        SetOn(spawnRShelfRoof, shelf.rightShelfConfig.buildShelfRoof);
+        SetOn(spawnBShelfRoof, shelf.backShelfConfig.buildShelfRoof);
+        SetOn(spawnFShelfRoof, shelf.frontShelfConfig.buildShelfRoof);
 
         // Wall toggles
-        spawnFrontShelfWall?.SetIsOnWithoutNotify(shelf.frontShelfConfig.buildBackWall);
-        spawnBackShelfWall?.SetIsOnWithoutNotify(shelf.backShelfConfig.buildBackWall);
-        spawnLShelfWall?.SetIsOnWithoutNotify(shelf.leftShelfConfig.buildBackWall);
-        spawnRShelfWall?.SetIsOnWithoutNotify(shelf.rightShelfConfig.buildBackWall);
+        SetOn(spawnFrontShelfWall, shelf.frontShelfConfig.buildBackWall);
+        SetOn(spawnBackShelfWall, shelf.backShelfConfig.buildBackWall);
+        SetOn(spawnLShelfWall, shelf.leftShelfConfig.buildBackWall);
+        SetOn(spawnRShelfWall, shelf.rightShelfConfig.buildBackWall);
+    }
+
+    /// <summary>rotationY dropdown index: 0°→0, 90°→1, 180°→2, 270°→3.</summary>
+    public static int RotationIndex(float rotationY) => Mathf.RoundToInt(rotationY / 90f) % 4;
+
+    // Unity-null-safe setters (`?.` skips Unity's destroyed/unassigned check).
+    public static void SetText(TMP_InputField field, string text)
+    {
+        if (field != null) field.SetTextWithoutNotify(text);
+    }
+
+    public static void SetValue(TMP_Dropdown dropdown, int value)
+    {
+        if (dropdown != null) dropdown.SetValueWithoutNotify(value);
+    }
+
+    public static void SetOn(Toggle toggle, bool isOn)
+    {
+        if (toggle != null) toggle.SetIsOnWithoutNotify(isOn);
     }
 }

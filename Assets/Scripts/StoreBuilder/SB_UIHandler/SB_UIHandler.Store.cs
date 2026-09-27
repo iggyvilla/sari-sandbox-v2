@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -30,7 +29,6 @@ public partial class SB_UIHandler
             loadPersistentDataPathText.text = Application.persistentDataPath;
 
         string[] files = Directory.GetFiles(Application.persistentDataPath, "*.json");
-        List<string> options = new();
 
         foreach (string file in files)
         {
@@ -38,15 +36,16 @@ public partial class SB_UIHandler
             {
                 StoreData data = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(file));
                 if (data == null || data.shelves == null) continue;
-                string name = Path.GetFileNameWithoutExtension(file);
-                _validStoreFiles.Add(name);
-                options.Add(name);
+                _validStoreFiles.Add(Path.GetFileNameWithoutExtension(file));
             }
-            catch { }
+            catch (System.Exception error)
+            {
+                Debug.LogWarning($"Skipping unreadable store file {file}: {error.Message}");
+            }
         }
 
-        loadStoreDropdown.AddOptions(options);
-        loadStoreDropdown.interactable = options.Count > 0;
+        loadStoreDropdown.AddOptions(_validStoreFiles);
+        loadStoreDropdown.interactable = _validStoreFiles.Count > 0;
     }
 
     public void LoadStoreConfirm()

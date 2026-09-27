@@ -21,11 +21,11 @@ public partial class SB_UIHandler
         _aisleNumber      = marker.AisleNumber;
         _aisleCableLength = marker.CableLength;
 
-        aisleCategory1Input?.SetTextWithoutNotify(_aisleCategory1);
-        aisleCategory2Input?.SetTextWithoutNotify(_aisleCategory2);
-        aisleCategory3Input?.SetTextWithoutNotify(_aisleCategory3);
-        aisleNumberInput?.SetTextWithoutNotify(_aisleNumber.ToString());
-        aisleCableLengthInput?.SetTextWithoutNotify(_aisleCableLength.ToString());
+        ShelfEditGroupHandler.SetText(aisleCategory1Input, _aisleCategory1);
+        ShelfEditGroupHandler.SetText(aisleCategory2Input, _aisleCategory2);
+        ShelfEditGroupHandler.SetText(aisleCategory3Input, _aisleCategory3);
+        ShelfEditGroupHandler.SetText(aisleNumberInput, _aisleNumber.ToString());
+        ShelfEditGroupHandler.SetText(aisleCableLengthInput, _aisleCableLength.ToString());
 
         if (aisleMarkerMenu != null)
             aisleMarkerMenu.SetActive(true);

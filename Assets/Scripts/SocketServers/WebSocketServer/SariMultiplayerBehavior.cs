@@ -62,19 +62,35 @@ public class SariMultiplayerBehavior : WebSocketBehavior
 
     private string _agentId;
 
+    // Only touched on the main thread; queue order guarantees a pending Join runs before OnClose's work.
     protected override void OnMessage(MessageEventArgs e)
     {
-        MultiplayerCommandData cmd = JsonUtility.FromJson<MultiplayerCommandData>(e.Data);
+        MultiplayerCommandData cmd;
+        try
+        {
+            cmd = JsonUtility.FromJson<MultiplayerCommandData>(e.Data);
+        }
+        catch (ArgumentException)
+        {
+            cmd = null; // malformed JSON throws rather than returning null
+        }
+
         if (cmd == null) { Send("Error: invalid JSON"); return; }
-        WebSocketHandler.Instance.Enqueue(() => HandleCommand(cmd));
+        WebSocketHandler.Instance?.Enqueue(() => HandleCommand(cmd));
     }
 
     protected override void OnClose(CloseEventArgs e)
     {
+        WebSocketHandler.Instance?.Enqueue(LeaveCurrentAgent);
+    }
+
+    /// <summary>Despawns this session's agent, if any, and tells the other sessions.</summary>
+    private void LeaveCurrentAgent()
+    {
         if (_agentId == null) return;
+        MultiplayerAgentManager.Instance?.DespawnAgent(_agentId);
         Sessions.Broadcast(JsonUtility.ToJson(new AgentLeftMsg { agentId = _agentId }));
-        string agentId = _agentId;
-        WebSocketHandler.Instance.Enqueue(() => MultiplayerAgentManager.Instance.DespawnAgent(agentId));
+        _agentId = null;
     }
 
     private void HandleCommand(MultiplayerCommandData cmd)
@@ -83,6 +99,8 @@ public class SariMultiplayerBehavior : WebSocketBehavior
         {
             case "Join":
             {
+                // A repeat Join replaces this session's agent instead of orphaning it.
+                LeaveCurrentAgent();
                 string agentId = MultiplayerAgentManager.Instance.SpawnAgent();
                 if (agentId == null) { Send("Error: failed to spawn multiplayer agent"); return; }
                 _agentId = agentId;
@@ -94,8 +112,8 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                     {
                         type = "Snapshot",
                         agentId = s.agentId,
-                        position = Vec3ToArr(s.position),
-                        rotation = Vec3ToArr(s.rotation.eulerAngles),
+                        position = WireVec.ToArray(s.position),
+                        rotation = WireVec.ToArray(s.rotation.eulerAngles),
                         recoveryCount = s.recoveryCount
                     }));
 
@@ -106,51 +124,25 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 {
                     type = "AgentSpawned",
                     agentId = agentId,
-                    position = Vec3ToArr(spawnPos),
-                    rotation = Vec3ToArr(spawnRot),
+                    position = WireVec.ToArray(spawnPos),
+                    rotation = WireVec.ToArray(spawnRot),
                     recoveryCount = newAgent != null ? newAgent.OutOfBoundsRecoveryCount : 0
                 }));
                 break;
             }
 
             case "RequestScreenshot":
-            {
-                if (_agentId == null) { Send("Error: not joined"); return; }
-                Camera mpCamera = MultiplayerAgentManager.Instance.GetAgentCamera(_agentId);
-                if (mpCamera == null) { Send("Error: no camera found for agent"); return; }
-                WebSocketHandler.Instance.EnqueueScreenshot(
-                    mpCamera,
-                    MultiplayerAgentManager.Instance.GetGhostFollower(_agentId),
-                    bytes => Send(bytes),
-                    error => Send(error));
-                break;
-            }
-
             case "RequestLidarScan":
-            {
-                if (_agentId == null) { Send("Error: not joined"); return; }
-                Camera mpCamera = MultiplayerAgentManager.Instance.GetAgentCamera(_agentId);
-                if (mpCamera == null) { Send("Error: no camera found for agent"); return; }
-                WebSocketHandler.Instance.EnqueueLidarScan(
-                    mpCamera,
-                    MultiplayerAgentManager.Instance.GetGhostFollower(_agentId),
-                    // WebSocketSharp.Send(byte[]) sends a binary frame. The bytes are the LDR1
-                    // payload built in LidarSensor.BuildPayload, not JSON or base64 text.
-                    bytes => Send(bytes),
-                    error => Send(error));
-                break;
-            }
-
             case "RequestLidarCenter":
             {
                 if (_agentId == null) { Send("Error: not joined"); return; }
-                Camera mpCamera = MultiplayerAgentManager.Instance.GetAgentCamera(_agentId);
-                if (mpCamera == null) { Send("Error: no camera found for agent"); return; }
-                WebSocketHandler.Instance.EnqueueLidarCenterSample(
-                    mpCamera,
-                    MultiplayerAgentManager.Instance.GetGhostFollower(_agentId),
-                    sample => Send(JsonUtility.ToJson(sample)),
-                    error => Send(error));
+                MultiplayerAgentManager manager = MultiplayerAgentManager.Instance;
+                WebSocketHandler.Instance.EnqueueCapture(
+                    cmd.command,
+                    manager.GetAgentCamera(_agentId),
+                    manager.GetGhostFollower(_agentId),
+                    text => Send(text),
+                    bytes => Send(bytes));
                 break;
             }
 
@@ -159,7 +151,7 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 if (_agentId == null) { Send("Error: not joined"); return; }
                 if (string.IsNullOrEmpty(cmd.message)) { Send("Error: empty message"); return; }
                 string chatLine = $"<{_agentId}> {cmd.message}";
-                ChatUIManager.Instance.Log(chatLine);
+                ChatUIManager.Instance?.Log(chatLine);
                 MultiplayerAgentManager.Instance.GetAgent(_agentId)?.ShowChat(cmd.message);
                 Sessions.Broadcast(JsonUtility.ToJson(new ChatMsg { agentId = _agentId, message = cmd.message }));
                 break;
@@ -199,48 +191,35 @@ public class SariMultiplayerBehavior : WebSocketBehavior
     {
         switch (cmd.command)
         {
-            // Semantically, transform is very different from translate,
-            // but Sari Sandbox v1 used TransformAgent as the command even if
-            // it translates. This is only here for compatability.
+            // V1 name; it translates exactly like TranslateAgent.
             case "TransformAgent":
-                // agent.TransformAgent(ToVec3(cmd.translation), ToVec3(cmd.rotation));
-                // Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
-                // break;
             case "TranslateAgent":
                 Vector3 deltaTranslation = agent.ClampTranslationToMaximumHeight(
-                    agent.EgocentricToWorldTranslation(ToVec3(cmd.translation)));
-                cmd.translation = Vec3ToArr(deltaTranslation);
-                agent.TranslateAgent(deltaTranslation, ToVec3(cmd.rotation));
+                    agent.EgocentricToWorldTranslation(WireVec.ToVector3(cmd.translation)));
+                cmd.translation = WireVec.ToArray(deltaTranslation);
+                agent.TranslateAgent(deltaTranslation, WireVec.ToVector3(cmd.rotation));
                 Send($"Agent position: {agent.transform.position}, rotation: {agent.transform.eulerAngles}");
                 break;
+            // V1 name; it translates exactly like TranslateHand.
             case "TransformHand":
-                // agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation));
-                // Send("Hand transformed");
-                // break;
             case "TranslateHand":
-                agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
-                Send("Right hand translated");
-                break;
-            case "TransformRightHand":
-                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
-                Send("Right hand transformed");
-                break;
-            case "TransformLeftHand":
-                agent.TransformHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Left);
-                Send("Left hand transformed");
-                break;
             case "TranslateRightHand":
-                agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Right);
+                agent.TranslateHand(WireVec.ToVector3(cmd.handPosition), WireVec.ToVector3(cmd.handRotation), AgentHandSide.Right);
                 Send("Right hand translated");
                 break;
             case "TranslateLeftHand":
-                agent.TranslateHand(ToVec3(cmd.handPosition), ToVec3(cmd.handRotation), AgentHandSide.Left);
+                agent.TranslateHand(WireVec.ToVector3(cmd.handPosition), WireVec.ToVector3(cmd.handRotation), AgentHandSide.Left);
                 Send("Left hand translated");
                 break;
-            case "ResetHandPosition":
-                agent.ResetHandPosition(AgentHandSide.Right);
-                Send("Right hand position reset");
+            case "TransformRightHand":
+                agent.TransformHand(WireVec.ToVector3(cmd.handPosition), WireVec.ToVector3(cmd.handRotation), AgentHandSide.Right);
+                Send("Right hand transformed");
                 break;
+            case "TransformLeftHand":
+                agent.TransformHand(WireVec.ToVector3(cmd.handPosition), WireVec.ToVector3(cmd.handRotation), AgentHandSide.Left);
+                Send("Left hand transformed");
+                break;
+            case "ResetHandPosition":
             case "ResetRightHandPosition":
                 agent.ResetHandPosition(AgentHandSide.Right);
                 Send("Right hand position reset");
@@ -250,9 +229,6 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 Send("Left hand position reset");
                 break;
             case "ToggleGrip":
-                agent.ToggleGrip(AgentHandSide.Right);
-                Send("Right grip toggled");
-                break;
             case "ToggleRightGrip":
                 agent.ToggleGrip(AgentHandSide.Right);
                 Send("Right grip toggled");
@@ -262,9 +238,6 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 Send("Left grip toggled");
                 break;
             case "TogglePoint":
-                agent.TogglePoint(AgentHandSide.Right);
-                Send("Right point toggled");
-                break;
             case "ToggleRightPoint":
                 agent.TogglePoint(AgentHandSide.Right);
                 Send("Right point toggled");
@@ -277,13 +250,5 @@ public class SariMultiplayerBehavior : WebSocketBehavior
                 Send($"Unknown command: {cmd.command}");
                 break;
         }
-    }
-
-    private static float[] Vec3ToArr(Vector3 v) => new float[] { v.x, v.y, v.z };
-
-    private static Vector3 ToVec3(float[] arr)
-    {
-        if (arr == null || arr.Length < 3) return Vector3.zero;
-        return new Vector3(arr[0], arr[1], arr[2]);
     }
 }

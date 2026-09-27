@@ -90,6 +90,7 @@ public class WebSocketHandler : MonoBehaviour
     private float _activeQueuedStartedAtRealtime;
     private Coroutine _resetCoroutine;
     private SandboxState _state = SandboxState.Booting;
+    private bool _leased;
     private bool _resetInFlight;
     private bool _resetWatchdogReported;
     private float _resetStartedAtRealtime;
@@ -103,6 +104,8 @@ public class WebSocketHandler : MonoBehaviour
     public event Action<SandboxState> StateChanged;
 
     public SandboxState State => _state;
+
+    private bool IsReadyForCommands => _state == SandboxState.Ready || _state == SandboxState.Leased;
 
     /// <summary>The port the command server actually bound to. Self-assigned in distributed builds.</summary>
     public int BoundPort => port;
@@ -171,9 +174,19 @@ public class WebSocketHandler : MonoBehaviour
     void Update()
     {
         while (_mainThreadActions.TryDequeue(out Action action))
-            action?.Invoke();
+        {
+            // Isolated so one failed send (e.g. a closed session) cannot stall the rest of the frame.
+            try
+            {
+                action?.Invoke();
+            }
+            catch (Exception error)
+            {
+                Debug.LogError($"Main-thread action failed: {error}");
+            }
+        }
 
-        if (_state != SandboxState.Ready && _state != SandboxState.Leased)
+        if (!IsReadyForCommands)
             _parkedCommands.ExpireStale();
 
         if (_resetInFlight &&
@@ -230,19 +243,23 @@ public class WebSocketHandler : MonoBehaviour
         if (_state == next) return;
 
         _state = next;
-        if (next == SandboxState.Ready) _parkedCommands.DrainAll();
+        if (next == SandboxState.Ready || next == SandboxState.Leased) _parkedCommands.DrainAll();
         StateChanged?.Invoke(next);
     }
 
     /// <summary>
     /// Marks the sandbox as leased by a benchmark run. Purely advisory - it does not gate commands,
-    /// it only stops the coordinator handing this sandbox to a second runner.
+    /// it only stops the coordinator handing this sandbox to a second runner. A lease never masks
+    /// Booting/Resetting; it is applied once the sandbox settles.
     /// </summary>
     public void SetLeased(bool leased)
     {
-        if (leased) SetState(SandboxState.Leased);
-        else if (_state == SandboxState.Leased) SetState(SandboxState.Ready);
+        _leased = leased;
+        if (_state == SandboxState.Ready || _state == SandboxState.Leased)
+            SetState(ReadyState);
     }
+
+    private SandboxState ReadyState => _leased ? SandboxState.Leased : SandboxState.Ready;
 
     /// <summary>
     /// Resets the environment and reports ready only once it has genuinely settled. Concurrent
@@ -250,9 +267,12 @@ public class WebSocketHandler : MonoBehaviour
     ///
     /// <paramref name="agentYawDegrees"/> is the facing the agent is left in, or null for the
     /// default. A caller that collapses into an in-flight reset does not get to change its facing.
+    /// <paramref name="releaseLease"/> drops the lease without ever publishing a transient Ready.
     /// </summary>
-    public void BeginReset(Action onComplete, float? agentYawDegrees = null)
+    public void BeginReset(Action onComplete, float? agentYawDegrees = null, bool releaseLease = false)
     {
+        if (releaseLease) _leased = false;
+
         if (onComplete != null)
             _resetCompletionCallbacks.Add(onComplete);
 
@@ -289,7 +309,7 @@ public class WebSocketHandler : MonoBehaviour
         _resetCoroutine = null;
         _resetInFlight = false;
         _resetWatchdogReported = false;
-        SetState(SandboxState.Ready);
+        SetState(ReadyState);
         Debug.Log(
             $"Sandbox reset completed in " +
             $"{Time.realtimeSinceStartup - _resetStartedAtRealtime:0.0}s.");
@@ -331,6 +351,12 @@ public class WebSocketHandler : MonoBehaviour
         if (runner != null) StopCoroutine(runner);
 
         AbortQueuedWork(activeWork);
+        // Answer every abandoned command so no client is left blocked in recv().
+        const string cancelled = "was cancelled by an environment reset";
+        NotifyQueuedFailure(activeWork, cancelled);
+        foreach (QueuedCoroutineWork work in pending)
+            NotifyQueuedFailure(work, cancelled);
+
         if (activeWork != null || pending.Length > 0)
         {
             Debug.LogWarning(
@@ -347,7 +373,7 @@ public class WebSocketHandler : MonoBehaviour
     /// </summary>
     public bool ParkOrRun(Action action, string command = "", Action<string> onTimeout = null)
     {
-        if (_state == SandboxState.Ready || _state == SandboxState.Leased)
+        if (IsReadyForCommands)
         {
             action?.Invoke();
             return true;
@@ -383,15 +409,7 @@ public class WebSocketHandler : MonoBehaviour
             return false;
         }
 
-        int outstandingCount = _queuedCoroutines.Count + (_activeQueuedWork != null ? 1 : 0);
-        if (outstandingCount >= MaxQueuedCoroutines)
-        {
-            NotifyFailureCallback(
-                onFailure,
-                command,
-                $"was rejected because the coroutine queue is full ({MaxQueuedCoroutines} items)");
-            return false;
-        }
+        if (!HasCoroutineCapacity(command, onFailure)) return false;
 
         QueuedCoroutineWork work = new QueuedCoroutineWork(
             command,
@@ -410,6 +428,22 @@ public class WebSocketHandler : MonoBehaviour
         _isRunningQueuedCoroutines = true;
         _queuedCoroutineRunner = StartCoroutine(RunQueuedCoroutines());
         return true;
+    }
+
+    /// <summary>
+    /// True when another command can be queued; otherwise reports the rejection. Lets callers
+    /// refuse a command before mutating the agent rather than after.
+    /// </summary>
+    public bool HasCoroutineCapacity(string command, Action<string> onFailure)
+    {
+        int outstandingCount = _queuedCoroutines.Count + (_activeQueuedWork != null ? 1 : 0);
+        if (outstandingCount < MaxQueuedCoroutines) return true;
+
+        NotifyFailureCallback(
+            onFailure,
+            command,
+            $"was rejected because the coroutine queue is full ({MaxQueuedCoroutines} items)");
+        return false;
     }
 
     public AgentController Agent => agentController;
@@ -465,10 +499,51 @@ public class WebSocketHandler : MonoBehaviour
         _agentGhost = HumanoidGhostFactory.Spawn(ikHumanoidGhostPrefab, agentController);
     }
 
+    /// <summary>True for the camera capture commands handled by <see cref="EnqueueCapture"/>.</summary>
+    public static bool IsCaptureCommand(string command) =>
+        command == "RequestScreenshot" || command == "RequestLidarScan" || command == "RequestLidarCenter";
+
     /// <summary>
-    /// Schedules a screenshot capture and returns PNG bytes through the callback.
+    /// Queues a screenshot or LiDAR capture for <paramref name="camera"/>. Binary payloads (PNG, LDR1)
+    /// go through <paramref name="sendBytes"/> as binary frames; JSON and errors through
+    /// <paramref name="sendText"/>.
     /// </summary>
-    public void EnqueueScreenshot(
+    public void EnqueueCapture(
+        string command,
+        Camera camera,
+        HumanoidGhostFollower hiddenGhost,
+        Action<string> sendText,
+        Action<byte[]> sendBytes)
+    {
+        if (camera == null)
+        {
+            sendText("Error: no camera found for agent");
+            return;
+        }
+
+        switch (command)
+        {
+            case "RequestScreenshot":
+                EnqueueScreenshot(camera, hiddenGhost, sendBytes, sendText);
+                break;
+
+            case "RequestLidarScan":
+                EnqueueLidar(command, "LiDAR scan", camera, sendText,
+                    sensor => sensor.CaptureScan(camera, hiddenGhost, sendBytes, sendText));
+                break;
+
+            case "RequestLidarCenter":
+                EnqueueLidar(command, "LiDAR center sample", camera, sendText,
+                    sensor => sensor.CaptureCenterSample(
+                        camera,
+                        hiddenGhost,
+                        sample => sendText(JsonUtility.ToJson(new LidarCenterSampleResponse(sample))),
+                        sendText));
+                break;
+        }
+    }
+
+    private void EnqueueScreenshot(
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
         Action<byte[]> callback,
@@ -481,58 +556,30 @@ public class WebSocketHandler : MonoBehaviour
                 camera,
                 hiddenGhost,
                 callback,
+                errorCallback,
                 cleanup => abortCleanup = cleanup),
             errorCallback,
             () => abortCleanup?.Invoke());
     }
 
-    /// <summary>
-    /// Schedules a LiDAR scan and returns the raw LDR1 binary payload through the byte callback.
-    /// Errors are returned as text through <paramref name="errorCallback"/>.
-    /// </summary>
-    public void EnqueueLidarScan(
+    private void EnqueueLidar(
+        string command,
+        string label,
         Camera camera,
-        HumanoidGhostFollower hiddenGhost,
-        Action<byte[]> callback,
-        Action<string> errorCallback)
+        Action<string> errorCallback,
+        Func<LidarSensor, IEnumerator> capture)
     {
         LidarSensor activeSensor = null;
         EnqueueCoroutine(
-            "RequestLidarScan",
-            LidarScanRoutine(
-                camera,
-                hiddenGhost,
-                callback,
-                errorCallback,
-                sensor => activeSensor = sensor),
-            errorCallback,
-            () => activeSensor?.CancelActiveCapture());
-    }
-
-    /// <summary>
-    /// Schedules a center-gaze LiDAR sample and returns its distance metadata.
-    /// </summary>
-    public void EnqueueLidarCenterSample(
-        Camera camera,
-        HumanoidGhostFollower hiddenGhost,
-        Action<LidarCenterSampleResponse> callback,
-        Action<string> errorCallback)
-    {
-        LidarSensor activeSensor = null;
-        EnqueueCoroutine(
-            "RequestLidarCenter",
-            LidarCenterSampleRoutine(
-                camera,
-                hiddenGhost,
-                callback,
-                errorCallback,
-                sensor => activeSensor = sensor),
+            command,
+            LidarRoutine(camera, label, errorCallback, capture, sensor => activeSensor = sensor),
             errorCallback,
             () => activeSensor?.CancelActiveCapture());
     }
 
     void OnDestroy()
     {
+        if (Instance == this) Instance = null;
         _wss?.Stop();
         if (_agentGhost != null) Destroy(_agentGhost.gameObject);
     }
@@ -665,9 +712,15 @@ public class WebSocketHandler : MonoBehaviour
         Camera camera,
         HumanoidGhostFollower hiddenGhost,
         Action<byte[]> callback,
+        Action<string> errorCallback,
         Action<Action> setAbortCleanup)
     {
-        if (camera == null) yield break;
+        const string cameraLost = "Error: screenshot camera was destroyed before capture";
+        if (camera == null)
+        {
+            errorCallback?.Invoke(cameraLost);
+            yield break;
+        }
 
         GPUInstanceTracker tracker = GPUInstanceTracker.Instance;
         Camera originalCamera = tracker != null ? tracker.MainCamera : null;
@@ -685,9 +738,14 @@ public class WebSocketHandler : MonoBehaviour
         {
             tracker?.SetCamera(camera);
             yield return null; // let instancer dispatch with the requested frustum
+            bool delivered = false;
             yield return ScreenshotUtility.GetScreenshotBytes(
                 camera,
-                callback,
+                bytes =>
+                {
+                    delivered = true;
+                    callback?.Invoke(bytes);
+                },
                 () =>
                 {
                     if (hiddenGhost != null) hiddenGhost.SetRenderersVisible(false);
@@ -697,6 +755,9 @@ public class WebSocketHandler : MonoBehaviour
                     if (hiddenGhost != null) hiddenGhost.SetRenderersVisible(true);
                 },
                 () => cleaned);
+
+            // The capture skips its callback when the camera dies mid-wait; still answer the client.
+            if (!delivered && !cleaned) errorCallback?.Invoke(cameraLost);
         }
         finally
         {
@@ -706,50 +767,19 @@ public class WebSocketHandler : MonoBehaviour
     }
 
     /// <summary>
-    /// Resolves the correct level LiDAR sensor, captures a scan, and forwards its binary payload.
+    /// Resolves the level LiDAR sensor for <paramref name="camera"/> and runs
+    /// <paramref name="capture"/> on it, always cancelling any leftover GPU work afterwards.
     /// </summary>
-    private static IEnumerator LidarScanRoutine(
+    private static IEnumerator LidarRoutine(
         Camera camera,
-        HumanoidGhostFollower hiddenGhost,
-        Action<byte[]> callback,
+        string label,
         Action<string> errorCallback,
+        Func<LidarSensor, IEnumerator> capture,
         Action<LidarSensor> setActiveSensor)
     {
         if (camera == null)
         {
-            errorCallback?.Invoke("Error: no camera found for LiDAR scan");
-            yield break;
-        }
-
-        // Resolve the level LiDAR mount before rendering. The resulting payload is
-        // passed back as byte[] and sent by WebSocketSharp as a binary WebSocket frame.
-        LidarSensor sensor = LidarSensor.ResolveLevelSensor(camera);
-        setActiveSensor?.Invoke(sensor);
-        try
-        {
-            yield return sensor.CaptureScan(camera, hiddenGhost, callback, errorCallback);
-        }
-        finally
-        {
-            sensor.CancelActiveCapture();
-            setActiveSensor?.Invoke(null);
-        }
-    }
-
-    /// <summary>
-    /// Resolves the level LiDAR sensor, renders its forward face along the camera gaze, and
-    /// forwards the center-pixel distance as a JSON-ready response value.
-    /// </summary>
-    private static IEnumerator LidarCenterSampleRoutine(
-        Camera camera,
-        HumanoidGhostFollower hiddenGhost,
-        Action<LidarCenterSampleResponse> callback,
-        Action<string> errorCallback,
-        Action<LidarSensor> setActiveSensor)
-    {
-        if (camera == null)
-        {
-            errorCallback?.Invoke("Error: no camera found for LiDAR center sample");
+            errorCallback?.Invoke($"Error: no camera found for {label}");
             yield break;
         }
 
@@ -757,11 +787,7 @@ public class WebSocketHandler : MonoBehaviour
         setActiveSensor?.Invoke(sensor);
         try
         {
-            yield return sensor.CaptureCenterSample(
-                camera,
-                hiddenGhost,
-                sample => callback?.Invoke(new LidarCenterSampleResponse(sample)),
-                errorCallback);
+            yield return capture(sensor);
         }
         finally
         {
