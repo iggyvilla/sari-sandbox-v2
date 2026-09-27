@@ -8,12 +8,7 @@ public class SB_InteractionController : MonoBehaviour
     public float minOrthoSize = 2f;
     public float maxOrthoSize = 30f;
 
-    [Header("Shelf Placement")]
-    public GameObject woodShelfPrefab;
-    public GameObject fridgePrefab;
-    public GameObject selfCheckoutPrefab;
-    public GameObject agentSpawnPrefab;
-    public GameObject aisleMarkerPrefab;
+    [Header("Placement")]
     public float builderGridSize = 1f;
 
     [Header("References")]
@@ -21,21 +16,15 @@ public class SB_InteractionController : MonoBehaviour
     public DataHandler dataHandler;
     public Material airMaterial;
 
-    private enum PropKind { SelfCheckout, AgentSpawn, AisleMarker }
-
-    private GameObject shelfPrefab;
-    private bool _placementMode = false;
-    public bool IsInPlacementMode => _placementMode;
-    private bool _isPropPlacement = false;
-    private PropKind _propKind = PropKind.SelfCheckout;
-    private GameObject _activePropPrefab = null;
-    private GameObject _previewObject = null;
-    private ShelfSelector _movingSelector = null;
-    private PropSelector _movingPropSelector = null;
-    private bool _isDuplicatePlacement = false;
+    private bool _placementMode;
+    private GameObject _placingPrefab; // spawned on the first floor hit; null when moving or duplicating
+    private GameObject _previewObject;
+    private OutlineSelector _moving;   // selector of an existing object being moved
+    private bool _isDuplicatePlacement;
     private Camera _cam;
-    private LayerMask _sariFloorLayerMask;
-    private LayerMask _sariShelfLayerMask;
+    private LayerMask _floorMask;
+    private LayerMask _shelfMask;
+    private LayerMask _interactableMask;
 
     void Awake()
     {
@@ -43,113 +32,156 @@ public class SB_InteractionController : MonoBehaviour
         if (_cam == null)
             _cam = Camera.main;
 
-        _sariFloorLayerMask = LayerMask.GetMask(StoreBuilderLayers.Floor);
-        _sariShelfLayerMask = LayerMask.GetMask(StoreBuilderLayers.Shelf);
+        _floorMask = LayerMask.GetMask(StoreBuilderLayers.Floor);
+        _shelfMask = LayerMask.GetMask(StoreBuilderLayers.Shelf);
+        _interactableMask = LayerMask.GetMask(StoreBuilderLayers.Interactable);
     }
 
     void Update()
     {
-        if (uiHandler != null && !uiHandler.interactionControlsEnabled) return;
-
-        HandleCameraRotation();
+        HandleCamera();
 
         if (_placementMode)
-            HandleShelfPlacement();
+            HandlePlacement();
         else
-            HandleSubShelfSelection();
+            HandleSelection();
     }
 
-    // ── Camera rotation ───────────────────────────────────────────────────────
+    // ── Camera ────────────────────────────────────────────────────────────────
 
-    void HandleCameraRotation()
+    void HandleCamera()
     {
-        float rotInput = 0f;
-        if (Input.GetKey(KeyCode.RightArrow)) rotInput =  -1f;
-        if (Input.GetKey(KeyCode.LeftArrow))  rotInput = 1f;
+        float rotInput = Axis(KeyCode.LeftArrow, KeyCode.RightArrow);
         if (rotInput != 0f)
             transform.RotateAround(transform.parent.position, Vector3.up, rotInput * rotationSpeed * Time.deltaTime);
 
-        float zoomInput = 0f;
-        if (Input.GetKey(KeyCode.UpArrow))   zoomInput = -1f;
-        if (Input.GetKey(KeyCode.DownArrow)) zoomInput =  1f;
+        float zoomInput = Axis(KeyCode.DownArrow, KeyCode.UpArrow);
         if (zoomInput != 0f)
             _cam.orthographicSize = Mathf.Clamp(_cam.orthographicSize + zoomInput * zoomSpeed * Time.deltaTime, minOrthoSize, maxOrthoSize);
     }
 
-    // ── Sub-shelf selection ───────────────────────────────────────────────────
+    static float Axis(KeyCode positive, KeyCode negative) =>
+        (StoreBuilderInput.Key(positive) ? 1f : 0f) - (StoreBuilderInput.Key(negative) ? 1f : 0f);
 
-    void HandleSubShelfSelection()
+    // ── Selection ─────────────────────────────────────────────────────────────
+
+    void HandleSelection()
     {
-        if (!Input.GetMouseButtonDown(0)) return;
+        OutlineSelector selected = uiHandler.ActiveSelector;
+        if (selected != null)
+        {
+            if (StoreBuilderInput.KeyDown(KeyCode.R)) { RotateSelected(selected); return; }
+            if (StoreBuilderInput.KeyDown(KeyCode.M)) { BeginMove(selected); return; }
+            if (StoreBuilderInput.KeyDown(KeyCode.D)) { BeginDuplicate(selected.Target); return; }
+        }
 
-        Ray ray = _cam.ScreenPointToRay(Input.mousePosition);
-        if (!Physics.Raycast(ray, out RaycastHit hit, StoreBuilderLayers.RayLength, _sariShelfLayerMask, QueryTriggerInteraction.Ignore)) return;
-        
-        SubShelfMarker marker = hit.collider.GetComponent<SubShelfMarker>();
-        if (marker != null)
+        if (StoreBuilderInput.Clicked)
+            HandleClick(_cam.ScreenPointToRay(Input.mousePosition));
+    }
+
+    void HandleClick(Ray ray)
+    {
+        bool hitShelf = Physics.Raycast(ray, out RaycastHit shelfHit, StoreBuilderLayers.RayLength, _shelfMask, QueryTriggerInteraction.Ignore);
+        OutlineSelector box = Physics.Raycast(ray, out RaycastHit boxHit, StoreBuilderLayers.RayLength, _interactableMask, QueryTriggerInteraction.Collide)
+            ? boxHit.collider.GetComponent<OutlineSelector>()
+            : null;
+
+        // Shelf geometry sits inside its own box, so it beats shelf boxes; a prop box wins only when nearer.
+        if (hitShelf && (box == null || box.Shelf != null || shelfHit.distance < boxHit.distance))
+            ClickShelfGeometry(shelfHit.collider);
+        else if (box != null)
+            uiHandler.ToggleSelection(box);
+    }
+
+    void ClickShelfGeometry(Collider collider)
+    {
+        if (collider.TryGetComponent(out SubShelfMarker marker))
         {
             uiHandler.ToggleSubShelf(marker);
             return;
         }
 
-        if (hit.collider.CompareTag("Wall"))
+        if (!collider.CompareTag("Wall")) return;
+        ShelfBuilder builder = collider.GetComponentInParent<ShelfBuilder>();
+        if (builder != null && builder.Selector != null)
+            uiHandler.ToggleSelection(builder.Selector);
+    }
+
+    void RotateSelected(OutlineSelector selected)
+    {
+        // Shelves go through the UI so the rotation dropdown and item checks stay in sync.
+        if (selected.Shelf != null)
         {
-            ShelfBuilder builder = hit.collider.GetComponentInParent<ShelfBuilder>();
-            if (builder != null)
-            {
-                if (uiHandler.selectedShelf == builder)
-                {
-                    uiHandler.DeselectShelf();
-                }
-                else
-                {
-                    if (builder.Selector != null)
-                        uiHandler.SelectShelf(builder.Selector);
-                }
-            }
+            uiHandler.RotateSelectedShelf();
+            return;
+        }
+
+        RotateQuarterTurn(selected.Target);
+        selected.Refit();
+    }
+
+    static void RotateQuarterTurn(GameObject obj)
+    {
+        if (obj.TryGetComponent(out ShelfBuilder shelf))
+        {
+            shelf.RotateQuarterTurn();
+            shelf.Rebuild();
+        }
+        else
+        {
+            obj.transform.Rotate(Vector3.up, 90f);
         }
     }
 
-    // ── Shelf placement ───────────────────────────────────────────────────────
+    public void SummonSelectorBox(GameObject target) => OutlineSelector.Create(airMaterial, target);
 
-    // Called by the "Spawn Shelf" UI button
-    public void OnSpawnShelfPressed() => BeginShelfPlacement(woodShelfPrefab);
+    // ── Placement ─────────────────────────────────────────────────────────────
 
-    // Called by the "Spawn Fridge" UI button
-    public void OnSpawnFridgePressed() => BeginShelfPlacement(fridgePrefab);
+    // Called by the matching UI buttons; the agent spawn replaces the old one on confirm.
+    public void OnSpawnShelfPressed()  => BeginPlacement(dataHandler.shelfPrefab);
+    public void OnSpawnFridgePressed() => BeginPlacement(dataHandler.fridgePrefab);
+    public void OnSpawnSelfCheckout()  => BeginPlacement(dataHandler.selfCheckoutCounter);
+    public void OnSpawnAisleMarker()   => BeginPlacement(dataHandler.aisleMarkerPrefab);
+    public void OnPlaceAgentSpawn()    => BeginPlacement(dataHandler.agentSpawnMarkerPrefab);
 
-    // Called by the "Spawn Self Checkout" UI button
-    public void OnSpawnSelfCheckout() => BeginPropPlacement(PropKind.SelfCheckout, selfCheckoutPrefab);
-
-    // Called by the "Spawn Aisle Marker" UI button
-    public void OnSpawnAisleMarker() => BeginPropPlacement(PropKind.AisleMarker, aisleMarkerPrefab);
-
-    // Called by the "Place Agent Spawn" UI button; the old marker is replaced on confirm
-    public void OnPlaceAgentSpawn() => BeginPropPlacement(PropKind.AgentSpawn, agentSpawnPrefab);
-
-    void BeginShelfPlacement(GameObject prefab)
+    void BeginPlacement(GameObject prefab)
     {
         AbortPlacement();
-        _isPropPlacement = false;
-        shelfPrefab = prefab;
+        uiHandler.ClearSelection();
+        _placingPrefab = prefab;
         _placementMode = true;
     }
 
-    void BeginPropPlacement(PropKind kind, GameObject prefab)
+    void BeginMove(OutlineSelector selector)
     {
-        AbortPlacement();
-        _isPropPlacement = true;
-        _propKind = kind;
-        _activePropPrefab = prefab;
-        _placementMode = true;
+        if (selector.Shelf != null) UndoSpawnedItems();
+        BeginPlacement(null);
+        _moving = selector;
+        _previewObject = selector.Target;
+    }
+
+    void BeginDuplicate(GameObject source)
+    {
+        // The store has a single agent spawn.
+        if (source.TryGetComponent(out AgentSpawnMarker _)) return;
+
+        bool isShelf = source.TryGetComponent(out ShelfBuilder sourceShelf);
+        if (isShelf) UndoSpawnedItems();
+        BeginPlacement(null);
+        _isDuplicatePlacement = true;
+        _previewObject = Instantiate(source, source.transform.position, source.transform.rotation);
+
+        // Dictionaries are not serialized, so Instantiate does not copy the category map.
+        if (isShelf)
+            _previewObject.GetComponent<ShelfBuilder>().subShelfCategories = new(sourceShelf.subShelfCategories);
     }
 
     // Ends any placement in progress: a moved object is dropped where it is, a preview is discarded.
-    void AbortPlacement()
+    public void AbortPlacement()
     {
         if (!_placementMode) return;
 
-        if ((_movingSelector != null || _movingPropSelector != null) && _previewObject != null)
+        if (_moving != null && _previewObject != null)
         {
             _previewObject.SetActive(true);
             ConfirmPlacement();
@@ -160,88 +192,22 @@ public class SB_InteractionController : MonoBehaviour
         ExitPlacementMode();
     }
 
-    // Called by ShelfSelector when the user presses M on a selected shelf
-    public void EnterMoveMode(ShelfSelector selector)
-    {
-        AbortPlacement();
-        UndoSpawnedItems();
-
-        _isPropPlacement = false;
-        _movingSelector = selector;
-        _previewObject = selector.assignedShelf.gameObject;
-        _placementMode = true;
-        uiHandler.DeselectShelf();
-    }
-
-    // Called by ShelfSelector when the user presses D on a selected shelf
-    public void DuplicateShelf(ShelfBuilder source)
-    {
-        AbortPlacement();
-        UndoSpawnedItems();
-
-        _isPropPlacement = false;
-        _isDuplicatePlacement = true;
-        _previewObject = Instantiate(
-            source.gameObject,
-            source.transform.position,
-            Quaternion.identity
-        );
-        // Dictionaries are not serialized, so Instantiate does not copy the category map.
-        _previewObject.GetComponent<ShelfBuilder>().subShelfCategories = new(source.subShelfCategories);
-
-        _movingSelector = null;
-        _placementMode = true;
-        uiHandler.DeselectShelf();
-    }
-
-    // Called by PropSelector when the user presses M on a selected prop
-    public void EnterMoveModeForProp(PropSelector selector)
-    {
-        AbortPlacement();
-        _isPropPlacement = true;
-        _movingPropSelector = selector;
-        _previewObject = selector.assignedProp;
-        _placementMode = true;
-        uiHandler.DeselectProp();
-    }
-
-    // Called by PropSelector when the user presses D on a selected prop
-    public void DuplicateProp(GameObject source)
-    {
-        AbortPlacement();
-        _isPropPlacement = true;
-        _isDuplicatePlacement = true;
-        // Keep _propKind consistent with the prop being duplicated so the placement
-        // logic doesn't add a mismatched marker component to the clone.
-        _propKind = InferPropKind(source);
-        _previewObject = Instantiate(source, source.transform.position, source.transform.rotation);
-        _movingPropSelector = null;
-        _placementMode = true;
-        uiHandler.DeselectProp();
-    }
-
-    static PropKind InferPropKind(GameObject prop)
-    {
-        if (prop.GetComponent<AgentSpawnMarker>() != null) return PropKind.AgentSpawn;
-        if (prop.GetComponent<AisleMarker>() != null)      return PropKind.AisleMarker;
-        return PropKind.SelfCheckout;
-    }
-
     void UndoSpawnedItems()
     {
         ShelfBuilder.DespawnAllItemsInScene();
-        
+
         // Reverts shelves to not spawn items again
         foreach (ShelfBuilder shelf in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
-        {
             shelf.spawnItems = false;
-        }
     }
 
-    void HandleShelfPlacement()
+    void HandlePlacement()
     {
-        if (Input.GetKeyDown(KeyCode.R) && _previewObject != null)
-            RotatePreview();
+        if (StoreBuilderInput.KeyDown(KeyCode.R) && _previewObject != null)
+        {
+            RotateQuarterTurn(_previewObject);
+            RefitMoving();
+        }
 
         if (RaycastFloor(out Vector3 worldPos))
         {
@@ -255,10 +221,10 @@ public class SB_InteractionController : MonoBehaviour
             {
                 _previewObject.SetActive(true);
                 _previewObject.transform.position = snapped;
-                EncapsulateMovingSelector();
+                RefitMoving();
             }
 
-            if (Input.GetMouseButtonDown(0))
+            if (StoreBuilderInput.Clicked)
                 ConfirmPlacement();
             return;
         }
@@ -267,58 +233,22 @@ public class SB_InteractionController : MonoBehaviour
         if (_previewObject != null && _previewObject.activeSelf)
             _previewObject.SetActive(false);
 
-        if (Input.GetMouseButtonDown(0))
+        if (StoreBuilderInput.Clicked)
             CancelOffFloor();
     }
 
-    void RotatePreview()
+    void RefitMoving()
     {
-        if (_isPropPlacement)
-        {
-            _previewObject.transform.Rotate(Vector3.up, 90f);
-        }
-        else
-        {
-            ShelfBuilder builder = _previewObject.GetComponent<ShelfBuilder>();
-            if (builder == null) return;
-            builder.rotationY = (builder.rotationY + 90f) % 360f;
-            builder.Rebuild();
-        }
-        EncapsulateMovingSelector();
-    }
-
-    // Keeps the selector box of an object being moved wrapped around it.
-    void EncapsulateMovingSelector()
-    {
-        if (_isPropPlacement)
-        {
-            if (_movingPropSelector != null) _movingPropSelector.EncapsulateProp(_previewObject);
-        }
-        else if (_movingSelector != null)
-        {
-            _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
-        }
+        if (_moving != null) _moving.Refit();
     }
 
     // Left-click off the floor: a moved object is deleted along with its selector, anything else is discarded.
     void CancelOffFloor()
     {
-        if (_isPropPlacement && _movingPropSelector != null)
-        {
-            Destroy(_movingPropSelector.assignedProp);
-            Destroy(_movingPropSelector.gameObject);
-            _previewObject = null;
-        }
-        else if (!_isPropPlacement && _movingSelector != null)
-        {
-            Destroy(_movingSelector.assignedShelf.gameObject);
-            Destroy(_movingSelector.gameObject);
-            _previewObject = null;
-        }
+        if (_moving != null)
+            _moving.DestroyWithTarget();
         else
-        {
             DestroyPreview();
-        }
         ExitPlacementMode();
     }
 
@@ -326,16 +256,11 @@ public class SB_InteractionController : MonoBehaviour
     {
         hitPoint = Vector3.zero;
         Ray ray = _cam.ScreenPointToRay(Input.mousePosition);
-        
-        if (Physics.Raycast(ray, out RaycastHit hit, StoreBuilderLayers.RayLength, _sariFloorLayerMask))
-        {
-            if (hit.collider.CompareTag("Floor"))
-            {
-                hitPoint = hit.point;
-                return true;
-            }
-        }
-        return false;
+        if (!Physics.Raycast(ray, out RaycastHit hit, StoreBuilderLayers.RayLength, _floorMask) || !hit.collider.CompareTag("Floor"))
+            return false;
+
+        hitPoint = hit.point;
+        return true;
     }
 
     Vector3 SnapToGrid(Vector3 worldPos)
@@ -350,110 +275,78 @@ public class SB_InteractionController : MonoBehaviour
 
     void SpawnPreview(Vector3 position)
     {
-        GameObject prefab = _isPropPlacement ? _activePropPrefab : shelfPrefab;
-        _previewObject = Instantiate(prefab, position, Quaternion.identity);
+        if (_placingPrefab == null) return;
+        _previewObject = Instantiate(_placingPrefab, position, Quaternion.identity);
 
         // Set on the instance (not the prefab asset); Build reads it in Start.
-        if (!_isPropPlacement && _previewObject.TryGetComponent(out ShelfBuilder builder))
+        if (_previewObject.TryGetComponent(out ShelfBuilder builder))
             builder.floor = dataHandler.floor;
     }
 
     void ConfirmPlacement()
     {
-        if (_isPropPlacement)
-        {
-            if (_movingPropSelector != null)
-            {
-                AisleMarker marker = _previewObject.GetComponent<AisleMarker>();
-                if (marker != null)
-                    marker.RefreshHeight();
+        GameObject placed = _previewObject;
+        bool isNew = _moving == null;
 
-                _movingPropSelector.EncapsulateProp(_previewObject);
-            }
-            else if (_previewObject != null)
-            {
-                switch (_propKind)
-                {
-                    case PropKind.AgentSpawn:
-                        if (!_isDuplicatePlacement)
-                            DestroyOtherAgentSpawns(_previewObject);
-                        if (_previewObject.GetComponent<AgentSpawnMarker>() == null)
-                            _previewObject.AddComponent<AgentSpawnMarker>();
-                        break;
-                    case PropKind.AisleMarker:
-                        AisleMarker marker = _previewObject.GetComponent<AisleMarker>();
-                        // For a fresh placement apply the current UI field values; for a
-                        // duplicate keep the clone's own values intact.
-                        if (marker != null)
-                        {
-                            if (_isDuplicatePlacement)
-                                marker.RefreshHeight();
-                            else
-                                uiHandler.ApplyAisleMarkerSettings(marker);
-                        }
-                        break;
-                    default:
-                        if (_previewObject.GetComponent<SelfCheckoutMarker>() == null)
-                            _previewObject.AddComponent<SelfCheckoutMarker>();
-                        break;
-                }
-                SummonPropSelectorBox(_previewObject);
-            }
-        }
-        else
+        if (placed != null)
         {
-            if (_movingSelector != null)
+            if (placed.TryGetComponent(out ShelfBuilder shelf))
             {
-                _movingSelector.EncapsulateShelf(_movingSelector.assignedShelf);
-                _movingSelector.assignedShelf.Rebuild();
+                if (isNew) AssignShelfId(shelf);
+                else shelf.Rebuild();
             }
-            else if (_previewObject != null)
+
+            if (placed.TryGetComponent(out AisleMarker marker))
             {
-                ShelfBuilder builder = _previewObject.GetComponent<ShelfBuilder>();
-                builder.shelfId = dataHandler.GetUniqueShelfId();
-                builder.SummonOutlineBox(uiHandler, this);
+                // A fresh marker takes the current UI values; moved or duplicated ones keep their own.
+                if (isNew && !_isDuplicatePlacement) uiHandler.ApplyAisleMarkerSettings(marker);
+                else marker.RefreshHeight();
+            }
+
+            if (!isNew)
+            {
+                _moving.Refit();
+            }
+            else
+            {
+                if (placed.TryGetComponent(out AgentSpawnMarker _)) DestroyOtherAgentSpawns(placed);
+                SummonSelectorBox(placed);
             }
         }
 
-        _previewObject = null; // relinquish ownership — the object stays in the scene
         ExitPlacementMode();
+    }
+
+    void AssignShelfId(ShelfBuilder shelf)
+    {
+        int sourceId = shelf.shelfId;
+        shelf.shelfId = dataHandler.GetUniqueShelfId();
+        if (_isDuplicatePlacement)
+            dataHandler.CopyShelfData(sourceId, shelf.shelfId);
     }
 
     // The store has one agent spawn: remove any other marker together with its selector box.
     static void DestroyOtherAgentSpawns(GameObject keep)
     {
-        PropSelector[] selectors = FindObjectsByType<PropSelector>(FindObjectsSortMode.None);
-        foreach (AgentSpawnMarker marker in FindObjectsByType<AgentSpawnMarker>(FindObjectsSortMode.None))
+        foreach (OutlineSelector selector in FindObjectsByType<OutlineSelector>(FindObjectsSortMode.None))
         {
-            if (marker.gameObject == keep) continue;
-            foreach (PropSelector ps in selectors)
-                if (ps.assignedProp == marker.gameObject) Destroy(ps.gameObject);
-            Destroy(marker.gameObject);
+            if (selector.Target != null && selector.Target != keep && selector.Target.TryGetComponent(out AgentSpawnMarker _))
+                selector.DestroyWithTarget();
         }
-    }
-
-    public void SummonPropSelectorBox(GameObject prop)
-    {
-        PropSelector selector = OutlineSelector.CreateBox<PropSelector>(airMaterial, uiHandler, this);
-        selector.assignedProp = prop;
-        selector.EncapsulateProp(prop);
     }
 
     void DestroyPreview()
     {
         if (_previewObject != null)
-        {
             Destroy(_previewObject);
-            _previewObject = null;
-        }
     }
 
     void ExitPlacementMode()
     {
         _placementMode = false;
         _isDuplicatePlacement = false;
-        _movingSelector = null;
-        _movingPropSelector = null;
+        _placingPrefab = null;
+        _moving = null;
         _previewObject = null;
     }
 }

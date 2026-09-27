@@ -134,25 +134,32 @@ public class ShelfSaveData
     public Dictionary<string, ItemCategory> subShelfCategories = new();
 }
 
+/// <summary>Position and yaw of a placed store prop.</summary>
 [Serializable]
-public class SelfCheckoutSaveData
+public class PropSaveData
 {
     public float posX, posY, posZ;
     public float rotationY;
+
+    [JsonIgnore] public Vector3 Position => new(posX, posY, posZ);
+    [JsonIgnore] public Quaternion Rotation => Quaternion.Euler(0f, rotationY, 0f);
+
+    public static T From<T>(Transform transform) where T : PropSaveData, new()
+    {
+        Vector3 pos = transform.position;
+        return new T { posX = pos.x, posY = pos.y, posZ = pos.z, rotationY = transform.eulerAngles.y };
+    }
 }
 
 [Serializable]
-public class AgentSpawnSaveData
-{
-    public float posX, posY, posZ;
-    public float rotationY;
-}
+public class SelfCheckoutSaveData : PropSaveData { }
 
 [Serializable]
-public class AisleMarkerSaveData
+public class AgentSpawnSaveData : PropSaveData { }
+
+[Serializable]
+public class AisleMarkerSaveData : PropSaveData
 {
-    public float posX, posY, posZ;
-    public float rotationY;
     public string category1, category2, category3;
     public int aisleNumber;
     public float cableLength;
@@ -230,6 +237,8 @@ public class DataHandler : MonoBehaviour
     [Tooltip("If true, destroy scene shelves on Awake and load from saved JSON")]
     public bool readSave = false;
     public GameObject shelfPrefab;
+    [Tooltip("Prefab for shelves saved with hinge doors; falls back to shelfPrefab when unset")]
+    public GameObject fridgePrefab;
     public GameObject floor;
     public float CeilingY
     {
@@ -262,6 +271,8 @@ public class DataHandler : MonoBehaviour
 
     private int currentShelfId;
     private bool _shelfItemsDirty;
+    // Set once this session has saved or loaded the store file, so batched item writes never clobber a file it never read.
+    private bool _hasStoreFile;
     private GameObject _activeAgentObject;
 
     public static bool IsStoreBuilderScene => SceneManager.GetActiveScene().name == StoreBuilderSceneName;
@@ -278,6 +289,8 @@ public class DataHandler : MonoBehaviour
         }
 
         Instance = this;
+        // Read before DontDestroyOnLoad moves this object out of its scene.
+        bool inStoreBuilder = gameObject.scene.name == StoreBuilderSceneName;
         DontDestroyOnLoad(gameObject);
         ExpirationDateDecalCatalog.Initialize(expirationDateDecalMaterial);
 
@@ -292,19 +305,15 @@ public class DataHandler : MonoBehaviour
         Debug.Log($"Done. Loaded data of {itemPriceData.Keys.Count} items.");
         
         if (readSave)
-        {
             LoadStore();
-        }
-        else
-        {
+        // The builder starts empty, so snapshotting it would overwrite the named store file.
+        else if (!inStoreBuilder)
             SaveStore();
-        }
     }
 
     void Start()
     {
-        bool isStoreBuilder = SceneManager.GetActiveScene().buildIndex == 0;
-        if (!isStoreBuilder && !debugMode) ApplyAvatarSetting();
+        if (!IsStoreBuilderScene && !debugMode) ApplyAvatarSetting();
     }
 
     void ApplyAvatarSetting()
@@ -354,8 +363,7 @@ public class DataHandler : MonoBehaviour
     public void LoadStore()
     {
         // Selection boxes wrap store objects, so clear them too before rebuilding the scene.
-        DestroyAll<ShelfSelector>();
-        DestroyAll<PropSelector>();
+        DestroyAll<OutlineSelector>();
         DestroyAll<ShelfBuilder>();
         DestroyAll<SelfCheckoutMarker>();
         DestroyAll<AgentSpawnMarker>();
@@ -372,26 +380,14 @@ public class DataHandler : MonoBehaviour
         }
 
         StoreData storeData = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(path), JsonSettings);
+        storeData.shelves ??= new List<ShelfSaveData>();
+        storeData.shelfItems ??= new Dictionary<string, SaveDataWrapper>();
+        storeData.selfCheckoutLocations ??= new List<SelfCheckoutSaveData>();
         storeData.aisleMarkerLocations ??= new List<AisleMarkerSaveData>();
         currentStoreData = storeData;
         Debug.Log($"Loading store '{storeName}' — {storeData.shelves.Count} shelf(ves).");
 
-        if (floor != null)
-        {
-            var roomStructure = floor.GetComponent<RoomStructure>();
-            if (roomStructure != null)
-            {
-                roomStructure.wallHeight = storeData.wallHeight;
-                roomStructure.SetFloorDimensions(storeData.floorWidth, storeData.floorHeight);
-            }
-            else
-            {
-                Vector3 floorScale = floor.transform.localScale;
-                floorScale.x = storeData.floorWidth;
-                floorScale.z = storeData.floorHeight;
-                floor.transform.localScale = floorScale;
-            }
-        }
+        ApplyStoreDimensions(storeData.floorWidth, storeData.floorHeight, storeData.wallHeight);
 
         shouldShelfSpawnItems.Clear();
         bool isStoreBuilder = IsStoreBuilderScene;
@@ -402,7 +398,8 @@ public class DataHandler : MonoBehaviour
             currentShelfId = Math.Max(currentShelfId, data.shelfId);
 
             Vector3 pos   = new Vector3(data.posX, data.posY, data.posZ);
-            GameObject go = Instantiate(shelfPrefab, pos, Quaternion.identity);
+            GameObject prefab = data.spawnHingeDoors && fridgePrefab != null ? fridgePrefab : shelfPrefab;
+            GameObject go = Instantiate(prefab, pos, Quaternion.identity);
 
             ShelfBuilder builder = go.GetComponent<ShelfBuilder>();
             builder.floor      = floor;
@@ -412,55 +409,30 @@ public class DataHandler : MonoBehaviour
                 builder.spawnItems = false;
             }
             builder.Rebuild();
-            
-            if (isStoreBuilder)
-            {
-                builder.SummonOutlineBox(
-                    uiHandler,
-                    interactionController
-                );
-            }
+            AddSelectorInBuilder(go);
         }
 
         if (selfCheckoutCounter != null)
         {
             foreach (SelfCheckoutSaveData scData in storeData.selfCheckoutLocations)
-            {
-                Vector3 pos = new Vector3(scData.posX, scData.posY, scData.posZ);
-                Quaternion rot = Quaternion.Euler(0f, scData.rotationY, 0f);
-                GameObject go = Instantiate(selfCheckoutCounter, pos, rot);
-                go.AddComponent<SelfCheckoutMarker>();
-
-                if (isStoreBuilder)
-                    interactionController.SummonPropSelectorBox(go);
-            }
+                AddSelectorInBuilder(Instantiate(selfCheckoutCounter, scData.Position, scData.Rotation));
         }
 
         if (storeData.agentSpawnLocation != null)
         {
             AgentSpawnSaveData spawnData = storeData.agentSpawnLocation;
-            Vector3 pos = new Vector3(spawnData.posX, spawnData.posY, spawnData.posZ);
-            agentSpawnPosition = pos;
+            agentSpawnPosition = spawnData.Position;
 
             if (isStoreBuilder && agentSpawnMarkerPrefab != null)
-            {
-                Quaternion rot = Quaternion.Euler(0f, spawnData.rotationY, 0f);
-                GameObject go = Instantiate(agentSpawnMarkerPrefab, pos, rot);
-                go.AddComponent<AgentSpawnMarker>();
-                interactionController.SummonPropSelectorBox(go);
-            }
+                AddSelectorInBuilder(Instantiate(agentSpawnMarkerPrefab, spawnData.Position, spawnData.Rotation));
         }
 
         if (aisleMarkerPrefab != null)
         {
             foreach (AisleMarkerSaveData markerData in storeData.aisleMarkerLocations)
             {
-                Vector3 pos = new Vector3(markerData.posX, markerData.posY, markerData.posZ);
-                Quaternion rot = Quaternion.Euler(0f, markerData.rotationY, 0f);
-                GameObject go = Instantiate(aisleMarkerPrefab, pos, rot);
-
-                AisleMarker marker = go.GetComponent<AisleMarker>();
-                if (marker != null)
+                GameObject go = Instantiate(aisleMarkerPrefab, markerData.Position, markerData.Rotation);
+                if (go.TryGetComponent(out AisleMarker marker))
                 {
                     marker.BuildAisleMarker(
                         markerData.category1,
@@ -471,12 +443,55 @@ public class DataHandler : MonoBehaviour
                     );
                 }
 
-                if (isStoreBuilder)
-                    interactionController.SummonPropSelectorBox(go);
+                AddSelectorInBuilder(go);
             }
         }
 
         StoreLoaded = true;
+        _hasStoreFile = true;
+    }
+
+    private void AddSelectorInBuilder(GameObject go)
+    {
+        if (IsStoreBuilderScene) interactionController.SummonSelectorBox(go);
+    }
+
+    public float WallHeight => floor != null && floor.TryGetComponent(out RoomStructure room)
+        ? room.wallHeight
+        : currentStoreData.wallHeight;
+
+    public void ApplyStoreDimensions(float width, float depth, float wallHeight)
+    {
+        if (floor == null) return;
+
+        if (floor.TryGetComponent(out RoomStructure room))
+        {
+            room.wallHeight = wallHeight;
+            room.SetFloorDimensions(width, depth);
+        }
+        else
+        {
+            floor.transform.localScale = new Vector3(width, floor.transform.localScale.y, depth);
+        }
+
+        // Wall height may have changed - re-glue every aisle marker to the new ceiling.
+        foreach (AisleMarker marker in FindObjectsByType<AisleMarker>(FindObjectsSortMode.None))
+            marker.RefreshHeight();
+    }
+
+    /// <summary>Gives a duplicated shelf the source shelf's spawn flag and saved items.</summary>
+    public void CopyShelfData(int fromId, int toId)
+    {
+        if (shouldShelfSpawnItems.TryGetValue(fromId, out bool spawn))
+            shouldShelfSpawnItems[toId] = spawn;
+
+        string from = ShelfItemData.KeyPrefix(fromId);
+        string to = ShelfItemData.KeyPrefix(toId);
+        foreach (var kvp in new List<KeyValuePair<string, SaveDataWrapper>>(currentStoreData.shelfItems))
+        {
+            if (kvp.Key.StartsWith(from, StringComparison.Ordinal))
+                currentStoreData.shelfItems[to + kvp.Key.Substring(from.Length)] = kvp.Value;
+        }
     }
 
     private static void DestroyAll<T>() where T : Component
@@ -494,7 +509,7 @@ public class DataHandler : MonoBehaviour
 
     void LateUpdate()
     {
-        if (_shelfItemsDirty) WriteStoreFile();
+        if (_shelfItemsDirty && _hasStoreFile) WriteStoreFile();
     }
 
     private void WriteStoreFile()
@@ -513,13 +528,12 @@ public class DataHandler : MonoBehaviour
     public void SaveStore()
     {
         ShelfBuilder[] builders = FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None);
-        RoomStructure roomStructure = floor != null ? floor.GetComponent<RoomStructure>() : null;
         StoreData storeData = new StoreData
         {
             shelfItems  = ShelfItemsFor(builders),
             floorWidth  = floor != null ? floor.transform.localScale.x : currentStoreData.floorWidth,
             floorHeight = floor != null ? floor.transform.localScale.z : currentStoreData.floorHeight,
-            wallHeight  = roomStructure != null ? roomStructure.wallHeight : currentStoreData.wallHeight
+            wallHeight  = WallHeight
         };
 
         foreach (ShelfBuilder b in builders)
@@ -553,49 +567,28 @@ public class DataHandler : MonoBehaviour
         }
 
         foreach (SelfCheckoutMarker sc in FindObjectsByType<SelfCheckoutMarker>(FindObjectsSortMode.None))
-        {
-            Vector3 pos = sc.transform.position;
-            storeData.selfCheckoutLocations.Add(new SelfCheckoutSaveData
-            {
-                posX      = pos.x,
-                posY      = pos.y,
-                posZ      = pos.z,
-                rotationY = sc.transform.eulerAngles.y
-            });
-        }
+            storeData.selfCheckoutLocations.Add(PropSaveData.From<SelfCheckoutSaveData>(sc.transform));
 
         AgentSpawnMarker spawnMarker = FindAnyObjectByType<AgentSpawnMarker>();
         if (spawnMarker != null)
         {
-            Vector3 pos = spawnMarker.transform.position;
-            storeData.agentSpawnLocation = new AgentSpawnSaveData
-            {
-                posX      = pos.x,
-                posY      = pos.y,
-                posZ      = pos.z,
-                rotationY = spawnMarker.transform.eulerAngles.y
-            };
-            agentSpawnPosition = pos;
+            storeData.agentSpawnLocation = PropSaveData.From<AgentSpawnSaveData>(spawnMarker.transform);
+            agentSpawnPosition = spawnMarker.transform.position;
         }
 
         foreach (AisleMarker marker in FindObjectsByType<AisleMarker>(FindObjectsSortMode.None))
         {
-            Vector3 pos = marker.transform.position;
-            storeData.aisleMarkerLocations.Add(new AisleMarkerSaveData
-            {
-                posX        = pos.x,
-                posY        = pos.y,
-                posZ        = pos.z,
-                rotationY   = marker.transform.eulerAngles.y,
-                category1   = marker.Category1,
-                category2   = marker.Category2,
-                category3   = marker.Category3,
-                aisleNumber = marker.AisleNumber,
-                cableLength = marker.CableLength
-            });
+            AisleMarkerSaveData data = PropSaveData.From<AisleMarkerSaveData>(marker.transform);
+            data.category1   = marker.Category1;
+            data.category2   = marker.Category2;
+            data.category3   = marker.Category3;
+            data.aisleNumber = marker.AisleNumber;
+            data.cableLength = marker.CableLength;
+            storeData.aisleMarkerLocations.Add(data);
         }
 
         currentStoreData = storeData;
+        _hasStoreFile = true;
         WriteStoreFile();
     }
 

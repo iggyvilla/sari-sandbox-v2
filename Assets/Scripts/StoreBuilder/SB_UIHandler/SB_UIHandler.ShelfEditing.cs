@@ -58,8 +58,8 @@ public partial class SB_UIHandler
     // Applies an edit to the selected shelf and rebuilds it.
     void EditShelf(Action<ShelfBuilder> edit)
     {
-        if (selectedShelf == null) return;
-        edit(selectedShelf);
+        if (SelectedShelf == null) return;
+        edit(SelectedShelf);
         SafeRebuildShelf();
     }
 
@@ -79,19 +79,13 @@ public partial class SB_UIHandler
 
     public void OnSpawnItemsChanged(Toggle toggle)
     {
-        if (selectedShelf == null) return;
+        if (SelectedShelf == null) return;
         _userWantsSpawnItems = toggle.isOn;
-        DataHandler.Instance.shouldShelfSpawnItems[selectedShelf.shelfId] = _userWantsSpawnItems;
+        DataHandler.Instance.shouldShelfSpawnItems[SelectedShelf.shelfId] = _userWantsSpawnItems;
 
+        priceTagToggle.interactable = _userWantsSpawnItems;
         if (!_userWantsSpawnItems)
-        {
             priceTagToggle.isOn = false;
-            priceTagToggle.interactable = false;
-        }
-        else
-        {
-            priceTagToggle.interactable = true;
-        }
     }
 
     public void OnSpawnItemsOnAllShelvesButtonPressed()
@@ -102,18 +96,16 @@ public partial class SB_UIHandler
         foreach (ShelfBuilder shelf in FindObjectsByType<ShelfBuilder>(FindObjectsSortMode.None))
         {
             shelf.spawnItems = DataHandler.Instance.shouldShelfSpawnItems.TryGetValue(shelf.shelfId, out bool wantsSpawn) && wantsSpawn;
-            if (!shelf.spawnItems) continue;
-            shelf.DespawnShelfItems();
-            shelf.Rebuild();
+            if (shelf.spawnItems) shelf.Rebuild();
         }
     }
 
     public void OnSpawnPriceTagsChanged(Toggle toggle)
     {
-        if (selectedShelf == null) return;
-        selectedShelf.spawnPriceTags = toggle.isOn;
+        if (SelectedShelf == null) return;
+        SelectedShelf.spawnPriceTags = toggle.isOn;
 
-        if (!selectedShelf.spawnPriceTags)
+        if (!SelectedShelf.spawnPriceTags)
         {
             ShelfBuilder.DeleteAllPriceTags();
         }
@@ -125,52 +117,51 @@ public partial class SB_UIHandler
 
     public void RotateSelectedShelf()
     {
-        if (selectedShelf == null) return;
-        selectedShelf.rotationY = (selectedShelf.rotationY + 90f) % 360f;
+        if (SelectedShelf == null) return;
+        SelectedShelf.RotateQuarterTurn();
         ShelfEditGroupHandler.SetValue(
             shelfEditGroupHandler.rotationY,
-            ShelfEditGroupHandler.RotationIndex(selectedShelf.rotationY));
+            ShelfEditGroupHandler.RotationIndex(SelectedShelf.rotationY));
         SafeRebuildShelf();
     }
 
     private void SafeRebuildShelf()
     {
-        if (selectedShelf == null) return;
+        if (SelectedShelf == null) return;
 
         // If the user chose ReadFromSave and any saved sub-shelf's items are wider
         // than the current shelf width, disable spawning until the shelf is wide enough.
         bool overflow = CheckReadFromSaveOverflow();
-        selectedShelf.spawnItems = overflow ? false : _userWantsSpawnItems;
+        SelectedShelf.spawnItems = overflow ? false : _userWantsSpawnItems;
 
         if (overflow)
             Debug.LogWarning(
-                $"[StoreBuilderUIHandler] Shelf {selectedShelf.shelfId}: one or more saved " +
-                $"sub-shelves have items wider than shelfWidth ({selectedShelf.shelfWidth}). " +
+                $"[StoreBuilderUIHandler] Shelf {SelectedShelf.shelfId}: one or more saved " +
+                $"sub-shelves have items wider than shelfWidth ({SelectedShelf.shelfWidth}). " +
                 $"Item spawning disabled until width is sufficient."
             );
 
-        // Despawn items in case of a rotation/translation etc.
+        // Despawn items (and price tags) in case of a rotation/translation etc.
         ShelfBuilder.DespawnAllItemsInScene();
-        ShelfBuilder.DeleteAllPriceTags();
 
-        selectedShelf.Rebuild();
-        if (_activeSelector != null) _activeSelector.EncapsulateShelf(selectedShelf);
+        SelectedShelf.Rebuild();
+        _activeShelfSelector.Refit();
     }
 
     // Returns true when itemSpawnOption is ReadFromSave and at least one saved
     // sub-shelf for the selected shelf is wider than the current shelfWidth.
     private bool CheckReadFromSaveOverflow()
     {
-        if (selectedShelf.itemSpawnOption != ItemSpawnOption.ReadFromSave)
+        if (SelectedShelf.itemSpawnOption != ItemSpawnOption.ReadFromSave)
             return false;
 
-        string prefix = ShelfItemData.KeyPrefix(selectedShelf.shelfId);
+        string prefix = ShelfItemData.KeyPrefix(SelectedShelf.shelfId);
         foreach (var kvp in DataHandler.Instance.currentStoreData.shelfItems)
         {
             if (!kvp.Key.StartsWith(prefix, StringComparison.Ordinal) || kvp.Value.items == null) continue;
 
             List<RetailItemData> items = ShelfItemData.Resolve(kvp.Value.items, kvp.Key);
-            if (ShelfItemData.TotalWidth(items, ItemSpawner.InterItemPadding) > selectedShelf.shelfWidth)
+            if (ShelfItemData.TotalWidth(items, ItemSpawner.InterItemPadding) > SelectedShelf.shelfWidth)
                 return true;
         }
 

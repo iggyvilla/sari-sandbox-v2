@@ -131,6 +131,8 @@ public partial class ShelfBuilder : MonoBehaviour
         Build();
     }
 
+    public void RotateQuarterTurn() => rotationY = (rotationY + 90f) % 360f;
+
     public void Rebuild()
     {
         transform.rotation = Quaternion.identity;

@@ -2,9 +2,30 @@ using UnityEngine;
 
 public partial class SB_UIHandler
 {
-    // -- Shelf selection -------------------------------------------------------
+    // -- Shelf / prop selection -------------------------------------------------
 
-    public void SelectProp(PropSelector selector)
+    /// <summary>The selected shelf or prop box, if any.</summary>
+    public OutlineSelector ActiveSelector => _activeShelfSelector != null ? _activeShelfSelector : _activePropSelector;
+
+    public ShelfBuilder SelectedShelf => _activeShelfSelector != null ? _activeShelfSelector.Shelf : null;
+
+    public void ToggleSelection(OutlineSelector selector)
+    {
+        if (selector.IsSelected)
+            ClearSelection();
+        else if (selector.Shelf != null)
+            SelectShelf(selector);
+        else
+            SelectProp(selector);
+    }
+
+    public void ClearSelection()
+    {
+        DeselectShelf();
+        DeselectProp();
+    }
+
+    void SelectProp(OutlineSelector selector)
     {
         DeselectShelf();
         if (_activePropSelector != null && _activePropSelector != selector)
@@ -15,16 +36,13 @@ public partial class SB_UIHandler
 
         // If the selected prop is an aisle marker, open its edit menu pre-filled
         // with the marker's current values.
-        AisleMarker marker = selector.assignedProp != null
-            ? selector.assignedProp.GetComponent<AisleMarker>()
-            : null;
-        if (marker != null)
+        if (selector.Target.TryGetComponent(out AisleMarker marker))
             ShowAisleMarkerMenu(marker);
         else
             HideAisleMarkerMenu();
     }
 
-    public void DeselectProp()
+    void DeselectProp()
     {
         if (_activePropSelector != null)
             _activePropSelector.Deselect();
@@ -33,20 +51,17 @@ public partial class SB_UIHandler
         HideAisleMarkerMenu();
     }
 
-    public bool IsActivePropSelector(PropSelector selector) => _activePropSelector == selector;
-
-    public void SelectShelf(ShelfSelector selector)
+    void SelectShelf(OutlineSelector selector)
     {
         DeselectSubShelf();
         DeselectProp();
-        if (_activeSelector != null && _activeSelector != selector)
-            _activeSelector.Deselect();
+        if (_activeShelfSelector != null && _activeShelfSelector != selector)
+            _activeShelfSelector.Deselect();
 
-        _activeSelector = selector;
+        _activeShelfSelector = selector;
         selector.Select();
-        selectedShelf = selector.assignedShelf;
-        _userWantsSpawnItems = DataHandler.Instance.shouldShelfSpawnItems.TryGetValue(selectedShelf.shelfId, out bool saved) && saved;
-        shelfEditGroupHandler.UpdateFromShelf(selectedShelf, _userWantsSpawnItems);
+        _userWantsSpawnItems = DataHandler.Instance.shouldShelfSpawnItems.TryGetValue(SelectedShelf.shelfId, out bool saved) && saved;
+        shelfEditGroupHandler.UpdateFromShelf(SelectedShelf, _userWantsSpawnItems);
         priceTagToggle.interactable = _userWantsSpawnItems;
 
         SetSelectionUIView(true);
@@ -54,13 +69,12 @@ public partial class SB_UIHandler
         ShelfBuilder.DespawnAllItemsInScene();
     }
 
-    public void DeselectShelf()
+    void DeselectShelf()
     {
         DeselectSubShelf();
-        if (_activeSelector != null)
-            _activeSelector.Deselect();
-        _activeSelector = null;
-        selectedShelf = null;
+        if (_activeShelfSelector != null)
+            _activeShelfSelector.Deselect();
+        _activeShelfSelector = null;
         SetSelectionUIView(false);
         UpdateSelectedShelfText();
     }
@@ -75,11 +89,8 @@ public partial class SB_UIHandler
             return;
         }
 
-        if (_activeSubShelf != null)
-            _activeSubShelf.EnableOutline(false);
-
         // Also clears the previous sub-shelf; the new one is selected below.
-        DeselectShelf();
+        ClearSelection();
 
         _activeSubShelf = marker;
         marker.EnableOutline(true);
@@ -87,7 +98,7 @@ public partial class SB_UIHandler
         itemCategorySelection.SetActive(true);
     }
 
-    public void DeselectSubShelf()
+    void DeselectSubShelf()
     {
         if (_activeSubShelf == null) return;
         _activeSubShelf.EnableOutline(false);
@@ -96,12 +107,9 @@ public partial class SB_UIHandler
             itemCategorySelection.SetActive(false);
     }
 
-    // Key into ShelfBuilder.subShelfCategories (same format as ShelfBuilder.Items).
-    static string CategoryKey(ShelfInfo info) => $"{info.subShelfId}_{info.subSubShelfId}";
-
     void PopulateSubShelfCategoryDropdown(SubShelfMarker marker)
     {
-        string key = CategoryKey(marker.shelfInfo);
+        string key = ShelfBuilder.CategoryKey(marker.shelfInfo);
         int value = marker.parentShelf.subShelfCategories.TryGetValue(key, out ItemCategory cat)
             ? (int)cat
             : 0;
@@ -112,16 +120,16 @@ public partial class SB_UIHandler
     public void OnSubShelfCategoryChanged(int index)
     {
         if (_activeSubShelf == null) return;
-        _activeSubShelf.parentShelf.subShelfCategories[CategoryKey(_activeSubShelf.shelfInfo)] = (ItemCategory)index;
+        _activeSubShelf.parentShelf.subShelfCategories[ShelfBuilder.CategoryKey(_activeSubShelf.shelfInfo)] = (ItemCategory)index;
     }
 
     // Wired to ApplyShelfCategory button's OnClick in the Inspector
     public void OnApplyShelfCategoryPressed()
     {
-        if (selectedShelf == null) return;
+        if (SelectedShelf == null) return;
         ItemCategory category = (ItemCategory)shelfCategoryDropdown.value;
-        foreach (SubShelfMarker marker in selectedShelf.GetComponentsInChildren<SubShelfMarker>())
-            selectedShelf.subShelfCategories[CategoryKey(marker.shelfInfo)] = category;
+        foreach (SubShelfMarker marker in SelectedShelf.GetComponentsInChildren<SubShelfMarker>())
+            SelectedShelf.subShelfCategories[ShelfBuilder.CategoryKey(marker.shelfInfo)] = category;
     }
 
     void SetSelectionUIView(bool show)
@@ -133,8 +141,8 @@ public partial class SB_UIHandler
     private void UpdateSelectedShelfText()
     {
         if (selectedShelfText == null) return;
-        selectedShelfText.text = selectedShelf != null
-            ? $"Selected Shelf: Shelf {selectedShelf.shelfId}"
+        selectedShelfText.text = SelectedShelf != null
+            ? $"Selected Shelf: Shelf {SelectedShelf.shelfId}"
             : "Selected Shelf: NONE";
     }
 }
