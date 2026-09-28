@@ -84,6 +84,23 @@ void passthroughVec3_float(in float3 In, out float3 Out)
     Out = In;
 }
 
+// Merged-submesh materials (see SubmeshMerger): vertex color = base color (a = texture weight),
+// UV2 = (metallic, smoothness).
+void ApplyVertexMaterial_float(in float3 BaseColor, in float Metallic, in float Smoothness,
+    in float4 VertexColor, in float4 MaterialData, in float Enabled,
+    out float3 BaseColorOut, out float MetallicOut, out float SmoothnessOut)
+{
+    BaseColorOut = BaseColor;
+    MetallicOut = Metallic;
+    SmoothnessOut = Smoothness;
+    if (Enabled > 0.5)
+    {
+        BaseColorOut = lerp(1.0, BaseColor, VertexColor.a) * VertexColor.rgb;
+        MetallicOut = MaterialData.x;
+        SmoothnessOut = MaterialData.y;
+    }
+}
+
 void setup()
 {
 #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)

@@ -20,6 +20,9 @@ public class GPUInstanceTracker : MonoBehaviour
     [Tooltip("Scene view draws the main camera's culling results instead of culling itself, so culling is visible.")]
     [SerializeField] private bool sceneViewShowsMainCameraCulling = true;
 
+    [Tooltip("Merge opaque submeshes with matching render state into one draw (see SubmeshMerger).")]
+    [SerializeField] private bool mergeSubmeshes = true;
+
     // LOD2/LOD3 are disabled until their mesh scales are fixed.
     [SerializeField] private bool enableLod2AndLod3 = false;
 
@@ -190,12 +193,7 @@ public class GPUInstanceTracker : MonoBehaviour
         {
             bi = CreateBatcher(itemId, new[]
             {
-                new LODDefinition
-                {
-                    mesh = mesh,
-                    materials = CloneMaterialsForInstancing(materials),
-                    maxDistance = DefaultMaxDistances[LodHierarchy.MaxLods - 1]
-                }
+                MakeLod(mesh, materials, DefaultMaxDistances[LodHierarchy.MaxLods - 1])
             });
         }
         bi.AddObjectToBatch(MakeChunkInstanceData(position));
@@ -238,18 +236,21 @@ public class GPUInstanceTracker : MonoBehaviour
                 ? DefaultMaxDistances[LodHierarchy.MaxLods - 1]
                 : DefaultMaxDistances[i];
 
-            lodList.Add(new LODDefinition
-            {
-                mesh = mf.sharedMesh,
-                materials = CloneMaterialsForInstancing(mr.sharedMaterials),
-                maxDistance = maxDistance
-            });
+            lodList.Add(MakeLod(mf.sharedMesh, mr.sharedMaterials, maxDistance));
         }
 
         if (lodList.Count > 0) return lodList.ToArray();
 
         Debug.LogError("No LOD meshes (_LOD0–_LOD3) found on " + obj.name);
         return null;
+    }
+
+    private LODDefinition MakeLod(Mesh mesh, Material[] sourceMaterials, float maxDistance)
+    {
+        Material[] materials = CloneMaterialsForInstancing(sourceMaterials);
+        if (mergeSubmeshes)
+            (mesh, materials) = SubmeshMerger.Merge(mesh, materials);
+        return new LODDefinition { mesh = mesh, materials = materials, maxDistance = maxDistance };
     }
 
     // Each batcher needs its own material clones: shared materials across meshes break procedural instancing.
