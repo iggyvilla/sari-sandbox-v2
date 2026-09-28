@@ -17,6 +17,9 @@ public class GPUInstanceTracker : MonoBehaviour
     [Tooltip("Also cull products hidden behind this frame's depth prepass (needs HiZOcclusionFeature on the renderer).")]
     [SerializeField] private bool occlusionCulling = false;
 
+    [Tooltip("Scene view draws the main camera's culling results instead of culling itself, so culling is visible.")]
+    [SerializeField] private bool sceneViewShowsMainCameraCulling = true;
+
     // LOD2/LOD3 are disabled until their mesh scales are fixed.
     [SerializeField] private bool enableLod2AndLod3 = false;
 
@@ -96,6 +99,9 @@ public class GPUInstanceTracker : MonoBehaviour
     private void OnBeginCameraRendering(ScriptableRenderContext _, Camera cam)
     {
         if (!DrawsProducts(cam)) return;
+        if (cam.cameraType == CameraType.SceneView && sceneViewShowsMainCameraCulling &&
+            _culling.RenderCameraAs(cam, mainCamera != null ? mainCamera : Camera.main))
+            return;
 
         CullView view = CullView.ForCamera(
             cam.transform.position,
