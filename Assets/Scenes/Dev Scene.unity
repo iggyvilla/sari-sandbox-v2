@@ -2154,7 +2154,9 @@ MonoBehaviour:
   mainCamera: {fileID: 2075032115}
   frustumCullingShader: {fileID: 7200000, guid: d5463ca6d0b334167b75bd90351fcb44, type: 3}
   proceduralUrpLitShader: {fileID: -6465566751694194690, guid: 8006f7beaf2004d31a1813a124fd0cf0, type: 3}
-  maxCullingUpdatesPerSecond: 30
+  frustumCulling: 1
+  occlusionCulling: 1
+  sceneViewShowsMainCameraCulling: 1
   enableLod2AndLod3: 0
 --- !u!4 &669521194
 Transform:
@@ -2235,6 +2237,7 @@ MonoBehaviour:
   storeName: Store 2 v2
   readSave: 1
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+  fridgePrefab: {fileID: 0}
   floor: {fileID: 593330296}
   uiHandler: {fileID: 0}
   interactionController: {fileID: 0}
@@ -3415,7 +3418,7 @@ MonoBehaviour:
   ikHumanoidGhostPrefab: {fileID: 7456162950078149447, guid: 91147938a35b74fbdb1356d28a996d49, type: 3}
   sariSandboxV1CompatibilityLayer: 1
   distributedBenchmarkBuild: 1
-  coordinatorUrl: ws://192.168.0.182:9000/sandbox
+  coordinatorUrl: ws://10.158.18.244:9000/sandbox
   chatUIManager: {fileID: 845791648}
 --- !u!114 &1456967139
 MonoBehaviour:
