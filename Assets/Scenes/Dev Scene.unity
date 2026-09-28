@@ -2157,6 +2157,7 @@ MonoBehaviour:
   frustumCulling: 1
   occlusionCulling: 1
   sceneViewShowsMainCameraCulling: 1
+  mergeSubmeshes: 1
   enableLod2AndLod3: 0
 --- !u!4 &669521194
 Transform:
