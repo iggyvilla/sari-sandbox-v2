@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Find the most expensive and heaviest item in each category.
+"""Find the most expensive and heaviest (and cheapest and lightest) item in each category.
 
 Reads Categories.json (category -> item names) and PriceData.json
 (item name -> price/weight info) from the same directory, then prints
-the max-price and max-weight item per category.
+the max/min-price and max/min-weight item per category.
 """
 
 import json
@@ -71,8 +71,11 @@ def main():
         if weighed_items:
             item, grams, raw = max(weighed_items, key=lambda x: x[1])
             print(f"  Heaviest:       {item} ({raw})")
+            item, grams, raw = min(weighed_items, key=lambda x: x[1])
+            print(f"  Lightest:       {item} ({raw})")
         else:
             print("  Heaviest:       (no weight data)")
+            print("  Lightest:       (no weight data)")
         print()
 
 
