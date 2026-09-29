@@ -49,6 +49,7 @@ public struct LodRenderData
 {
     public Vector4 rotation;
     public Vector4 scale;
+    public Vector4 offset; // LOD position minus lod0 position (the shared _Positions entry)
 }
 
 // One LOD level: mesh, instancing materials, and the distance below which it's used.
@@ -97,6 +98,9 @@ public class BatchInstancer : MonoBehaviour
     // CPU mirror of the GPU test is made slightly more permissive so it never drops a LOD the GPU fills.
     private const float CpuCullEpsilon = 1e-3f;
     private const int ArgsStride = 5;
+
+    // Physics prefabs use the same mode (ProductLodSetup) so shadows don't change when a product swaps forms.
+    public const ShadowCastingMode ProductShadowMode = ShadowCastingMode.Off;
 
     public LODDefinition[] lods;
     public string itemId;
@@ -222,7 +226,7 @@ public class BatchInstancer : MonoBehaviour
                     args,
                     ArgsOffset(argsStart, lod, s),
                     props[lod],
-                    ShadowCastingMode.Off,
+                    ProductShadowMode,
                     true,
                     0,
                     cam);
@@ -323,7 +327,12 @@ public class BatchInstancer : MonoBehaviour
             for (int lod = 0; lod < lods.Length; lod++)
             {
                 LodTransform t = instance[lod];
-                lodRenderData[lod][i] = new LodRenderData { rotation = t.rotation, scale = t.scale };
+                lodRenderData[lod][i] = new LodRenderData
+                {
+                    rotation = t.rotation,
+                    scale = t.scale,
+                    offset = t.position - instance.lod0.position
+                };
             }
         }
 
@@ -349,11 +358,10 @@ public class BatchInstancer : MonoBehaviour
         _lodTransformBuffers = null;
     }
 
-    // Sphere around every LOD mesh as the shader draws it: all LODs share lod0's position.
+    // Sphere around every LOD mesh as the shader draws it (each LOD at its own position).
     private Vector4 CalculateBoundingSphere(InstanceData instance)
     {
-        Vector3 position = instance.lod0.position;
-        Vector3 center = position;
+        Vector3 center = instance.lod0.position;
         float radius = 0f;
         bool first = true;
 
@@ -365,7 +373,7 @@ public class BatchInstancer : MonoBehaviour
             LodTransform t = instance[lod];
             Quaternion rotation = new Quaternion(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w);
             Vector3 absScale = new Vector3(Mathf.Abs(t.scale.x), Mathf.Abs(t.scale.y), Mathf.Abs(t.scale.z));
-            Vector3 lodCenter = position + rotation * Vector3.Scale(mesh.bounds.center, t.scale);
+            Vector3 lodCenter = t.position + rotation * Vector3.Scale(mesh.bounds.center, t.scale);
             float lodRadius = Vector3.Scale(mesh.bounds.extents, absScale).magnitude;
 
             if (first)

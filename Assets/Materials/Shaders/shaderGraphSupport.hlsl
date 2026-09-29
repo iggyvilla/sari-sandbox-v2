@@ -14,6 +14,7 @@ struct DrawData {
 struct LodRenderData {
     float4 rotation;
     float4 scale;
+    float4 offset; // LOD position minus the shared _Positions entry
 };
 
 StructuredBuffer<uint> _VisibleIndices;
@@ -56,7 +57,7 @@ inline void SetUnityMatrices(uint instanceID, inout float4x4 objectToWorld, inou
     LodRenderData lodData = _LodTransformData[sourceIndex];
 
     DrawData drawData;
-    drawData.position = _Positions[sourceIndex].xyz;
+    drawData.position = _Positions[sourceIndex].xyz + lodData.offset.xyz;
     drawData.rotation = lodData.rotation;
     drawData.scale = lodData.scale.xyz;
   

@@ -28,6 +28,7 @@ public class GPUInstanceTracker : MonoBehaviour
 
     // Ascending max distances; the last is the hard cull distance.
     private static readonly float[] DefaultMaxDistances = { 5f, 7f, 10f, 15f };
+    private const int DefaultActiveLods = 2;
     private const int DestroyedCameraPurgeInterval = 120;
     private const string FrustumCullingFlag = "-sariFrustumCulling";
     private const string OcclusionCullingFlag = "-sariOcclusionCulling";
@@ -39,6 +40,13 @@ public class GPUInstanceTracker : MonoBehaviour
     private InstanceCullingSystem _culling;
 
     public Camera MainCamera => mainCamera;
+
+    // How many LODs instanced products use (physics prefabs mirror this, see ProductLodSetup).
+    public static int ActiveLodCount =>
+        Instance != null && Instance.enableLod2AndLod3 ? LodHierarchy.MaxLods : DefaultActiveLods;
+
+    // Distance below which LOD `lod` is used.
+    public static float LodMaxDistance(int lod) => DefaultMaxDistances[lod];
 
     public bool FrustumCullingEnabled
     {
@@ -223,7 +231,7 @@ public class GPUInstanceTracker : MonoBehaviour
     private LODDefinition[] BuildLodDefinitions(GameObject obj)
     {
         Transform[] lodTransforms = LodHierarchy.ResolveLodTransforms(obj);
-        int activeLods = enableLod2AndLod3 ? LodHierarchy.MaxLods : 2;
+        int activeLods = ActiveLodCount;
         var lodList = new List<LODDefinition>();
 
         for (int i = 0; i < activeLods; i++)
@@ -245,25 +253,31 @@ public class GPUInstanceTracker : MonoBehaviour
         return null;
     }
 
-    private LODDefinition MakeLod(Mesh mesh, Material[] sourceMaterials, float maxDistance)
+    private LODDefinition MakeLod(Mesh mesh, Material[] sourceMaterials, float maxDistance) =>
+        BuildLod(mesh, sourceMaterials, maxDistance, proceduralUrpLitShader, mergeSubmeshes);
+
+    // Shared with editor tools so previews use the exact runtime mesh/material conversion.
+    public static LODDefinition BuildLod(
+        Mesh mesh, Material[] sourceMaterials, float maxDistance, Shader instancingShader, bool merge)
     {
-        Material[] materials = CloneMaterialsForInstancing(sourceMaterials);
-        if (mergeSubmeshes)
+        Material[] materials = CloneMaterialsForInstancing(sourceMaterials, instancingShader);
+        if (merge)
             (mesh, materials) = SubmeshMerger.Merge(mesh, materials);
         return new LODDefinition { mesh = mesh, materials = materials, maxDistance = maxDistance };
     }
 
     // Each batcher needs its own material clones: shared materials across meshes break procedural instancing.
-    private Material[] CloneMaterialsForInstancing(Material[] source)
+    private static Material[] CloneMaterialsForInstancing(Material[] source, Shader instancingShader)
     {
         var cloned = new Material[source.Length];
         for (int i = 0; i < source.Length; i++)
         {
             cloned[i] = new Material(source[i])
             {
-                shader = proceduralUrpLitShader,
+                shader = instancingShader,
                 enableInstancing = true
             };
+            ProductMaterials.ApplyDepthWrite(cloned[i]);
         }
         return cloned;
     }

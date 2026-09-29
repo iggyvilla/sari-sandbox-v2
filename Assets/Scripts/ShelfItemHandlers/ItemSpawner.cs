@@ -549,81 +549,54 @@ public class ItemSpawner : MonoBehaviour
         };
     }
 
-    // Per-product draw data; only the positions change per instance.
+    // Per-product draw data; only the spawn position changes per instance.
     public readonly struct ProductDrawTemplate
     {
         private readonly InstanceData _data;
-        // Per-LOD bottom-pivot y offset; NaN when no correction applies.
-        private readonly Vector4 _bottomOffsets;
+        // Per-LOD offset from the spawn position (the LOD child's placement inside the prefab).
+        private readonly Vector3[] _offsets;
 
-        public ProductDrawTemplate(InstanceData data, Vector4 bottomOffsets)
+        public ProductDrawTemplate(InstanceData data, Vector3[] offsets)
         {
             _data = data;
-            _bottomOffsets = bottomOffsets;
+            _offsets = offsets;
         }
 
         public InstanceData At(Vector3 spawnPosition)
         {
             InstanceData data = _data;
-            data.lod0.position = WithBottomOffset(spawnPosition, _bottomOffsets.x);
-            data.lod1.position = WithBottomOffset(spawnPosition, _bottomOffsets.y);
-            data.lod2.position = WithBottomOffset(spawnPosition, _bottomOffsets.z);
-            data.lod3.position = WithBottomOffset(spawnPosition, _bottomOffsets.w);
+            data.lod0.position = spawnPosition + _offsets[0];
+            data.lod1.position = spawnPosition + _offsets[1];
+            data.lod2.position = spawnPosition + _offsets[2];
+            data.lod3.position = spawnPosition + _offsets[3];
             return data;
         }
-
-        private static Vector3 WithBottomOffset(Vector3 position, float offset)
-        {
-            if (!float.IsNaN(offset)) position.y += offset;
-            return position;
-        }
     }
 
+    // Each LOD is drawn exactly where Instantiate(prefab, spawnPosition, aisleRot) would put its child.
     public static ProductDrawTemplate CreateProductDrawTemplate(GameObject product, Quaternion aisleRot)
     {
-        // LOD child transforms (not the root) give correct rotation/scale; lods[i] is never null.
         Transform[] lods = LodHierarchy.ResolveLodTransforms(product);
+        Matrix4x4 aisle = Matrix4x4.Rotate(aisleRot);
+        var offsets = new Vector3[LodHierarchy.MaxLods];
+        var data = new InstanceData();
 
-        LodTransform MakeLodTransform(Transform src)
+        for (int i = 0; i < LodHierarchy.MaxLods; i++)
         {
-            Quaternion q = aisleRot * src.rotation;
-            return new LodTransform
+            Matrix4x4 m = aisle * LodHierarchy.SpawnRelativeMatrix(product, lods[i]);
+            Quaternion q = m.rotation;
+            offsets[i] = m.GetColumn(3);
+            LodTransform t = new LodTransform { rotation = new Vector4(q.x, q.y, q.z, q.w), scale = m.lossyScale };
+            switch (i)
             {
-                rotation = new Vector4(q.x, q.y, q.z, q.w),
-                scale    = src.lossyScale
-            };
+                case 0: data.lod0 = t; break;
+                case 1: data.lod1 = t; break;
+                case 2: data.lod2 = t; break;
+                default: data.lod3 = t; break;
+            }
         }
 
-        InstanceData data = new InstanceData
-        {
-            lod0 = MakeLodTransform(lods[0]),
-            lod1 = MakeLodTransform(lods[1]),
-            lod2 = MakeLodTransform(lods[2]),
-            lod3 = MakeLodTransform(lods[3]),
-        };
-
-        Vector4 bottomOffsets = new Vector4(
-            BottomPivotOffset(lods[0]),
-            BottomPivotOffset(lods[1]),
-            BottomPivotOffset(lods[2]),
-            BottomPivotOffset(lods[3]));
-
-        return new ProductDrawTemplate(data, bottomOffsets);
-    }
-
-    // Shelf math assumes a bottom pivot; returns the lift for centre-pivot LODs, or NaN for none.
-    static float BottomPivotOffset(Transform lodTransform)
-    {
-        if (lodTransform == null) return float.NaN;
-
-        if (!lodTransform.TryGetComponent(out MeshFilter meshFilter) || meshFilter.sharedMesh == null)
-        {
-            Debug.Log("Cannot find mesh for: " + lodTransform.name);
-            return float.NaN;
-        }
-        if (lodTransform.position == Vector3.zero) return float.NaN;
-
-        return -meshFilter.sharedMesh.bounds.min.y * Mathf.Abs(lodTransform.lossyScale.y);
+        return new ProductDrawTemplate(data, offsets);
     }
 
     Vector3 GenerateSpawnPositionsOnShelf(float lengthwiseOffset, float itemDepth, float itemHeight, int rowNum, int stackNum)

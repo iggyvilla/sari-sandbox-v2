@@ -71,10 +71,10 @@ public sealed class RuntimeRetailItem
 
 public class RetailItemRuntimeService : MonoBehaviour
 {
-    [Tooltip("Delay before the physics prefab is returned to the pool when restoring " +
-             "a preview to the shelf, giving the restored GPU instance a frame to render " +
-             "and avoiding a flicker.")]
-    [SerializeField] private float restorePoolReturnDelaySeconds = 0.05f;
+    [Tooltip("Frames the physics prefab stays visible after its GPU instance is restored, so the " +
+             "handoff has no gap. Both draw during this overlap (double-blended transparency, " +
+             "z-fighting), so keep it minimal and frame-based, not time-based.")]
+    [SerializeField, Min(0)] private int restorePoolReturnDelayFrames = 1;
 
     public static RetailItemRuntimeService Instance
     {
@@ -222,12 +222,10 @@ public class RetailItemRuntimeService : MonoBehaviour
 
         RestoreGpuInstance(bboxInfo);
 
-        // The GPU instance won't actually render until the next frame. Returning the
-        // physics prefab to the pool immediately would leave a one-frame gap where
-        // neither representation is visible, causing a flicker. Defer the pool return
-        // by a short delay so the GPU instance has rendered first.
+        // Returning the prefab in the same frame risks a gap before the GPU instance renders;
+        // a few frames of overlap flickers instead. Hand off after the configured frame count.
         if (item.gameObject != null)
-            StartCoroutine(ReturnToPoolDelayed(item.itemId, item.gameObject, restorePoolReturnDelaySeconds));
+            StartCoroutine(ReturnToPoolDelayed(item.itemId, item.gameObject, restorePoolReturnDelayFrames));
 
         item.state = RetailItemRuntimeState.ShelfGpu;
         item.gameObject = null;
@@ -242,9 +240,9 @@ public class RetailItemRuntimeService : MonoBehaviour
         bbox.SetPositionAndRotation(item.originalBBoxWorldPosition, item.originalBBoxWorldRotation);
     }
 
-    private System.Collections.IEnumerator ReturnToPoolDelayed(string itemId, GameObject go, float delaySeconds)
+    private System.Collections.IEnumerator ReturnToPoolDelayed(string itemId, GameObject go, int delayFrames)
     {
-        yield return new WaitForSeconds(delaySeconds);
+        for (int i = 0; i < delayFrames; i++) yield return null;
         if (go != null)
             ItemPoolingManager.Instance?.ReturnToPool(itemId, go);
     }
@@ -342,17 +340,8 @@ public class RetailItemRuntimeService : MonoBehaviour
         Quaternion rotation,
         Transform parent)
     {
-        GameObject prefab = ProductPrefabs.Load(itemId);
-        if (prefab == null)
-        {
-            Debug.LogError($"RetailItemRuntimeService: prefab not found for {itemId}");
-            return null;
-        }
-
-        GameObject item = Instantiate(prefab, position, rotation, parent);
-        item.name = itemId;
-        item.tag = "RetailItem";
-        ExpirationDateDecalCatalog.ApplyTo(item, expirationDateDecalId);
+        GameObject item = ProductPrefabs.Spawn(itemId, position, rotation, parent);
+        if (item != null) ExpirationDateDecalCatalog.ApplyTo(item, expirationDateDecalId);
         return item;
     }
 

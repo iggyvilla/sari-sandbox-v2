@@ -129,18 +129,8 @@ public class ItemPoolingManager : MonoBehaviour
 
     private GameObject CreatePhysicsItem(string itemId, Vector3 position, Quaternion rotation)
     {
-        GameObject prefab = ProductPrefabs.Load(itemId);
-        if (prefab == null)
-        {
-            Debug.LogError($"ItemPoolingManager: prefab not found for {itemId}");
-            return null;
-        }
-
-        GameObject obj = Instantiate(prefab, position, rotation);
-        obj.name = itemId;
-        obj.tag = "RetailItem";
-        ApplyStablePhysicsMaterial(obj);
-
+        GameObject obj = ProductPrefabs.Spawn(itemId, position, rotation);
+        if (obj != null) ApplyStablePhysicsMaterial(obj);
         return obj;
     }
 

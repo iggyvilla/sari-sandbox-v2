@@ -16,4 +16,21 @@ public static class ProductPrefabs
         if (prefab != null) Cache[itemId] = prefab;
         return prefab;
     }
+
+    // Instantiates a product as a physics/held item; its LODs and shadows match the GPU-instanced form.
+    public static GameObject Spawn(string itemId, Vector3 position, Quaternion rotation, Transform parent = null)
+    {
+        GameObject prefab = Load(itemId);
+        if (prefab == null)
+        {
+            Debug.LogError($"ProductPrefabs: prefab not found for {itemId}");
+            return null;
+        }
+
+        GameObject item = Object.Instantiate(prefab, position, rotation, parent);
+        item.name = itemId;
+        item.tag = "RetailItem";
+        ProductLodSetup.Apply(item);
+        return item;
+    }
 }
