@@ -33,8 +33,10 @@ public abstract class AgentControllerBase : MonoBehaviour
     private const float PointingColliderHeight = 0.02f;
     private const float PointingColliderDepth = 0.13f;
 
-    // Number of agents currently holding a door; hand/door layer collisions stay ignored while > 0.
+    // Number of agents holding (or just released) a door; hand/door layer collisions stay ignored while > 0.
     private static int s_agentsHoldingDoors;
+    // The hand jumps back to its default pose on release; keep ignoring the door until it has cleared it.
+    private const float DoorReleaseGraceSeconds = 0.4f;
 
     public bool isMultiplayerAgent = false;
 
@@ -96,6 +98,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     private bool _hasFloorBounds;
     private int _outOfBoundsRecoveryCount;
     private bool _isHoldingDoor;
+    private float _doorIgnoreUntil;
     private bool _gazeActivateRequested;
     private Transform _lastGazeTransform;
 
@@ -119,6 +122,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         public Vector3 DesiredLocalPosition;
         public Quaternion DesiredLocalRotation;
         public bool HasDesiredPose;
+        public bool WasManualControl;
         public bool IsGripped;
         public bool IsPointing;
         public float CurrentGrip;
@@ -155,6 +159,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         // Release this agent's share of the global hand/door collision ignore.
         _leftHand.GrabbedDoor = null;
         _rightHand.GrabbedDoor = null;
+        _doorIgnoreUntil = 0f;
         UpdateDoorCollisionIgnore();
     }
 
@@ -258,6 +263,7 @@ public abstract class AgentControllerBase : MonoBehaviour
     void FixedUpdate()
     {
         _pendingBodyTranslation = Vector3.zero;
+        if (_isHoldingDoor) UpdateDoorCollisionIgnore();
         RecoverIfOutOfBounds();
         AgentHandSide? manualHandSide = GetManualHandControlSide();
         UpdateHandControlMode(manualHandSide);
@@ -529,13 +535,16 @@ public abstract class AgentControllerBase : MonoBehaviour
     {
         if (hand.Rigidbody == null) return;
 
-        if (isManualHand)
+        // Only when manual control starts: syncing every step would overwrite a pose set in Update
+        // (e.g. the reset after releasing a door handle) before ApplyDesiredHandPose applies it.
+        if (isManualHand && !hand.WasManualControl)
         {
             // Start manual control from the live pose in case tracking drove the hand.
             hand.DesiredLocalPosition = hand.HandObject.transform.localPosition;
             hand.DesiredLocalRotation = hand.HandObject.transform.localRotation;
             hand.HasDesiredPose = true;
         }
+        hand.WasManualControl = isManualHand;
 
         if (!hand.Rigidbody.isKinematic)
         {
@@ -954,6 +963,7 @@ public abstract class AgentControllerBase : MonoBehaviour
         {
             if (hand.GrabbedDoor != null)
             {
+                _doorIgnoreUntil = Time.time + DoorReleaseGraceSeconds;
                 ResetHandPosition(side);
                 ReleaseGrabbedDoor(hand);
                 UpdateDoorCollisionIgnore();
@@ -1009,11 +1019,12 @@ public abstract class AgentControllerBase : MonoBehaviour
     // Physics.IgnoreLayerCollision is global, so ref-count across agents.
     private void UpdateDoorCollisionIgnore()
     {
-        bool isHoldingDoor = _leftHand.GrabbedDoor != null || _rightHand.GrabbedDoor != null;
-        if (isHoldingDoor == _isHoldingDoor) return;
+        bool ignoreDoors = _leftHand.GrabbedDoor != null || _rightHand.GrabbedDoor != null ||
+                           Time.time < _doorIgnoreUntil;
+        if (ignoreDoors == _isHoldingDoor) return;
 
-        _isHoldingDoor = isHoldingDoor;
-        s_agentsHoldingDoors = Mathf.Max(0, s_agentsHoldingDoors + (isHoldingDoor ? 1 : -1));
+        _isHoldingDoor = ignoreDoors;
+        s_agentsHoldingDoors = Mathf.Max(0, s_agentsHoldingDoors + (ignoreDoors ? 1 : -1));
         Physics.IgnoreLayerCollision(
             LayerMask.NameToLayer("AgentHand"),
             LayerMask.NameToLayer("HingeDoor"),
