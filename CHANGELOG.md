@@ -2,6 +2,69 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-09-29)
+
+### Bug Fixes
+
+- **agent**: Reset hand after releasing a door handle without slamming the door
+  ([`b5b8a69`](https://github.com/iggyvilla/sari-sandbox-v2/commit/b5b8a693da2814e4655bfdbf34e2c9f1c2bba4c4))
+
+- **gpu**: Show main camera culling results in the scene view
+  ([`65326dc`](https://github.com/iggyvilla/sari-sandbox-v2/commit/65326dc682cefba64d5b6e90f2644102a39b72d5))
+
+- **items**: Stabilize stacked physics items
+  ([`8b2279a`](https://github.com/iggyvilla/sari-sandbox-v2/commit/8b2279af809c50933b49701d007984c7bd2e5842))
+
+- **items**: Unmirror Royal Tru Orange label and round Coke Light/Zero bases
+  ([`1ccde77`](https://github.com/iggyvilla/sari-sandbox-v2/commit/1ccde77811b00dc8c525743304156ae02868340c))
+
+- **render**: Make physics prefabs match GPU instances
+  ([`6a03522`](https://github.com/iggyvilla/sari-sandbox-v2/commit/6a03522b2d6f5ce1e12e5ecb2a9d2e5c8e51244a))
+
+- **store-builder**: Fix UI wiring, input and save/load bugs; dedupe builder code
+  ([`7684471`](https://github.com/iggyvilla/sari-sandbox-v2/commit/768447139a39d82c96eb664865e9528563255a57))
+
+### Build System
+
+- Add mac and linux build profiles
+  ([`85b748b`](https://github.com/iggyvilla/sari-sandbox-v2/commit/85b748b2c1dad5dde05b2119874215a0087aa6f8))
+
+### Chores
+
+- **scene**: Serialize mergeSubmeshes toggle on GPUInstanceTracker
+  ([`bf3e93b`](https://github.com/iggyvilla/sari-sandbox-v2/commit/bf3e93bfe0fb5be3a026f46fce58ebee8dc9723c))
+
+- **scene**: Sync dev scene serialized fields and coordinator URL
+  ([`3250042`](https://github.com/iggyvilla/sari-sandbox-v2/commit/325004234ff1305f077bb22895f79bc5becd954d))
+
+### Documentation
+
+- Add rendering bugfix log and product prefab guide
+  ([`a7903b2`](https://github.com/iggyvilla/sari-sandbox-v2/commit/a7903b27aeaffb3373a7d1fd427d2bb1795128c6))
+
+### Features
+
+- **data**: Report cheapest and lightest items per category
+  ([`7068044`](https://github.com/iggyvilla/sari-sandbox-v2/commit/7068044e05f35267e4edeb331fe4fa3ecc9ed7b5))
+
+- **gpu**: Add GameObject vs GPU instance preview scene
+  ([`1f22ae0`](https://github.com/iggyvilla/sari-sandbox-v2/commit/1f22ae0f4d5b49060252b27abda90b0637ddeb12))
+
+- **tools**: Add editor tool to snap barcode planes onto label textures
+  ([`c69f999`](https://github.com/iggyvilla/sari-sandbox-v2/commit/c69f999df1c1983ea94143b9c75401a827a70aa1))
+
+- **tools**: Add product LOD preview, prefab validator and bottle base smoother
+  ([`c908338`](https://github.com/iggyvilla/sari-sandbox-v2/commit/c908338fb0ee9dc0b8f35cf23568b3f74c4824fe))
+
+- **tools**: Bake negative LOD scales into unmirrored mesh copies
+  ([`6e5ff0a`](https://github.com/iggyvilla/sari-sandbox-v2/commit/6e5ff0a57a88ab4ce144c84c59b0f2fd111e60fc))
+
+### Performance Improvements
+
+- **render**: Merge compatible product submeshes into single draws
+  ([`ee811ba`](https://github.com/iggyvilla/sari-sandbox-v2/commit/ee811ba8b3f3a4c3c3b6ff9611fe0d62f43da1c1))
+
+
 ## v1.2.0 (2026-09-27)
 
 ### Features
