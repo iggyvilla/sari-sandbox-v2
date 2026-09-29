@@ -14,6 +14,8 @@ public static class MirroredMeshBaker
         "VITAMILK_CHOCO_SHAKE_300ML", "VITAMILK_BANANA_300ML", "VITAMILK_300ML",
         "PASCUAL_GREEK_STRAWBERRY_250ML", "PASCUAL_GREEK_PLAIN_250ML", "PASCUAL_GREEK_MANGO_250ML",
         "POPPLE_APPLE_FLAVORED_500ML", "MOUNTAIN_DEW_500ML", "MOUNTAIN_DEW_ZERO_500ML",
+        // Reflection turned its front 90°; the prefab's model child was rotated +90° Y to restore it.
+        "ROYAL_TRU_ORANGE_500ML",
     };
 
     [MenuItem("Tools/Products/Bake Negative LOD Scales")]
