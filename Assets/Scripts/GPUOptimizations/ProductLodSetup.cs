@@ -23,6 +23,11 @@ public static class ProductLodSetup
             r.shadowCastingMode = BatchInstancer.ProductShadowMode;
             UseDepthWritingMaterials(r);
         }
+
+        // Barcode hulls are flat convex meshes (about 190 are authored solid): as solid bodies they make stacks
+        // unstable. Scanning only needs triggers/raycasts (Physics.queriesHitTriggers is on).
+        foreach (MeshCollider collider in item.GetComponentsInChildren<MeshCollider>(true))
+            collider.isTrigger = true;
     }
 
     // Same depth-write rule as the GPU path (see ProductMaterials), via shared cached copies.
