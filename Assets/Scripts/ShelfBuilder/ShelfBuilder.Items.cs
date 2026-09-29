@@ -12,10 +12,9 @@ public partial class ShelfBuilder
             subSubShelfId = subSubShelfId,
         };
 
-        string categoryKey = $"{subShelfId}_{subSubShelfId}";
         ItemCategory category = debugForceItemCategory
             ? forcedCategory
-            : subShelfCategories.TryGetValue(categoryKey, out var configuredCategory) ? configuredCategory : default;
+            : subShelfCategories.TryGetValue(CategoryKey(shelfInfo), out var configuredCategory) ? configuredCategory : default;
 
         if (spawner == null) return;
 
@@ -32,6 +31,9 @@ public partial class ShelfBuilder
 
         _itemSpawners.Add(spawner);
     }
+
+    /// <summary>Key into <see cref="subShelfCategories"/> for a sub-shelf.</summary>
+    public static string CategoryKey(ShelfInfo info) => $"{info.subShelfId}_{info.subSubShelfId}";
 
     public void SpawnItemsOnAllShelves()
     {

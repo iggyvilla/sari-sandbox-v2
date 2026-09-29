@@ -54,4 +54,9 @@ public static class LodHierarchy
 
         return result;
     }
+
+    // A LOD child's matrix relative to an instance placed at the origin with no rotation:
+    // what Instantiate(prefab, pos, rot) keeps (root scale + hierarchy) and drops (root position/rotation).
+    public static Matrix4x4 SpawnRelativeMatrix(GameObject product, Transform lod) =>
+        Matrix4x4.Scale(product.transform.localScale) * (product.transform.worldToLocalMatrix * lod.localToWorldMatrix);
 }

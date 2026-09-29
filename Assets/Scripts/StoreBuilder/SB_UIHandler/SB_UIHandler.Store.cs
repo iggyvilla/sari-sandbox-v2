@@ -14,45 +14,55 @@ public partial class SB_UIHandler
 
     public void LoadStoreDropdownMenu()
     {
-        /* If the menu is already open, just close it and do no processing */
-        if (loadStoreCanvas.activeInHierarchy)
-        {
-            loadStoreCanvas.SetActive(false);
-            return;
-        }
+        if (!ToggleMenu(loadStoreCanvas)) return;
 
-        loadStoreCanvas.SetActive(true);
         _validStoreFiles.Clear();
         loadStoreDropdown.ClearOptions();
 
         if (loadPersistentDataPathText != null)
             loadPersistentDataPathText.text = Application.persistentDataPath;
 
-        string[] files = Directory.GetFiles(Application.persistentDataPath, "*.json");
-
-        foreach (string file in files)
+        foreach (string file in Directory.GetFiles(Application.persistentDataPath, "*.json"))
         {
-            try
-            {
-                StoreData data = JsonConvert.DeserializeObject<StoreData>(File.ReadAllText(file), DataHandler.JsonSettings);
-                if (data == null || data.shelves == null) continue;
+            if (IsStoreFile(file))
                 _validStoreFiles.Add(Path.GetFileNameWithoutExtension(file));
-            }
-            catch (System.Exception error)
-            {
-                Debug.LogWarning($"Skipping unreadable store file {file}: {error.Message}");
-            }
         }
+        _validStoreFiles.Sort();
 
         loadStoreDropdown.AddOptions(_validStoreFiles);
         loadStoreDropdown.interactable = _validStoreFiles.Count > 0;
     }
 
+    // Streams only up to a top-level "shelves" key, so large shelfItems blocks are never materialized.
+    static bool IsStoreFile(string path)
+    {
+        try
+        {
+            using JsonTextReader reader = new(File.OpenText(path));
+            if (!reader.Read() || reader.TokenType != JsonToken.StartObject) return false;
+
+            while (reader.Read() && reader.TokenType == JsonToken.PropertyName)
+            {
+                if ((string)reader.Value == "shelves") return true;
+                reader.Skip();
+            }
+        }
+        catch (System.Exception error)
+        {
+            Debug.LogWarning($"Skipping unreadable store file {path}: {error.Message}");
+        }
+
+        return false;
+    }
+
     public void LoadStoreConfirm()
     {
-        if (_validStoreFiles.Count == 0) return;
         int index = loadStoreDropdown.value;
         if (index < 0 || index >= _validStoreFiles.Count) return;
+
+        // The load destroys every store object, so drop anything that still points at them.
+        interactionController.AbortPlacement();
+        ClearSelection();
 
         DataHandler.Instance.storeName = _validStoreFiles[index];
         DataHandler.Instance.readSave  = true;
@@ -66,13 +76,7 @@ public partial class SB_UIHandler
         if (savePersistentDataPathText != null)
             savePersistentDataPathText.text = Application.persistentDataPath;
 
-        if (saveStoreCanvas.activeInHierarchy)
-        {
-            saveStoreCanvas.SetActive(false);
-            return;
-        }
-
-        saveStoreCanvas.SetActive(true);
+        ToggleMenu(saveStoreCanvas);
     }
 
     public void OnSaveStoreConfirmPressed()
@@ -85,50 +89,24 @@ public partial class SB_UIHandler
 
     public void OnEditStoreDimensionsPressed()
     {
-        bool open = !storeDimensionsMenu.activeSelf;
-        storeDimensionsMenu.SetActive(open);
+        GameObject floor = DataHandler.Instance.floor;
+        if (!ToggleMenu(storeDimensionsMenu) || floor == null) return;
 
-        if (open)
-        {
-            GameObject floor = DataHandler.Instance.floor;
-            if (floor != null)
-            {
-                storeWidthInput.SetTextWithoutNotify(floor.transform.localScale.x.ToString());
-                storeDepthInput.SetTextWithoutNotify(floor.transform.localScale.z.ToString());
-
-                var roomStructure = floor.GetComponent<RoomStructure>();
-                if (roomStructure != null)
-                    wallHeightInput.SetTextWithoutNotify(roomStructure.wallHeight.ToString());
-            }
-        }
+        storeWidthInput.SetTextWithoutNotify(floor.transform.localScale.x.ToString());
+        storeDepthInput.SetTextWithoutNotify(floor.transform.localScale.z.ToString());
+        wallHeightInput.SetTextWithoutNotify(DataHandler.Instance.WallHeight.ToString());
     }
 
     public void OnStoreDimensionsApplyPressed()
     {
-        GameObject floor = DataHandler.Instance.floor;
-        if (floor == null) return;
+        DataHandler data = DataHandler.Instance;
+        if (data.floor == null) return;
 
-        float width  = float.TryParse(storeWidthInput.text, out float w) && w > 0f ? w : floor.transform.localScale.x;
-        float depth  = float.TryParse(storeDepthInput.text, out float d) && d > 0f ? d : floor.transform.localScale.z;
-
-        var roomStructure = floor.GetComponent<RoomStructure>();
-        if (roomStructure != null)
-        {
-            float wallH = float.TryParse(wallHeightInput.text, out float wh) && wh > 0f ? wh : roomStructure.wallHeight;
-            roomStructure.wallHeight = wallH;
-            roomStructure.SetFloorDimensions(width, depth);
-        }
-        else
-        {
-            Vector3 scale = floor.transform.localScale;
-            scale.x = width;
-            scale.z = depth;
-            floor.transform.localScale = scale;
-        }
-
-        // Wall height may have changed - re-glue every aisle marker to the new ceiling.
-        foreach (AisleMarker marker in FindObjectsByType<AisleMarker>(FindObjectsSortMode.None))
-            marker.RefreshHeight();
+        Vector3 scale = data.floor.transform.localScale;
+        data.ApplyStoreDimensions(
+            ParsePositive(storeWidthInput.text, scale.x),
+            ParsePositive(storeDepthInput.text, scale.z),
+            ParsePositive(wallHeightInput.text, data.WallHeight));
     }
 
     public void OnSpawnIntoStorePressed()

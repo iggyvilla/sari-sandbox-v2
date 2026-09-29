@@ -176,7 +176,7 @@ public class ShelfItemData : MonoBehaviour
 
     public static string KeyPrefix(int shelfId) => $"ID{shelfId}_";
 
-    static string SaveKey(ShelfInfo si) => $"{KeyPrefix(si.shelfId)}{si.subShelfId}_{si.subSubShelfId}";
+    static string SaveKey(ShelfInfo si) => KeyPrefix(si.shelfId) + ShelfBuilder.CategoryKey(si);
 
     RetailItemData GetRandomProduct(ItemCategory itemCategory)
     {

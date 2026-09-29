@@ -14,6 +14,7 @@ struct DrawData {
 struct LodRenderData {
     float4 rotation;
     float4 scale;
+    float4 offset; // LOD position minus the shared _Positions entry
 };
 
 StructuredBuffer<uint> _VisibleIndices;
@@ -56,7 +57,7 @@ inline void SetUnityMatrices(uint instanceID, inout float4x4 objectToWorld, inou
     LodRenderData lodData = _LodTransformData[sourceIndex];
 
     DrawData drawData;
-    drawData.position = _Positions[sourceIndex].xyz;
+    drawData.position = _Positions[sourceIndex].xyz + lodData.offset.xyz;
     drawData.rotation = lodData.rotation;
     drawData.scale = lodData.scale.xyz;
   
@@ -82,6 +83,23 @@ inline void SetUnityMatrices(uint instanceID, inout float4x4 objectToWorld, inou
 void passthroughVec3_float(in float3 In, out float3 Out)
 {
     Out = In;
+}
+
+// Merged-submesh materials (see SubmeshMerger): vertex color = base color (a = texture weight),
+// UV2 = (metallic, smoothness).
+void ApplyVertexMaterial_float(in float3 BaseColor, in float Metallic, in float Smoothness,
+    in float4 VertexColor, in float4 MaterialData, in float Enabled,
+    out float3 BaseColorOut, out float MetallicOut, out float SmoothnessOut)
+{
+    BaseColorOut = BaseColor;
+    MetallicOut = Metallic;
+    SmoothnessOut = Smoothness;
+    if (Enabled > 0.5)
+    {
+        BaseColorOut = lerp(1.0, BaseColor, VertexColor.a) * VertexColor.rgb;
+        MetallicOut = MaterialData.x;
+        SmoothnessOut = MaterialData.y;
+    }
 }
 
 void setup()

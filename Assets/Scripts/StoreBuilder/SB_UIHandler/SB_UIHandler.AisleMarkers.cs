@@ -43,10 +43,9 @@ public partial class SB_UIHandler
     private void ApplyToSelectedAisleMarker()
     {
         if (_selectedAisleMarker == null) return;
-        _selectedAisleMarker.BuildAisleMarker(_aisleCategory1, _aisleCategory2,
-            _aisleCategory3, _aisleNumber, _aisleCableLength);
+        ApplyAisleMarkerSettings(_selectedAisleMarker);
         if (_activePropSelector != null)
-            _activePropSelector.EncapsulateProp(_selectedAisleMarker.gameObject);
+            _activePropSelector.Refit();
     }
 
     // Wired to each aisle marker InputField's OnValueChanged event in the Inspector.
@@ -70,17 +69,15 @@ public partial class SB_UIHandler
 
     public void OnAisleNumberChanged(string value)
     {
-        if (!int.TryParse(value, out int result))
-            result = _aisleNumber;
-        _aisleNumber = result;
+        if (int.TryParse(value, out int number))
+            _aisleNumber = number;
         ApplyToSelectedAisleMarker();
     }
 
     public void OnAisleCableLengthChanged(string value)
     {
-        if (!float.TryParse(value, out float result))
-            result = _aisleCableLength;
-        _aisleCableLength = Mathf.Max(0f, result);
+        if (float.TryParse(value, out float length))
+            _aisleCableLength = Mathf.Max(0f, length);
         ApplyToSelectedAisleMarker();
     }
 }

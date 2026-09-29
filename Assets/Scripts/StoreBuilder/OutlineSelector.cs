@@ -10,98 +10,56 @@ public static class StoreBuilderLayers
 }
 
 /// <summary>
-/// Invisible outline box over a store-builder object. Click toggles selection; while selected,
-/// R/M/D rotate, move and duplicate the object.
+/// Invisible outline box over a store-builder object (shelf or prop). SB_InteractionController
+/// routes clicks and R/M/D to it; the outline shows while it is selected.
 /// </summary>
-public abstract class OutlineSelector : MonoBehaviour
+public class OutlineSelector : MonoBehaviour
 {
-    public SB_UIHandler uiHandler;
-    public SB_InteractionController interactionController;
+    /// <summary>The object this box wraps.</summary>
+    public GameObject Target { get; private set; }
+
+    /// <summary>The wrapped shelf, or null when the target is a prop.</summary>
+    public ShelfBuilder Shelf { get; private set; }
 
     private OutlineFx.OutlineFx _outlineFx;
-    private Camera _cam;
-
-    // One click raycast per frame, shared by every selector.
-    private static int s_clickFrame = -1;
-    private static Collider s_clickedCollider;
-
-    protected virtual void Awake()
-    {
-        _outlineFx = GetComponent<OutlineFx.OutlineFx>();
-        _outlineFx.enabled = false;
-        _cam = Camera.main;
-    }
-
-    void Update()
-    {
-        if (interactionController != null && interactionController.IsInPlacementMode) return;
-        if (!uiHandler.interactionControlsEnabled) return;
-
-        if (IsSelected())
-        {
-            if (Input.GetKeyDown(KeyCode.R)) { Rotate(); return; }
-            if (Input.GetKeyDown(KeyCode.M)) { Move(); return; }
-            if (Input.GetKeyDown(KeyCode.D)) { Duplicate(); return; }
-        }
-
-        if (!Input.GetMouseButtonDown(0)) return;
-
-        Ray ray = _cam.ScreenPointToRay(Input.mousePosition);
-        Collider clicked = ClickedCollider(ray);
-        if (clicked == null || clicked.gameObject != gameObject) return;
-        OnClicked(ray);
-    }
-
-    protected abstract void Rotate();
-    protected abstract void Move();
-    protected abstract void Duplicate();
-    protected abstract void OnClicked(Ray ray);
 
     public void Select() => _outlineFx.enabled = true;
     public void Deselect() => _outlineFx.enabled = false;
-    public bool IsSelected() => _outlineFx.enabled;
+    public bool IsSelected => _outlineFx.enabled;
 
-    /// <summary>Fits this box around every renderer under <paramref name="target"/>.</summary>
-    protected void Encapsulate(GameObject target)
+    /// <summary>Fits this box around every renderer under the target.</summary>
+    public void Refit()
     {
-        Bounds bounds = GetCombinedBounds(target);
+        Bounds bounds = GetCombinedBounds(Target);
         bounds.Expand(0.01f);
         transform.position = bounds.center;
         transform.localScale = bounds.size;
     }
 
-    /// <summary>Creates a trigger cube on the interactable layer carrying a selector of type T.</summary>
-    public static T CreateBox<T>(
-        Material material,
-        SB_UIHandler uiHandler,
-        SB_InteractionController interactionController) where T : OutlineSelector
+    public void DestroyWithTarget()
+    {
+        Destroy(Target);
+        Destroy(gameObject);
+    }
+
+    /// <summary>Creates a trigger cube on the interactable layer wrapped around <paramref name="target"/>.</summary>
+    public static OutlineSelector Create(Material material, GameObject target)
     {
         GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cube.name = $"{target.name} Selector";
         cube.layer = LayerMask.NameToLayer(StoreBuilderLayers.Interactable);
         cube.GetComponent<Renderer>().sharedMaterial = material;
         // Keep selection bounds raycastable without interfering with physics.
         cube.GetComponent<BoxCollider>().isTrigger = true;
-        cube.AddComponent<OutlineFx.OutlineFx>();
 
-        T selector = cube.AddComponent<T>();
-        selector.uiHandler = uiHandler;
-        selector.interactionController = interactionController;
+        OutlineSelector selector = cube.AddComponent<OutlineSelector>();
+        selector._outlineFx = cube.AddComponent<OutlineFx.OutlineFx>();
+        selector._outlineFx.enabled = false;
+        selector.Target = target;
+        selector.Shelf = target.GetComponent<ShelfBuilder>();
+        if (selector.Shelf != null) selector.Shelf.Selector = selector;
+        selector.Refit();
         return selector;
-    }
-
-    private static Collider ClickedCollider(Ray ray)
-    {
-        if (s_clickFrame == Time.frameCount) return s_clickedCollider;
-
-        s_clickFrame = Time.frameCount;
-        s_clickedCollider = Physics.Raycast(
-            ray,
-            out RaycastHit hit,
-            StoreBuilderLayers.RayLength,
-            LayerMask.GetMask(StoreBuilderLayers.Interactable))
-            ? hit.collider
-            : null;
-        return s_clickedCollider;
     }
 
     private static Bounds GetCombinedBounds(GameObject parent)

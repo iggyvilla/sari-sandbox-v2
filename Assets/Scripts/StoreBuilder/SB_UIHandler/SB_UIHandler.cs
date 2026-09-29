@@ -25,13 +25,10 @@ public partial class SB_UIHandler : MonoBehaviour
     private const float DefaultShelfRoofHeight       = 0.4f;
     private const float DefaultBootHeight            = 0.4f;
 
-    // Set externally (e.g. by a shelf-selection script) before any UI interaction
-    public ShelfBuilder selectedShelf;
-
     public TextMeshProUGUI selectedShelfText;
 
-    private ShelfSelector _activeSelector;
-    private PropSelector _activePropSelector;
+    private OutlineSelector _activeShelfSelector;
+    private OutlineSelector _activePropSelector;
     private SubShelfMarker _activeSubShelf;
 
     public Toggle priceTagToggle;
@@ -86,8 +83,6 @@ public partial class SB_UIHandler : MonoBehaviour
 
     private List<string> _validStoreFiles = new();
 
-    public bool interactionControlsEnabled = true;
-
     void Start()
     {
         UpdateSelectedShelfText();
@@ -104,12 +99,11 @@ public partial class SB_UIHandler : MonoBehaviour
         dropdown.AddOptions(new List<string>(Enum.GetNames(typeof(T))));
     }
 
-    // Enables/disables the SB_InteractionController's input handling (Input.GetKeyDown,
-    // camera rotation, shelf/prop placement, etc.). Hook this up to the OnSelect/OnDeselect
-    // (or OnFocus/OnBlur) events of text input fields so the interaction controller doesn't
-    // capture keystrokes while the user is typing.
-    public void SetInteractionControlsEnabled(bool isEnabled)
+    // Flips a menu's visibility and returns whether it is now open.
+    static bool ToggleMenu(GameObject menu)
     {
-        interactionControlsEnabled = isEnabled;
+        bool open = !menu.activeSelf;
+        menu.SetActive(open);
+        return open;
     }
 }

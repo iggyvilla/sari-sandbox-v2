@@ -524,6 +524,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -1352,6 +1353,31 @@ MonoBehaviour:
   ceilingLightSpacingX: 1.5
   ceilingLightSpacingZ: 2
   ceilingLightYOffset: 0
+  ventPrefab: {fileID: 0}
+  electricalSocketPrefab: {fileID: 0}
+  lightSocketPrefab: {fileID: 0}
+  clockPrefab: {fileID: 0}
+  lightPrefab: {fileID: 0}
+  rightWallProps:
+    shouldSpawnVents: 0
+    shouldSpawnSockets: 0
+    lightSwitchSide: 0
+    shouldSpawnClock: 0
+  leftWallProps:
+    shouldSpawnVents: 0
+    shouldSpawnSockets: 0
+    lightSwitchSide: 0
+    shouldSpawnClock: 0
+  frontWallProps:
+    shouldSpawnVents: 0
+    shouldSpawnSockets: 0
+    lightSwitchSide: 0
+    shouldSpawnClock: 0
+  backWallProps:
+    shouldSpawnVents: 0
+    shouldSpawnSockets: 0
+    lightSwitchSide: 0
+    shouldSpawnClock: 0
   fadeStartDot: 0.2
   minWallAlpha: 0.05
 --- !u!1 &611303187
@@ -1528,6 +1554,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -1664,6 +1691,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -1737,6 +1765,8 @@ MonoBehaviour:
   mainCamera: {fileID: 0}
   frustumCullingShader: {fileID: 7200000, guid: d5463ca6d0b334167b75bd90351fcb44, type: 3}
   proceduralUrpLitShader: {fileID: -6465566751694194690, guid: 8006f7beaf2004d31a1813a124fd0cf0, type: 3}
+  frustumCulling: 1
+  occlusionCulling: 0
   enableLod2AndLod3: 0
 --- !u!4 &669521194
 Transform:
@@ -1817,6 +1847,7 @@ MonoBehaviour:
   storeName: TestStore
   readSave: 0
   shelfPrefab: {fileID: 8567933062152369383, guid: 619d32653861a4afebe652c3a9d27dde, type: 3}
+  fridgePrefab: {fileID: 2128580248598948549, guid: 72577c29e8117417d9aa34dc1d04bbb9, type: 3}
   floor: {fileID: 593330296}
   uiHandler: {fileID: 0}
   interactionController: {fileID: 0}
@@ -1954,6 +1985,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -2140,6 +2172,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -2276,6 +2309,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -2490,6 +2524,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -2623,6 +2658,9 @@ MonoBehaviour:
   port: 8080
   agentController: {fileID: 0}
   ikHumanoidGhostPrefab: {fileID: 7456162950078149447, guid: 91147938a35b74fbdb1356d28a996d49, type: 3}
+  sariSandboxV1CompatibilityLayer: 0
+  distributedBenchmarkBuild: 0
+  coordinatorUrl: 
   chatUIManager: {fileID: 0}
 --- !u!114 &1456967139
 MonoBehaviour:
@@ -3412,6 +3450,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0

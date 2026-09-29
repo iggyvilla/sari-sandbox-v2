@@ -17,11 +17,18 @@ public class GPUInstanceTracker : MonoBehaviour
     [Tooltip("Also cull products hidden behind this frame's depth prepass (needs HiZOcclusionFeature on the renderer).")]
     [SerializeField] private bool occlusionCulling = false;
 
+    [Tooltip("Scene view draws the main camera's culling results instead of culling itself, so culling is visible.")]
+    [SerializeField] private bool sceneViewShowsMainCameraCulling = true;
+
+    [Tooltip("Merge opaque submeshes with matching render state into one draw (see SubmeshMerger).")]
+    [SerializeField] private bool mergeSubmeshes = true;
+
     // LOD2/LOD3 are disabled until their mesh scales are fixed.
     [SerializeField] private bool enableLod2AndLod3 = false;
 
     // Ascending max distances; the last is the hard cull distance.
     private static readonly float[] DefaultMaxDistances = { 5f, 7f, 10f, 15f };
+    private const int DefaultActiveLods = 2;
     private const int DestroyedCameraPurgeInterval = 120;
     private const string FrustumCullingFlag = "-sariFrustumCulling";
     private const string OcclusionCullingFlag = "-sariOcclusionCulling";
@@ -33,6 +40,13 @@ public class GPUInstanceTracker : MonoBehaviour
     private InstanceCullingSystem _culling;
 
     public Camera MainCamera => mainCamera;
+
+    // How many LODs instanced products use (physics prefabs mirror this, see ProductLodSetup).
+    public static int ActiveLodCount =>
+        Instance != null && Instance.enableLod2AndLod3 ? LodHierarchy.MaxLods : DefaultActiveLods;
+
+    // Distance below which LOD `lod` is used.
+    public static float LodMaxDistance(int lod) => DefaultMaxDistances[lod];
 
     public bool FrustumCullingEnabled
     {
@@ -96,6 +110,9 @@ public class GPUInstanceTracker : MonoBehaviour
     private void OnBeginCameraRendering(ScriptableRenderContext _, Camera cam)
     {
         if (!DrawsProducts(cam)) return;
+        if (cam.cameraType == CameraType.SceneView && sceneViewShowsMainCameraCulling &&
+            _culling.RenderCameraAs(cam, mainCamera != null ? mainCamera : Camera.main))
+            return;
 
         CullView view = CullView.ForCamera(
             cam.transform.position,
@@ -184,12 +201,7 @@ public class GPUInstanceTracker : MonoBehaviour
         {
             bi = CreateBatcher(itemId, new[]
             {
-                new LODDefinition
-                {
-                    mesh = mesh,
-                    materials = CloneMaterialsForInstancing(materials),
-                    maxDistance = DefaultMaxDistances[LodHierarchy.MaxLods - 1]
-                }
+                MakeLod(mesh, materials, DefaultMaxDistances[LodHierarchy.MaxLods - 1])
             });
         }
         bi.AddObjectToBatch(MakeChunkInstanceData(position));
@@ -219,7 +231,7 @@ public class GPUInstanceTracker : MonoBehaviour
     private LODDefinition[] BuildLodDefinitions(GameObject obj)
     {
         Transform[] lodTransforms = LodHierarchy.ResolveLodTransforms(obj);
-        int activeLods = enableLod2AndLod3 ? LodHierarchy.MaxLods : 2;
+        int activeLods = ActiveLodCount;
         var lodList = new List<LODDefinition>();
 
         for (int i = 0; i < activeLods; i++)
@@ -232,12 +244,7 @@ public class GPUInstanceTracker : MonoBehaviour
                 ? DefaultMaxDistances[LodHierarchy.MaxLods - 1]
                 : DefaultMaxDistances[i];
 
-            lodList.Add(new LODDefinition
-            {
-                mesh = mf.sharedMesh,
-                materials = CloneMaterialsForInstancing(mr.sharedMaterials),
-                maxDistance = maxDistance
-            });
+            lodList.Add(MakeLod(mf.sharedMesh, mr.sharedMaterials, maxDistance));
         }
 
         if (lodList.Count > 0) return lodList.ToArray();
@@ -246,17 +253,31 @@ public class GPUInstanceTracker : MonoBehaviour
         return null;
     }
 
+    private LODDefinition MakeLod(Mesh mesh, Material[] sourceMaterials, float maxDistance) =>
+        BuildLod(mesh, sourceMaterials, maxDistance, proceduralUrpLitShader, mergeSubmeshes);
+
+    // Shared with editor tools so previews use the exact runtime mesh/material conversion.
+    public static LODDefinition BuildLod(
+        Mesh mesh, Material[] sourceMaterials, float maxDistance, Shader instancingShader, bool merge)
+    {
+        Material[] materials = CloneMaterialsForInstancing(sourceMaterials, instancingShader);
+        if (merge)
+            (mesh, materials) = SubmeshMerger.Merge(mesh, materials);
+        return new LODDefinition { mesh = mesh, materials = materials, maxDistance = maxDistance };
+    }
+
     // Each batcher needs its own material clones: shared materials across meshes break procedural instancing.
-    private Material[] CloneMaterialsForInstancing(Material[] source)
+    private static Material[] CloneMaterialsForInstancing(Material[] source, Shader instancingShader)
     {
         var cloned = new Material[source.Length];
         for (int i = 0; i < source.Length; i++)
         {
             cloned[i] = new Material(source[i])
             {
-                shader = proceduralUrpLitShader,
+                shader = instancingShader,
                 enableInstancing = true
             };
+            ProductMaterials.ApplyDepthWrite(cloned[i]);
         }
         return cloned;
     }

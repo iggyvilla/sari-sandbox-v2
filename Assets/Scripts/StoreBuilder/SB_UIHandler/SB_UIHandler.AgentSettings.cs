@@ -2,10 +2,7 @@ public partial class SB_UIHandler
 {
     public void OnAgentSettingsMenuPressed()
     {
-        bool open = !agentSettingsMenu.activeSelf;
-        agentSettingsMenu.SetActive(open);
-
-        if (open)
+        if (ToggleMenu(agentSettingsMenu))
             SyncAgentSettingsDropdowns();
     }
 

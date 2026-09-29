@@ -8,6 +8,12 @@ public class ItemPoolingManager : MonoBehaviour
     private const float ItemMaxDepenetrationVelocity = 0.25f;
     private const int ItemSolverIterations = 12;
     private const int ItemSolverVelocityIterations = 4;
+    // Prefabs ship with 50 rad/s and 0.05 damping; a stacked can that gets kicked then spins up and flings its column.
+    private const float ItemMaxAngularVelocity = 8f;
+    private const float ItemAngularDamping = 0.5f;
+    private const float ItemSleepThreshold = 0.02f;
+    // Default is 1 cm, which is a fifth of a can: resting stacks keep generating contacts and jitter.
+    private const float ItemContactOffset = 0.003f;
 
     private readonly Dictionary<string, Queue<GameObject>> _pool = new();
     private Transform _poolParent;
@@ -60,7 +66,11 @@ public class ItemPoolingManager : MonoBehaviour
         if (rb != null)
         {
             RetailItemRuntimeService.MakeDynamic(rb);
-            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            // ContinuousDynamic sweeps resting, exactly-touching stack members against each other.
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+            rb.angularDamping = ItemAngularDamping;
+            rb.maxAngularVelocity = ItemMaxAngularVelocity;
+            rb.sleepThreshold = ItemSleepThreshold;
             rb.maxDepenetrationVelocity = ItemMaxDepenetrationVelocity;
             rb.solverIterations = ItemSolverIterations;
             rb.solverVelocityIterations = ItemSolverVelocityIterations;
@@ -129,18 +139,8 @@ public class ItemPoolingManager : MonoBehaviour
 
     private GameObject CreatePhysicsItem(string itemId, Vector3 position, Quaternion rotation)
     {
-        GameObject prefab = ProductPrefabs.Load(itemId);
-        if (prefab == null)
-        {
-            Debug.LogError($"ItemPoolingManager: prefab not found for {itemId}");
-            return null;
-        }
-
-        GameObject obj = Instantiate(prefab, position, rotation);
-        obj.name = itemId;
-        obj.tag = "RetailItem";
-        ApplyStablePhysicsMaterial(obj);
-
+        GameObject obj = ProductPrefabs.Spawn(itemId, position, rotation);
+        if (obj != null) ApplyStablePhysicsMaterial(obj);
         return obj;
     }
 
@@ -164,8 +164,9 @@ public class ItemPoolingManager : MonoBehaviour
         Collider[] colliders = obj.GetComponentsInChildren<Collider>(true);
         foreach (Collider collider in colliders)
         {
-            if (!collider.isTrigger)
-                collider.sharedMaterial = _stableItemMaterial;
+            if (collider.isTrigger) continue;
+            collider.sharedMaterial = _stableItemMaterial;
+            collider.contactOffset = ItemContactOffset;
         }
     }
 }

@@ -165,7 +165,22 @@ public sealed class InstanceCullingSystem : IDisposable
 
         Cull(cmd, viewer, view, cam.cullingMatrix);
         viewer.drawnFrame = Time.frameCount;
+        Draw(cam, viewer);
+    }
 
+    // Draws another camera's latest culling results into cam (debug view); false if source has none.
+    public bool RenderCameraAs(Camera cam, Camera source)
+    {
+        if (source == null || !_cameras.TryGetValue(source, out ViewerResult viewer) ||
+            !viewer.hasResults || viewer.boundVersion != _version)
+            return false;
+
+        Draw(cam, viewer);
+        return true;
+    }
+
+    private void Draw(Camera cam, ViewerResult viewer)
+    {
         for (int i = 0; i < _batchers.Count; i++)
         {
             if (viewer.lodMasks[i] != 0)
