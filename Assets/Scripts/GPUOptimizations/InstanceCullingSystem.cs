@@ -66,7 +66,7 @@ public sealed class InstanceCullingSystem : IDisposable
         public uint numLods;
         public uint visibleOffset;
         public uint count;
-        public uint pad;
+        public uint firstInstance;
     }
 
     // GPU results for one viewer (a camera or the LiDAR), so viewers never share counts.
@@ -74,6 +74,7 @@ public sealed class InstanceCullingSystem : IDisposable
     {
         public ComputeBuffer visible;
         public ComputeBuffer counts;
+        public ComputeBuffer instanceLods;
         public ComputeBuffer args;
         public MaterialPropertyBlock[][] props; // [batch][lod]
         public int[] lodMasks;                  // per batch; 0 = not drawn
@@ -90,8 +91,9 @@ public sealed class InstanceCullingSystem : IDisposable
         {
             visible?.Release();
             counts?.Release();
+            instanceLods?.Release();
             args?.Release();
-            visible = counts = args = null;
+            visible = counts = instanceLods = args = null;
         }
     }
 
@@ -101,6 +103,7 @@ public sealed class InstanceCullingSystem : IDisposable
     private static readonly int ArgsSourcesId = Shader.PropertyToID("args_sources");
     private static readonly int CountsId = Shader.PropertyToID("counts");
     private static readonly int VisibleId = Shader.PropertyToID("visible");
+    private static readonly int InstanceLodsId = Shader.PropertyToID("instance_lods");
     private static readonly int ArgsId = Shader.PropertyToID("args");
     private static readonly int NumInstancesId = Shader.PropertyToID("num_instances");
     private static readonly int NumCountersId = Shader.PropertyToID("num_counters");
@@ -121,6 +124,7 @@ public sealed class InstanceCullingSystem : IDisposable
     private readonly ComputeShader _shader;
     private readonly int _clearKernel;
     private readonly int _cullKernel;
+    private readonly int _compactKernel;
     private readonly int _argsKernel;
 
     private readonly List<BatchInstancer> _batchers = new();
@@ -145,6 +149,7 @@ public sealed class InstanceCullingSystem : IDisposable
         _shader = shader;
         _clearKernel = shader.FindKernel("ClearCounts");
         _cullKernel = shader.FindKernel("Cull");
+        _compactKernel = shader.FindKernel("Compact");
         _argsKernel = shader.FindKernel("WriteArgs");
     }
 
@@ -304,7 +309,8 @@ public sealed class InstanceCullingSystem : IDisposable
                 lodDistancesSq = batcher.LodDistancesSq,
                 numLods = (uint)batcher.LodCount,
                 visibleOffset = (uint)_visibleSize,
-                count = (uint)count
+                count = (uint)count,
+                firstInstance = (uint)instances.Count
             };
             _visibleSize += count * batcher.LodCount;
 
@@ -386,6 +392,7 @@ public sealed class InstanceCullingSystem : IDisposable
         viewer.Release();
         viewer.visible = new ComputeBuffer(Mathf.Max(1, _visibleSize), sizeof(uint));
         viewer.counts = new ComputeBuffer(Mathf.Max(1, _batchers.Count * BatchInstancer.MaxLods), sizeof(uint));
+        viewer.instanceLods = new ComputeBuffer(Mathf.Max(1, _instanceCount), sizeof(uint));
         viewer.args = new ComputeBuffer(
             Mathf.Max(1, _argsEntries) * ArgsStride, sizeof(uint), ComputeBufferType.IndirectArguments);
         if (_argsEntries > 0)
@@ -432,8 +439,7 @@ public sealed class InstanceCullingSystem : IDisposable
 
             cmd.SetComputeBufferParam(_shader, _cullKernel, InstancesId, _instanceBuffer);
             cmd.SetComputeBufferParam(_shader, _cullKernel, BatchesId, _batchBuffer);
-            cmd.SetComputeBufferParam(_shader, _cullKernel, CountsId, viewer.counts);
-            cmd.SetComputeBufferParam(_shader, _cullKernel, VisibleId, viewer.visible);
+            cmd.SetComputeBufferParam(_shader, _cullKernel, InstanceLodsId, viewer.instanceLods);
             cmd.SetComputeIntParam(_shader, NumInstancesId, _instanceCount);
             cmd.SetComputeIntParam(_shader, CullFlagsId, flags);
             cmd.SetComputeVectorParam(_shader, CullOriginId, origin);
@@ -450,6 +456,12 @@ public sealed class InstanceCullingSystem : IDisposable
                 cmd.SetComputeVectorParam(_shader, HiZSizeId, occlusion.size);
             }
             cmd.DispatchCompute(_shader, _cullKernel, GroupCount(_instanceCount), 1, 1);
+
+            cmd.SetComputeBufferParam(_shader, _compactKernel, BatchesId, _batchBuffer);
+            cmd.SetComputeBufferParam(_shader, _compactKernel, InstanceLodsId, viewer.instanceLods);
+            cmd.SetComputeBufferParam(_shader, _compactKernel, CountsId, viewer.counts);
+            cmd.SetComputeBufferParam(_shader, _compactKernel, VisibleId, viewer.visible);
+            cmd.DispatchCompute(_shader, _compactKernel, Mathf.Max(1, _batchers.Count), 1, 1);
 
             cmd.SetComputeIntParam(_shader, NumArgsId, _argsEntries);
             cmd.SetComputeBufferParam(_shader, _argsKernel, ArgsSourcesId, _argsSourceBuffer);

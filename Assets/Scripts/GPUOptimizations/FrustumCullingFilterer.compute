@@ -1,7 +1,10 @@
 // GPU-driven culling for every instanced product: one Cull dispatch covers all batches.
-// ClearCounts -> Cull -> WriteArgs, recorded per viewer (camera or LiDAR).
+// ClearCounts -> Cull -> Compact -> WriteArgs, recorded per viewer (camera or LiDAR).
+// Cull picks each instance's LOD; Compact then builds the visible lists in instance order, so draw order
+// is identical every frame (atomic appends reshuffle it, which flickers overlapping transparent instances).
 #pragma kernel ClearCounts
 #pragma kernel Cull
+#pragma kernel Compact
 #pragma kernel WriteArgs
 
 // Keep in sync with InstanceCullingSystem.
@@ -9,6 +12,8 @@
 #define CULL_RANGE     2
 #define CULL_OCCLUSION 4
 #define MAX_LODS       4
+#define INVALID_LOD    0xFFFFFFFF
+#define COMPACT_GROUP  128
 
 struct InstanceCullData
 {
@@ -23,7 +28,7 @@ struct BatchCullData
     uint numLods;
     uint visibleOffset;    // start of this batch's regions in `visible` (one region of `count` per LOD)
     uint count;
-    uint pad;
+    uint firstInstance;    // index of the batch's first instance in `instances` / `instance_lods`
 };
 
 StructuredBuffer<InstanceCullData> instances;
@@ -31,6 +36,7 @@ StructuredBuffer<BatchCullData> batches;
 StructuredBuffer<uint> args_sources; // per indirect-args entry: its counter index (batch * MAX_LODS + lod)
 RWStructuredBuffer<uint> counts;     // visible instances per (batch, LOD)
 RWStructuredBuffer<uint> visible;    // compact per-(batch, LOD) lists of in-batch instance indices
+RWStructuredBuffer<uint> instance_lods; // per instance: chosen LOD, or INVALID_LOD when culled
 RWStructuredBuffer<uint> args;       // indirect draw args, 5 uints per entry
 int num_instances;
 int num_counters;
@@ -91,22 +97,16 @@ bool IsOccluded(float4 sphere)
     return nearestDepth > occluderDepth + hiz_projection.w;
 }
 
-[numthreads(64, 1, 1)]
-void Cull(uint3 id : SV_DispatchThreadID)
+// LOD for an instance, or INVALID_LOD when it is culled.
+uint CullLod(InstanceCullData instance, BatchCullData batch)
 {
-    if (id.x >= (uint)num_instances) return;
-
-    InstanceCullData instance = instances[id.x];
-    uint batchIndex = instance.id >> 16;
-    BatchCullData batch = batches[batchIndex];
-
     if (cull_flags & CULL_FRUSTUM)
     {
         [unroll]
         for (int i = 0; i < 6; i++)
         {
             if (dot(planes[i].xyz, instance.sphere.xyz) + planes[i].w < -instance.sphere.w)
-                return;
+                return INVALID_LOD;
         }
     }
 
@@ -117,24 +117,73 @@ void Cull(uint3 id : SV_DispatchThreadID)
     // cameras hard-cull at the farthest LOD distance.
     if (cull_flags & CULL_RANGE)
     {
-        if (distSq > range_max_distance_sq) return;
+        if (distSq > range_max_distance_sq) return INVALID_LOD;
     }
     else if (distSq >= batch.lodDistancesSq[batch.numLods - 1])
     {
-        return;
+        return INVALID_LOD;
     }
 
-    if ((cull_flags & CULL_OCCLUSION) && IsOccluded(instance.sphere)) return;
+    if ((cull_flags & CULL_OCCLUSION) && IsOccluded(instance.sphere)) return INVALID_LOD;
 
     uint lod = batch.numLods - 1;
     for (uint j = 0; j < batch.numLods - 1; j++)
     {
         if (distSq < batch.lodDistancesSq[j]) { lod = j; break; }
     }
+    return lod;
+}
 
-    uint slot;
-    InterlockedAdd(counts[batchIndex * MAX_LODS + lod], 1, slot);
-    visible[batch.visibleOffset + lod * batch.count + slot] = instance.id & 0xFFFF;
+[numthreads(64, 1, 1)]
+void Cull(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)num_instances) return;
+
+    InstanceCullData instance = instances[id.x];
+    instance_lods[id.x] = CullLod(instance, batches[instance.id >> 16]);
+}
+
+groupshared uint g_scan[COMPACT_GROUP];
+groupshared uint g_running[MAX_LODS];
+
+// One group per batch: walks its instances in order, in chunks, and appends each visible one to its LOD's list.
+// Each thread adds 1 << (8 * lod) to a packed scan (a chunk holds <= 128 per lane, so lanes never carry).
+[numthreads(COMPACT_GROUP, 1, 1)]
+void Compact(uint3 group : SV_GroupID, uint3 thread : SV_GroupThreadID)
+{
+    BatchCullData batch = batches[group.x];
+    uint t = thread.x;
+    if (t < MAX_LODS) g_running[t] = 0;
+    GroupMemoryBarrierWithGroupSync();
+
+    for (uint start = 0; start < batch.count; start += COMPACT_GROUP)
+    {
+        uint index = start + t;
+        uint lod = index < batch.count ? instance_lods[batch.firstInstance + index] : INVALID_LOD;
+        uint value = lod < MAX_LODS ? (1u << (8u * lod)) : 0u;
+
+        g_scan[t] = value;
+        GroupMemoryBarrierWithGroupSync();
+        for (uint offset = 1; offset < COMPACT_GROUP; offset <<= 1)
+        {
+            uint add = t >= offset ? g_scan[t - offset] : 0u;
+            GroupMemoryBarrierWithGroupSync();
+            g_scan[t] += add;
+            GroupMemoryBarrierWithGroupSync();
+        }
+
+        if (lod < MAX_LODS)
+        {
+            uint rank = ((g_scan[t] - value) >> (8u * lod)) & 0xFFu;
+            visible[batch.visibleOffset + lod * batch.count + g_running[lod] + rank] = index;
+        }
+        GroupMemoryBarrierWithGroupSync();
+
+        if (t < MAX_LODS) g_running[t] += (g_scan[COMPACT_GROUP - 1] >> (8u * t)) & 0xFFu;
+        GroupMemoryBarrierWithGroupSync();
+    }
+
+    if (t < MAX_LODS) counts[group.x * MAX_LODS + t] = g_running[t];
 }
 
 [numthreads(64, 1, 1)]
