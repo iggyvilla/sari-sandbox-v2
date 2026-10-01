@@ -18,6 +18,12 @@ public partial class RoomStructure
 
     const string PiecesPath = "LoafbrrAssets/Interiors_A/prefabs/";
     const string VentPath = "Vent/Vent_Vent";
+    const string PlugsPath = "Decal/Decal_Wall_Plugs";
+    const string SwitchPath = "Decal/Decal_Wall_Switch";
+    const string PillarPath = "wall/Wall_Pillar_A";
+    const float PillarProud = 0.002f;
+    const string ThresholdName = "Floor_Threshold";
+    const float FloorMeshSize = 10f;   // the floor primitive's size at scale 1
     const string RoadPath = "ModularLowpolyStreetsFree/Prefabs/Complex/Road_1_line_10m";
     const float RoadScale = 3f;
     const float PropClearance = 0.2f;
@@ -222,6 +228,7 @@ public partial class RoomStructure
 
         SpawnRoad();
         SpawnStreetBuildings();
+        SpawnPavement();
     }
 
     void BuildSide(WallSide side)
@@ -242,7 +249,11 @@ public partial class RoomStructure
 
         int at = _slots.FindIndex(slot => slot.side == side);
         foreach (WallSlot old in _slots)
-            if (old.side == side && old.go != null) Destroy(old.go);
+        {
+            if (old.side != side || old.go == null) continue;
+            ReleaseThreshold(old.go);
+            Destroy(old.go);
+        }
         _slots.RemoveAll(slot => slot.side == side);
 
         List<WallSlot> slots = SpawnSlots(side, GetWallFrame(side), wall.root);
@@ -288,9 +299,71 @@ public partial class RoomStructure
             box.size = new Vector3(info.width, WallLayout.RowHeight, WallLayout.Thickness);
         }
 
+        if (slot.pillarStart) SpawnPillar(slot, -1f);
+        if (slot.pillarEnd) SpawnPillar(slot, 1f);
+
         if (info.door == null) return;
+        SpawnThreshold(slot);
         GameObject door = LoadPrefab(info.door);
         if (door != null) Instantiate(door, slot.position, slot.rotation, slot.go.transform);
+    }
+
+    // Covers the hollow end of an open window edge (`side` -1 = start, +1 = end); lives under the slot so it is rebuilt
+    // and faded with it. It stands just past the edge on the neighbouring wall, so the window keeps its full width.
+    // Squeezed to the wall's depth (2 mm proud) and just under the row top: wall props then stay visible on it and
+    // its faces don't z-fight with the sheets or the top cap.
+    void SpawnPillar(WallSlot slot, float side)
+    {
+        GameObject prefab = LoadPrefab(PillarPath);
+        if (prefab == null) return;
+
+        Vector3 size = LocalBounds(prefab).size;
+        Transform pillar = Instantiate(prefab, slot.go.transform).transform;
+        pillar.localPosition = new Vector3(side * (slot.width + size.x) * 0.5f, 0f, 0f);
+        pillar.localScale = new Vector3(1f, (WallLayout.RowHeight - PillarProud) / size.y, (WallLayout.Thickness + 2f * PillarProud) / size.z);
+    }
+
+    // The floor stops at the wall's inner face: a strip of the floor under each door keeps the void out of the doorway.
+    void SpawnThreshold(WallSlot slot)
+    {
+        Transform parent = slot.go.transform;
+        float halfWidth = slot.width * 0.5f, halfDepth = WallLayout.Thickness * 0.5f;
+        var corners = new[]   // clockwise from above, local +Z is into the store
+        {
+            new Vector3(-halfWidth, 0f, -halfDepth), new Vector3(-halfWidth, 0f, halfDepth),
+            new Vector3(halfWidth, 0f, halfDepth), new Vector3(halfWidth, 0f, -halfDepth)
+        };
+
+        // Same mapping as the floor primitive (u and v run against x and z), so the tiles carry on across the joint.
+        var uvs = new Vector2[corners.Length];
+        for (int i = 0; i < corners.Length; i++)
+        {
+            Vector3 onFloor = transform.InverseTransformPoint(parent.TransformPoint(corners[i]));
+            uvs[i] = new Vector2(0.5f - onFloor.x / FloorMeshSize, 0.5f - onFloor.z / FloorMeshSize);
+        }
+
+        Mesh mesh = TrackMesh(new Mesh { name = ThresholdName });
+        mesh.SetVertices(corners);
+        mesh.SetNormals(new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up });
+        mesh.SetUVs(0, uvs);
+        mesh.SetTriangles(new[] { 0, 1, 2, 0, 2, 3 }, 0);
+        mesh.RecalculateBounds();
+        mesh.RecalculateTangents();
+
+        GameObject strip = NewChild(parent, ThresholdName).gameObject;
+        strip.AddComponent<MeshFilter>().sharedMesh = mesh;
+        strip.AddComponent<MeshRenderer>().sharedMaterial = GetComponent<MeshRenderer>().sharedMaterial;
+        BoxCollider box = strip.AddComponent<BoxCollider>();
+        box.center = new Vector3(0f, -0.05f, 0f);
+        box.size = new Vector3(slot.width, 0.1f, WallLayout.Thickness);
+    }
+
+    void ReleaseThreshold(GameObject slotObject)
+    {
+        MeshFilter strip = slotObject.transform.Find(ThresholdName)?.GetComponent<MeshFilter>();
+        if (strip == null) return;
+        _wallMeshes.Remove(strip.sharedMesh);
+        Destroy(strip.sharedMesh);
     }
 
     // Stripe-free wall above the 3 m row; at exactly 3 m it is only the top cap that closes the sheets.
@@ -452,6 +525,7 @@ public partial class RoomStructure
         {
             foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>())
             {
+                if (renderer.name == ThresholdName) continue;   // floor, not wall: it stays solid
                 Material[] shared = renderer.sharedMaterials;
                 for (int i = 0; i < shared.Length; i++)
                 {

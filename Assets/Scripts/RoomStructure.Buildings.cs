@@ -7,6 +7,9 @@ public partial class RoomStructure
     const string BuildingsPath = "russian_buildings/prefabs/buildings_low";
     const string LShapedBuilding = "rus_build_5et_06_low";   // never used: its footprint isn't a rectangle
     const float ExitAlley = 3f;   // gap between the store and a side building when that side wall has an emergency exit
+    const string PavementPath = "ModularLowpolyStreetsFree/Prefabs/Roads/Pavement";
+    const float PavementTile = 2.5f * RoadScale;   // the prefab is one 2.5 m sidewalk tile
+    const float PavementDrop = 0.01f;              // keeps it under any floor a building brings, clear of z-fighting
 
     private List<BuildingFootprint> _buildingPool;
 
@@ -73,6 +76,45 @@ public partial class RoomStructure
             }
         });
     }
+
+    // Paves the ground in front of and under the buildings across the road, where only void would show. Tiles sit on the
+    // road's own grid at its scale; turned half a turn, the prefab's u = 0 edge meets the road's outer sidewalk edge.
+    void SpawnPavement()
+    {
+        GameObject prefab = Resources.Load<GameObject>(PavementPath);
+        if (prefab == null) return;
+
+        WallFrame frame = StreetFrame;
+        float gridStart = RoadSpan.x;
+        var tiles = new HashSet<Vector2Int>();   // (column along the street, row away from the road)
+        foreach (StreetBuilding building in Plan.buildings)
+        {
+            if (building.facesOut) continue;
+
+            // Across the street a building faces the store: its local +X runs along the street, +Z towards the store.
+            Bounds footprint = BuildingPool.Find(b => b.prefab == building.prefab).bounds;
+            Vector2Int columns = TileRange(building.along + footprint.min.x - gridStart, building.along + footprint.max.x - gridStart);
+            Vector2Int rows = TileRange(building.outward - footprint.max.z - RoadOuterEdge, building.outward - footprint.min.z - RoadOuterEdge);
+            for (int column = columns.x; column <= columns.y; column++)
+                for (int row = Mathf.Max(0, rows.x); row <= rows.y; row++) tiles.Add(new Vector2Int(column, row));
+        }
+
+        Quaternion rotation = Quaternion.LookRotation(-frame.right, Vector3.up);
+        SpawnDecor("Street Pavement", root =>
+        {
+            foreach (Vector2Int tile in tiles)
+            {
+                // The pivot is the tile's corner on the road side, at the far end of its cell along the street.
+                Vector3 position = frame.Point(gridStart + (tile.x + 1) * PavementTile, RoadOuterEdge + tile.y * PavementTile);
+                Transform paving = Instantiate(prefab, position + Vector3.down * PavementDrop, rotation, root).transform;
+                paving.localScale = Vector3.one * RoadScale;
+            }
+        });
+    }
+
+    // First and last tile index touched by the metres [from, to] on a grid of PavementTile cells.
+    static Vector2Int TileRange(float from, float to) => new(
+        Mathf.FloorToInt(from / PavementTile + 1e-3f), Mathf.CeilToInt(to / PavementTile - 1e-3f) - 1);
 
     /// <summary>
     /// Bounds of every mesh in a prefab, in its pivot's frame with its scale applied. Computed from mesh data:

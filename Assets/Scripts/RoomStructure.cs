@@ -21,8 +21,6 @@ public partial class RoomStructure : MonoBehaviour
     public float ceilingLightYOffset = 0f;
 
     [Header("Generated Props")]
-    [SerializeField] private GameObject electricalSocketPrefab;
-    [SerializeField] private GameObject lightSocketPrefab;
     [SerializeField] private GameObject clockPrefab;
     [SerializeField] private GameObject lightPrefab;
 
@@ -267,20 +265,22 @@ public partial class RoomStructure : MonoBehaviour
                 SpawnEquallySpacedWallProps(vent, normal, roomCenter, halfW, halfD, wallLength, y, amountOfVents, footprint);
             }
 
-            if (wallSettings.shouldSpawnSockets && electricalSocketPrefab != null)
+            GameObject plugs = wallSettings.shouldSpawnSockets ? LoadPrefab(PlugsPath) : null;
+            if (plugs != null)
             {
                 float y = roomCenter.y + socketFloorMargin;
-                SpawnEquallySpacedWallProps(electricalSocketPrefab, normal, roomCenter, halfW, halfD, wallLength, y, amountOfSockets);
+                SpawnEquallySpacedWallProps(plugs, normal, roomCenter, halfW, halfD, wallLength, y, amountOfSockets);
             }
 
-            if (wallSettings.lightSwitchSide != LightSwitchSide.None && lightSocketPrefab != null)
+            GameObject lightSwitch = wallSettings.lightSwitchSide != LightSwitchSide.None ? LoadPrefab(SwitchPath) : null;
+            if (lightSwitch != null)
             {
                 float margin = Mathf.Min(lightSwitchMargin, wallLength * 0.5f);
                 float offset = wallSettings.lightSwitchSide == LightSwitchSide.Left
                     ? -wallLength * 0.5f + margin
                     : wallLength * 0.5f - margin;
                 float y = roomCenter.y + wallHeight * 0.3f;
-                SpawnWallProp(lightSocketPrefab, normal, roomCenter, halfW, halfD, y, offset);
+                SpawnWallProp(lightSwitch, normal, roomCenter, halfW, halfD, y, offset);
             }
 
             if (wallSettings.shouldSpawnClock && clockPrefab != null)

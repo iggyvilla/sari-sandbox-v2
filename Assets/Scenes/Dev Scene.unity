@@ -1655,19 +1655,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4a6f9fd2ffd8e4ec28d81b480e2330cf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  street:
+    wall: 2
+    door: 0
+    position: 1
+    seed: 0
+  roadOvershoot: 6
   ceilingMaterial: {fileID: 2100000, guid: 16083a11efbd6428190a6335488d6cc2, type: 2}
   floorMaterialPlay: {fileID: 2100000, guid: 33010ca0c709c412fb356a1f2568e461, type: 2}
   floorMaterialBuilder: {fileID: 0}
-  wallMaterialTransparent: {fileID: 2100000, guid: 6cf58b3bedcfb4183ac05ea800b7a1a1, type: 2}
-  wallMaterialOpaque: {fileID: 2100000, guid: 04ecd95e5b0a644c0b82c2baa8071b39, type: 2}
   wallHeight: 4.5
   ceilingLightPrefab: {fileID: 8427317289143796911, guid: 6b446f65fffd545068995dad05c7c39d, type: 3}
   ceilingLightSpacingX: 1.5
   ceilingLightSpacingZ: 2
   ceilingLightYOffset: 0
-  ventPrefab: {fileID: 4591088603713762521, guid: 45638eb4d41d247b78b6193ede27fc25, type: 3}
-  electricalSocketPrefab: {fileID: 8909425840678766224, guid: de4b4b27f55754a48820d2ed1f1926cb, type: 3}
-  lightSocketPrefab: {fileID: 7692216361298687448, guid: d7e6554075a4b431a904c03f3eee9832, type: 3}
   clockPrefab: {fileID: 5583246768109645218, guid: da134a307855b4717a5334e1fda36698, type: 3}
   lightPrefab: {fileID: 8971579162748415070, guid: 2799cc26c119d4f15aec792dca8d0bfe, type: 3}
   rightWallProps:

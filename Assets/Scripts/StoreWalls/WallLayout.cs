@@ -34,8 +34,8 @@ public enum WallPiece
 {
     Blank1, Blank2, Blank3,
     WindowA2, WindowA3,
-    WindowE,         // opening reaches its left end (start corner)
-    WindowEFlipped,  // opening reaches its right end (far corner)
+    WindowE,         // opening reaches its left end (far corner: solid end outside, open edge towards the door)
+    WindowEFlipped,  // opening reaches its right end (start corner)
     ExitDoorG, ExitDoorH, ExitDoorI,
     EmergencyDoor    // 1 m door hole, placed on a cell of a non-street wall
 }
@@ -63,6 +63,10 @@ public readonly struct WallPieceInfo
     }
 
     public bool HasOpening => openMaxY > openMinY;
+
+    // An edge is open when the opening reaches the piece end (no jamb there).
+    public bool OpenAtStart => HasOpening && openMinX <= -width * 0.5f + 1e-3f;
+    public bool OpenAtEnd => HasOpening && openMaxX >= width * 0.5f - 1e-3f;
 }
 
 public static class WallPieces
@@ -70,8 +74,9 @@ public static class WallPieces
     const float SillY = 0.75f, LintelY = 2.25f, DoorTopY = 2.12f;
 
     // A window edge is open when its opening reaches the piece end: against plain wall the hollow wall end shows as a
-    // see-through strip, so it only fits another open edge or a corner post. E is open left, E_Flipped right (as are
-    // the 2 m F / F_Flipped); G, H, I are open both sides and only chain with them (unused). A, B, C, D and doors are closed.
+    // see-through strip, so it needs another open edge, a corner post or a pillar (see WallSlot.pillarStart/End). E is
+    // open left, E_Flipped right (as are the 2 m F / F_Flipped); G, H, I are open both sides and only chain with
+    // them (unused). A, B, C, D and doors are closed.
     static readonly Dictionary<WallPiece, WallPieceInfo> Catalog = new()
     {
         [WallPiece.Blank1] = new("wall/Wall_1m", 1f),
@@ -151,6 +156,8 @@ public class WallSlot
     public int firstCell;      // first 1 m grid cell covered (the grid is what emergency exits snap to)
     public int cellCount;
     public WallPiece piece;
+    public bool pillarStart;   // an open edge meets a closed one here: a pillar covers the seam
+    public bool pillarEnd;
     public Vector3 position;   // world pose of the piece pivot (bottom centre of the wall thickness)
     public Quaternion rotation;
     public GameObject go;
@@ -293,8 +300,8 @@ public static class WallLayout
     }
 
     /// <summary>
-    /// Fills the wall between the exit door and a corner, windows first, with closed window edges only (E's open
-    /// edge sits against the corner post):
+    /// Fills the wall between the exit door and a corner, windows first. The corner window's solid end sits at the
+    /// corner and its open edge faces the door, where ToSlots pillars it:
     /// - 3 m or more: a corner window (E), closed windows, and the leftover fraction as one blank by the door;
     /// - 2 m up to 3 m: one closed window, then a blank (the fraction) at the corner;
     /// - shorter: one blank.
@@ -310,7 +317,7 @@ public static class WallLayout
             float blank = length - whole + (meters == 1 ? 1f : 0f);   // a lone metre is too small for a closed window
             if (blank > Eps) spans.Add(Blank(blank));
             AddWindows(spans, meters);
-            spans.Add(new Span { piece = cornerAtStart ? WallPiece.WindowE : WallPiece.WindowEFlipped, width = 3f });
+            spans.Add(new Span { piece = cornerAtStart ? WallPiece.WindowEFlipped : WallPiece.WindowE, width = 3f });
         }
         else if (length >= 2f)
         {
@@ -357,6 +364,14 @@ public static class WallLayout
                 piece = span.piece
             });
             start += span.width;
+        }
+
+        // The wall ends are covered by the corner posts; a seam between two open edges needs nothing.
+        for (int i = 0; i < slots.Count; i++)
+        {
+            WallPieceInfo info = slots[i].piece.Info();
+            slots[i].pillarStart = info.OpenAtStart && i > 0 && !slots[i - 1].piece.Info().OpenAtEnd;
+            slots[i].pillarEnd = info.OpenAtEnd && i < slots.Count - 1 && !slots[i + 1].piece.Info().OpenAtStart;
         }
 
         Debug.Assert(Mathf.Abs(start - length) < Eps * 10f, $"{side} wall layout covers {start} m of {length} m");
