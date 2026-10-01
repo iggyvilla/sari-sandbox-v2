@@ -37,7 +37,7 @@ Just write conventional commits.
 ---
 
 - Most project code is in `Assets/Scripts`; check there first when code is mentioned.
-- Do not run Unity playtests. The user will handle Unity validation.
+- Unity play mode is allowed for validation. Back up `Application.persistentDataPath/*.json` store saves first and restore them after; don't save scenes changed only by testing.
 - Python playtests/scripts are okay when useful.
 
 ## `Assets/Scripts` Structure
