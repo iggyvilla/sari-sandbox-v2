@@ -9,7 +9,7 @@ public static class StoreBuilderInput
     public static bool KeyDown(KeyCode key) => Input.GetKeyDown(key) && !IsTyping;
     public static bool Clicked => Input.GetMouseButtonDown(0) && !PointerOverUI;
 
-    private static bool PointerOverUI => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+    public static bool PointerOverUI => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
     private static bool IsTyping
     {

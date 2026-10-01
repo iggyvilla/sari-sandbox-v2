@@ -3,14 +3,12 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 [RequireComponent(typeof(MeshRenderer))]
-public class RoomStructure : MonoBehaviour
+public partial class RoomStructure : MonoBehaviour
 {
     [Header("Materials")]
     public Material ceilingMaterial;
     public Material floorMaterialPlay;
     public Material floorMaterialBuilder;
-    public Material wallMaterialTransparent;
-    public Material wallMaterialOpaque;
 
     [Header("Room")]
     public float wallHeight = 3f;
@@ -23,7 +21,6 @@ public class RoomStructure : MonoBehaviour
     public float ceilingLightYOffset = 0f;
 
     [Header("Generated Props")]
-    [SerializeField] private GameObject ventPrefab;
     [SerializeField] private GameObject electricalSocketPrefab;
     [SerializeField] private GameObject lightSocketPrefab;
     [SerializeField] private GameObject clockPrefab;
@@ -49,7 +46,7 @@ public class RoomStructure : MonoBehaviour
     private GameObject _pointLightsRoot;
 
     private const int amountOfVents = 3;
-    private const float ventToCeilDistance = 0.65f;
+    private const float ventToCeilDistance = 0.15f;   // gap between the vent's top edge and the ceiling
     private const int amountOfSockets = 3;
     private const float socketFloorMargin = 0.35f;
     private const float lightSwitchMargin = 0.3f;
@@ -73,18 +70,11 @@ public class RoomStructure : MonoBehaviour
         public bool shouldSpawnClock;
     }
 
-    private struct WallEntry
-    {
-        public GameObject go;
-        public Vector3 outwardNormal;
-        public Material mat;
-    }
-    private WallEntry[] _walls;
-
     void Awake()
     {
         _isStoreBuilder = DataHandler.IsStoreBuilderScene;
         _cam = Camera.main;
+        if (_isStoreBuilder && street.seed == 0) street.Reroll();   // a new store gets its own street
         GetComponent<MeshRenderer>().sharedMaterial = _isStoreBuilder ? floorMaterialBuilder : floorMaterialPlay;
         BuildWalls();
     }
@@ -93,52 +83,30 @@ public class RoomStructure : MonoBehaviour
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    public void SetFloorDimensions(float width, float height)
+    /// <summary>Resizes the store; `exits` (null keeps the current ones) are checked against the new walls and street.</summary>
+    public void SetFloorDimensions(float width, float height, IEnumerable<WallCell> exits = null)
     {
+        // The street wall needs room for its door and a window; the other axis only a minimum size.
+        bool streetRunsAlongX = street.wall == WallSide.Front || street.wall == WallSide.Back;
+        float otherMin = WallLayout.MinWallLength * 0.1f;
         Vector3 scale = transform.localScale;
-        scale.x = width;
-        scale.z = height;
+        scale.x = Mathf.Max(width, streetRunsAlongX ? MinFloorScale : otherMin);
+        scale.z = Mathf.Max(height, streetRunsAlongX ? otherMin : MinFloorScale);
         transform.localScale = scale;
+        SetEmergencyExits(exits ?? EmergencyExits);
         BuildWalls();
     }
 
     public void BuildWalls()
     {
         DestroyGeneratedObjects();
+        wallHeight = Mathf.Max(wallHeight, MinWallHeight);
 
-        // Unity plane: 1 unit of scale = 10 world units, centered
         float halfW = transform.localScale.x * 5f;
         float halfD = transform.localScale.z * 5f;
         Vector3 center = transform.position;
-        float midY = center.y + wallHeight * 0.5f;
 
-        // Rotation logic: Unity plane normal is local +Y. Negated to face inward (into the room):
-        //   Euler(0,0, 90)  → normal = +X   Euler(0,0,-90) → normal = -X
-        //   Euler(-90,0,0)  → normal = +Z   Euler(90,0,0)  → normal = -Z
-        float wallTilingHeight = Mathf.Max(wallHeight, 0.0001f);
-        float roomWidth = halfW * 2f;
-        float roomDepth = halfD * 2f;
-        var defs = new (Vector3 pos, Vector3 euler, Vector3 scale, Vector3 normal, Vector2 textureScale)[]
-        {
-            (center + new Vector3( halfW, midY, 0), new Vector3(  0,  0,  90), new Vector3(wallHeight / 10f, 1f, roomDepth / 10f), Vector3.right,   new Vector2(1f, roomDepth / wallTilingHeight)),
-            (center + new Vector3(-halfW, midY, 0), new Vector3(  0,  0, -90), new Vector3(wallHeight / 10f, 1f, roomDepth / 10f), Vector3.left,    new Vector2(1f, roomDepth / wallTilingHeight)),
-            (center + new Vector3(0, midY,  halfD), new Vector3(-90,  0,   0), new Vector3(roomWidth / 10f, 1f, wallHeight / 10f), Vector3.forward, new Vector2(roomWidth / wallTilingHeight, 1f)),
-            (center + new Vector3(0, midY, -halfD), new Vector3( 90,  0,   0), new Vector3(roomWidth / 10f, 1f, wallHeight / 10f), Vector3.back,    new Vector2(roomWidth / wallTilingHeight, 1f)),
-        };
-
-        Material wallMaterialSource = _isStoreBuilder ? wallMaterialTransparent : wallMaterialOpaque;
-        _walls = new WallEntry[4];
-        for (int i = 0; i < defs.Length; i++)
-        {
-            var d = defs[i];
-            var go = SpawnPlane($"Wall_{d.normal}", d.pos, Quaternion.Euler(d.euler), d.scale, transform);
-            var mat = new Material(wallMaterialSource);
-            if (_isStoreBuilder) EnsureTransparent(mat);
-            ApplyWallTextureScale(mat, d.textureScale);
-            go.GetComponent<MeshRenderer>().sharedMaterial = mat;
-            _walls[i] = new WallEntry { go = go, outwardNormal = d.normal, mat = mat };
-        }
-
+        BuildStoreWalls(center, halfW, halfD);
         SpawnWallProps(center, halfW, halfD);
 
         if (!_isStoreBuilder)
@@ -154,19 +122,13 @@ public class RoomStructure : MonoBehaviour
 
             SpawnCeilingLights(center, halfW * 2f, halfD * 2f);
         }
+
+        WallsBuilt?.Invoke();
     }
 
     public void DestroyGeneratedObjects()
     {
-        if (_walls != null)
-        {
-            foreach (var w in _walls)
-            {
-                if (w.go  != null) Destroy(w.go);
-                if (w.mat != null) Destroy(w.mat);
-            }
-            _walls = null;
-        }
+        DestroyWallObjects();
 
         if (_ceiling != null)
         {
@@ -197,30 +159,22 @@ public class RoomStructure : MonoBehaviour
 
     void Update()
     {
-        if (_walls == null || _cam == null || !_isStoreBuilder) return;
+        if (_fadeGroups == null || _cam == null || !_isStoreBuilder) return;
 
-        Vector3 center = transform.position;
-        Vector3 toCam = _cam.transform.position - center;
+        Vector3 toCam = _cam.transform.position - transform.position;
         // Ignore vertical component — fading is purely about horizontal viewing angle
         Vector3 toCamFlat = new Vector3(toCam.x, 0f, toCam.z).normalized;
 
-        foreach (var w in _walls)
+        foreach (WallSide side in WallSides.All)
         {
-            if (w.go == null || w.mat == null) continue;
-
             // dot = 1: camera is directly outside this wall (wall blocks the view) → fade
             // dot = 0: wall is side-on to camera → opaque
-            float dot = Mathf.Clamp01(Vector3.Dot(toCamFlat, w.outwardNormal));
+            float dot = Mathf.Clamp01(Vector3.Dot(toCamFlat, side.Normal()));
             float t = Mathf.Clamp01((dot - fadeStartDot) / (1f - fadeStartDot));
-            float alpha = Mathf.Lerp(1f, minWallAlpha, t);
-
-            Color c = w.mat.color;
-            if (!Mathf.Approximately(c.a, alpha))
-            {
-                c.a = alpha;
-                w.mat.color = c;
-            }
+            _sideAlpha[(int)side] = Mathf.Lerp(1f, minWallAlpha, t);
         }
+
+        foreach (FadeGroup group in _fadeGroups) group.Apply(_sideAlpha);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -298,16 +252,19 @@ public class RoomStructure : MonoBehaviour
             backWallProps
         };
 
-        for (int i = 0; i < _walls.Length; i++)
+        foreach (WallSide side in WallSides.All)
         {
-            WallPropSettings wallSettings = settings[i];
-            Vector3 normal = _walls[i].outwardNormal;
+            WallPropSettings wallSettings = settings[(int)side];
+            Vector3 normal = side.Normal();
             float wallLength = Mathf.Abs(normal.x) > 0f ? halfD * 2f : halfW * 2f;
 
-            if (wallSettings.shouldSpawnVents && ventPrefab != null)
+            GameObject vent = wallSettings.shouldSpawnVents ? LoadPrefab(VentPath) : null;
+            if (vent != null)
             {
-                float y = roomCenter.y + wallHeight - ventToCeilDistance;
-                SpawnEquallySpacedWallProps(ventPrefab, normal, roomCenter, halfW, halfD, wallLength, y, amountOfVents);
+                // The vent's pivot is at its bottom: hang its top edge under the ceiling.
+                Bounds footprint = LocalBounds(vent);
+                float y = roomCenter.y + wallHeight - ventToCeilDistance - footprint.max.y;
+                SpawnEquallySpacedWallProps(vent, normal, roomCenter, halfW, halfD, wallLength, y, amountOfVents, footprint);
             }
 
             if (wallSettings.shouldSpawnSockets && electricalSocketPrefab != null)
@@ -342,7 +299,8 @@ public class RoomStructure : MonoBehaviour
         float halfD,
         float wallLength,
         float y,
-        int amount)
+        int amount,
+        Bounds footprint = default)
     {
         if (amount <= 0) return;
 
@@ -350,7 +308,7 @@ public class RoomStructure : MonoBehaviour
         {
             float t = (i + 1f) / (amount + 1f);
             float offset = Mathf.Lerp(-wallLength * 0.5f, wallLength * 0.5f, t);
-            SpawnWallProp(prefab, normal, roomCenter, halfW, halfD, y, offset);
+            SpawnWallProp(prefab, normal, roomCenter, halfW, halfD, y, offset, footprint);
         }
     }
 
@@ -361,8 +319,11 @@ public class RoomStructure : MonoBehaviour
         float halfW,
         float halfD,
         float y,
-        float offsetAlongWall)
+        float offsetAlongWall,
+        Bounds footprint = default)
     {
+        if (IsInFrontOfOpening(normal, y - roomCenter.y, offsetAlongWall, footprint)) return;
+
         EnsureWallPropsRoot();
 
         Vector3 viewerRight = Vector3.Cross(Vector3.up, normal).normalized;
@@ -493,23 +454,6 @@ public class RoomStructure : MonoBehaviour
         return go;
     }
 
-    static void ApplyWallTextureScale(Material mat, Vector2 textureScale)
-    {
-        if (mat == null) return;
-
-        SetTextureScaleIfPresent(mat, "_BaseMap", textureScale);
-        SetTextureScaleIfPresent(mat, "_MainTex", textureScale);
-        SetTextureScaleIfPresent(mat, "_BumpMap", textureScale);
-        SetTextureScaleIfPresent(mat, "_MetallicGlossMap", textureScale);
-        SetTextureScaleIfPresent(mat, "_OcclusionMap", textureScale);
-    }
-
-    static void SetTextureScaleIfPresent(Material mat, string propertyName, Vector2 textureScale)
-    {
-        if (mat.HasProperty(propertyName))
-            mat.SetTextureScale(propertyName, textureScale);
-    }
-
     // Sets transparency blend mode on Standard or URP Lit shaders.
     // The wall material's shader must support transparency for fading to work.
     static void EnsureTransparent(Material mat)
@@ -522,6 +466,10 @@ public class RoomStructure : MonoBehaviour
             mat.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
             mat.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
             mat.SetInt("_ZWrite", 0);
+            // Alpha-tested wall/door materials would clip away instead of fading.
+            mat.SetFloat("_AlphaClip", 0f);
+            mat.SetFloat("_AlphaToMask", 0f);
+            mat.DisableKeyword("_ALPHATEST_ON");
             mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
             mat.renderQueue = 3000;
         }

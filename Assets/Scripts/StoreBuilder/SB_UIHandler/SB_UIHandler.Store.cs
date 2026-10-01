@@ -92,9 +92,7 @@ public partial class SB_UIHandler
         GameObject floor = DataHandler.Instance.floor;
         if (!ToggleMenu(storeDimensionsMenu) || floor == null) return;
 
-        storeWidthInput.SetTextWithoutNotify(floor.transform.localScale.x.ToString());
-        storeDepthInput.SetTextWithoutNotify(floor.transform.localScale.z.ToString());
-        wallHeightInput.SetTextWithoutNotify(DataHandler.Instance.WallHeight.ToString());
+        RefreshStoreDimensionsUI();
     }
 
     public void OnStoreDimensionsApplyPressed()
@@ -107,6 +105,38 @@ public partial class SB_UIHandler
             ParsePositive(storeWidthInput.text, scale.x),
             ParsePositive(storeDepthInput.text, scale.z),
             ParsePositive(wallHeightInput.text, data.WallHeight));
+        RefreshStoreDimensionsUI();
+    }
+
+    // Street changes apply live and never need the Apply button.
+    public void OnStreetWallChanged(int index) => EditStreet(street => street.wall = (WallSide)index);
+    public void OnExitDoorTypeChanged(int index) => EditStreet(street => street.door = (ExitDoorType)index);
+    public void OnExitDoorPositionChanged(int index) => EditStreet(street => street.position = (ExitDoorPosition)index);
+
+    void EditStreet(System.Action<StreetSettings> edit)
+    {
+        DataHandler data = DataHandler.Instance;
+        if (data.floor == null) return;
+
+        StreetSettings street = data.Street;
+        edit(street);
+        data.ApplyStreetSettings(street);
+        RefreshStoreDimensionsUI();
+    }
+
+    // Shows what the store really uses: sizes are clamped to the wall minimums (a bigger exit door grows the store).
+    void RefreshStoreDimensionsUI()
+    {
+        DataHandler data = DataHandler.Instance;
+        Vector3 scale = data.floor.transform.localScale;
+        storeWidthInput.SetTextWithoutNotify(scale.x.ToString());
+        storeDepthInput.SetTextWithoutNotify(scale.z.ToString());
+        wallHeightInput.SetTextWithoutNotify(data.WallHeight.ToString());
+
+        StreetSettings street = data.Street;
+        ShelfEditGroupHandler.SetValue(streetWallDropdown, (int)street.wall);
+        ShelfEditGroupHandler.SetValue(exitDoorTypeDropdown, (int)street.door);
+        ShelfEditGroupHandler.SetValue(exitDoorPositionDropdown, (int)street.position);
     }
 
     public void OnSpawnIntoStorePressed()

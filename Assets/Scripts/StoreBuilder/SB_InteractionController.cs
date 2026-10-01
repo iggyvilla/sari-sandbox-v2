@@ -21,6 +21,9 @@ public class SB_InteractionController : MonoBehaviour
     private GameObject _previewObject;
     private OutlineSelector _moving;   // selector of an existing object being moved
     private bool _isDuplicatePlacement;
+    private RoomStructure _exitRoom;   // set while the emergency-exit tool is active
+    private (WallSide side, int cell)? _exitHover;
+    private bool _exitHoverClicked;    // no preview until the pointer moves to another cell
     private Camera _cam;
     private LayerMask _floorMask;
     private LayerMask _shelfMask;
@@ -43,6 +46,8 @@ public class SB_InteractionController : MonoBehaviour
 
         if (_placementMode)
             HandlePlacement();
+        else if (_exitRoom != null)
+            HandleExitTool();
         else
             HandleSelection();
     }
@@ -144,6 +149,15 @@ public class SB_InteractionController : MonoBehaviour
     public void OnSpawnAisleMarker()   => BeginPlacement(dataHandler.aisleMarkerPrefab);
     public void OnPlaceAgentSpawn()    => BeginPlacement(dataHandler.agentSpawnMarkerPrefab);
 
+    // Not a prefab: the tool previews and toggles emergency exits on the walls until Escape / right-click.
+    public void OnPlaceEmergencyExit()
+    {
+        AbortPlacement();
+        uiHandler.ClearSelection();
+        _exitRoom = dataHandler.Room;
+        _exitHover = null;
+    }
+
     void BeginPlacement(GameObject prefab)
     {
         AbortPlacement();
@@ -179,6 +193,7 @@ public class SB_InteractionController : MonoBehaviour
     // Ends any placement in progress: a moved object is dropped where it is, a preview is discarded.
     public void AbortPlacement()
     {
+        EndExitTool();
         if (!_placementMode) return;
 
         if (_moving != null && _previewObject != null)
@@ -235,6 +250,54 @@ public class SB_InteractionController : MonoBehaviour
 
         if (StoreBuilderInput.Clicked)
             CancelOffFloor();
+    }
+
+    // ── Emergency exit tool ───────────────────────────────────────────────────
+
+    void HandleExitTool()
+    {
+        if (StoreBuilderInput.KeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+            EndExitTool();
+        else
+            UpdateExitTool(_cam.ScreenPointToRay(Input.mousePosition), StoreBuilderInput.Clicked);
+    }
+
+    // Hovering a free cell previews an exit there; a click places it, or removes the one already there.
+    void UpdateExitTool(Ray ray, bool click)
+    {
+        WallSide side = default;
+        int cell = 0;
+        bool onWall = !StoreBuilderInput.PointerOverUI && _exitRoom.TryGetWallCell(ray, out side, out cell);
+        var hover = onWall ? (side, cell) : ((WallSide, int)?)null;
+        if (hover != _exitHover)
+        {
+            _exitHover = hover;
+            _exitHoverClicked = false;
+        }
+
+        if (!onWall)
+        {
+            _exitRoom.ClearExitPreview();
+        }
+        else if (click)
+        {
+            _exitRoom.ToggleExit(side, cell);
+            _exitHoverClicked = true;
+        }
+        else if (_exitHoverClicked || !_exitRoom.CanPlaceExit(side, cell))
+        {
+            _exitRoom.ClearExitPreview();
+        }
+        else
+        {
+            _exitRoom.PreviewExit(side, cell);
+        }
+    }
+
+    void EndExitTool()
+    {
+        if (_exitRoom != null) _exitRoom.ClearExitPreview();
+        _exitRoom = null;
     }
 
     void RefitMoving()

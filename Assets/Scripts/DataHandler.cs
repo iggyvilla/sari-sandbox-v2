@@ -173,6 +173,10 @@ public class StoreData
     public float floorWidth  = 10f;
     public float floorHeight = 10f;
     public float wallHeight  = 3f;
+    // Missing in older saves: keeps the front / middle / Door G defaults (and a seed derived from the store name).
+    public StreetSettings street = new();
+    // Missing in older saves: no emergency exits.
+    public List<WallCell> emergencyExits = new();
     public List<ShelfSaveData> shelves = new();
     public Dictionary<string, SaveDataWrapper> shelfItems = new();
     public List<SelfCheckoutSaveData> selfCheckoutLocations = new();
@@ -384,10 +388,13 @@ public class DataHandler : MonoBehaviour
         storeData.shelfItems ??= new Dictionary<string, SaveDataWrapper>();
         storeData.selfCheckoutLocations ??= new List<SelfCheckoutSaveData>();
         storeData.aisleMarkerLocations ??= new List<AisleMarkerSaveData>();
+        storeData.street ??= new StreetSettings();
+        if (storeData.street.seed == 0) storeData.street.seed = StreetSettings.SeedFor(storeName);
+        storeData.emergencyExits ??= new List<WallCell>();
         currentStoreData = storeData;
         Debug.Log($"Loading store '{storeName}' — {storeData.shelves.Count} shelf(ves).");
 
-        ApplyStoreDimensions(storeData.floorWidth, storeData.floorHeight, storeData.wallHeight);
+        ApplyStoreDimensions(storeData.floorWidth, storeData.floorHeight, storeData.wallHeight, storeData.street, storeData.emergencyExits);
 
         shouldShelfSpawnItems.Clear();
         bool isStoreBuilder = IsStoreBuilderScene;
@@ -460,14 +467,32 @@ public class DataHandler : MonoBehaviour
         ? room.wallHeight
         : currentStoreData.wallHeight;
 
-    public void ApplyStoreDimensions(float width, float depth, float wallHeight)
+    /// <summary>The floor's wall builder, if it has one.</summary>
+    public RoomStructure Room => floor != null && floor.TryGetComponent(out RoomStructure room) ? room : null;
+
+    /// <summary>The street wall / exit door setup (a copy: edit it, then pass it to <see cref="ApplyStreetSettings"/>).</summary>
+    public StreetSettings Street => (Room != null ? Room.street : currentStoreData.street).Clone();
+
+    /// <summary>Emergency exits on the walls (the saved list while there is no wall builder).</summary>
+    public List<WallCell> EmergencyExits => Room != null ? Room.EmergencyExits : currentStoreData.emergencyExits;
+
+    public void ApplyStreetSettings(StreetSettings street)
+    {
+        if (Room != null) Room.SetStreet(street);
+        else currentStoreData.street = street.Clone();
+    }
+
+    /// <summary>Resizes the store; null <paramref name="street"/> / <paramref name="exits"/> keep the current ones.</summary>
+    public void ApplyStoreDimensions(float width, float depth, float wallHeight, StreetSettings street = null, List<WallCell> exits = null)
     {
         if (floor == null) return;
 
-        if (floor.TryGetComponent(out RoomStructure room))
+        RoomStructure room = Room;
+        if (room != null)
         {
             room.wallHeight = wallHeight;
-            room.SetFloorDimensions(width, depth);
+            if (street != null) room.street = street.Clone();
+            room.SetFloorDimensions(width, depth, exits);
         }
         else
         {
@@ -533,7 +558,9 @@ public class DataHandler : MonoBehaviour
             shelfItems  = ShelfItemsFor(builders),
             floorWidth  = floor != null ? floor.transform.localScale.x : currentStoreData.floorWidth,
             floorHeight = floor != null ? floor.transform.localScale.z : currentStoreData.floorHeight,
-            wallHeight  = WallHeight
+            wallHeight  = WallHeight,
+            street      = Street,
+            emergencyExits = EmergencyExits
         };
 
         foreach (ShelfBuilder b in builders)

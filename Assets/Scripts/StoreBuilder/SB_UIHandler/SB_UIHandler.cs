@@ -53,6 +53,9 @@ public partial class SB_UIHandler : MonoBehaviour
     public TMP_InputField storeWidthInput;
     public TMP_InputField storeDepthInput;
     public TMP_InputField wallHeightInput;
+    public TMP_Dropdown streetWallDropdown;
+    public TMP_Dropdown exitDoorTypeDropdown;
+    public TMP_Dropdown exitDoorPositionDropdown;
 
     [Header("Agent Settings UI")]
     public GameObject agentSettingsMenu;
@@ -88,6 +91,9 @@ public partial class SB_UIHandler : MonoBehaviour
         UpdateSelectedShelfText();
         FillEnumDropdown<ItemCategory>(shelfCategoryDropdown);
         FillEnumDropdown<ItemCategory>(itemCategoryDropdown);
+        FillEnumDropdown<WallSide>(streetWallDropdown);
+        FillEnumDropdown<ExitDoorType>(exitDoorTypeDropdown);
+        FillEnumDropdown<ExitDoorPosition>(exitDoorPositionDropdown);
         PopulateAgentSettingsDropdowns();
     }
 
