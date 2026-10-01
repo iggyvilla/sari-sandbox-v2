@@ -35,9 +35,9 @@ StructuredBuffer<InstanceCullData> instances;
 StructuredBuffer<BatchCullData> batches;
 StructuredBuffer<uint> args_sources; // per indirect-args entry: its counter index (batch * MAX_LODS + lod)
 RWStructuredBuffer<uint> counts;     // visible instances per (batch, LOD)
-RWStructuredBuffer<uint> visible;    // compact per-(batch, LOD) lists of in-batch instance indices
+RWStructuredBuffer<uint> visible;    // compact per-(batch, LOD) lists; entries are their own region slot (see Compact)
 RWStructuredBuffer<uint> instance_lods; // per instance: chosen LOD, or INVALID_LOD when culled
-RWStructuredBuffer<uint> args;       // indirect draw args, 5 uints per entry
+RWByteAddressBuffer args;            // indirect draw args, 5 uints per entry (GraphicsBuffer.IndirectDrawIndexedArgs)
 int num_instances;
 int num_counters;
 int num_args;
@@ -147,6 +147,7 @@ groupshared uint g_scan[COMPACT_GROUP];
 groupshared uint g_running[MAX_LODS];
 
 // One group per batch: walks its instances in order, in chunks, and appends each visible one to its LOD's list.
+// An entry is the slot (visibleOffset + lod * count + index) its instance has in the shared LOD data buffer.
 // Each thread adds 1 << (8 * lod) to a packed scan (a chunk holds <= 128 per lane, so lanes never carry).
 [numthreads(COMPACT_GROUP, 1, 1)]
 void Compact(uint3 group : SV_GroupID, uint3 thread : SV_GroupThreadID)
@@ -175,7 +176,8 @@ void Compact(uint3 group : SV_GroupID, uint3 thread : SV_GroupThreadID)
         if (lod < MAX_LODS)
         {
             uint rank = ((g_scan[t] - value) >> (8u * lod)) & 0xFFu;
-            visible[batch.visibleOffset + lod * batch.count + g_running[lod] + rank] = index;
+            uint region = batch.visibleOffset + lod * batch.count;
+            visible[region + g_running[lod] + rank] = region + index;
         }
         GroupMemoryBarrierWithGroupSync();
 
@@ -189,5 +191,5 @@ void Compact(uint3 group : SV_GroupID, uint3 thread : SV_GroupThreadID)
 [numthreads(64, 1, 1)]
 void WriteArgs(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x < (uint)num_args) args[id.x * 5 + 1] = counts[args_sources[id.x]];
+    if (id.x < (uint)num_args) args.Store(id.x * 20 + 4, counts[args_sources[id.x]]);
 }

@@ -4,6 +4,9 @@
 // Many thanks to Refsa's Gist for the code!
 // https://gist.github.com/Refsa/4949519af2160b9b29ea31d115de5dad
 
+#define UNITY_INDIRECT_DRAW_ARGS IndirectDrawIndexedArgs
+#include "UnityIndirect.cginc"
+
 // You could also upload the model matrix
 struct DrawData {
     float3 position;
@@ -14,11 +17,13 @@ struct DrawData {
 struct LodRenderData {
     float4 rotation;
     float4 scale;
-    float4 offset; // LOD position minus the shared _Positions entry
+    float4 offset; // xyz = LOD position minus the shared _Positions entry, w = index of that entry
 };
 
+// Visible lists hold indices into _LodTransformData, one region per (batch, LOD); see InstanceCullingSystem.
 StructuredBuffer<uint> _VisibleIndices;
-// Start of this draw's (batch, LOD) region in _VisibleIndices (float: set per draw via MaterialPropertyBlock).
+// Start of this draw's region in _VisibleIndices. Set per draw (MaterialPropertyBlock) by the legacy and LiDAR
+// draws; the global default -1 means the region start is the indirect args' startInstance (RenderMeshIndirect).
 float _VisibleOffset;
 StructuredBuffer<float4> _Positions;
 StructuredBuffer<LodRenderData> _LodTransformData;
@@ -53,11 +58,16 @@ inline float4x4 TRSMatrix(float3 position, float4 rotation, float3 scale)
 inline void SetUnityMatrices(uint instanceID, inout float4x4 objectToWorld, inout float4x4 worldToObject)
 {
 #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
-    uint sourceIndex = _VisibleIndices[(uint)_VisibleOffset + instanceID];
-    LodRenderData lodData = _LodTransformData[sourceIndex];
+    uint listIndex = (uint)_VisibleOffset + instanceID;
+    if (_VisibleOffset < 0.0)
+    {
+        InitIndirectDrawArgs(0);
+        listIndex = GetIndirectInstanceID_Base(instanceID);
+    }
+    LodRenderData lodData = _LodTransformData[_VisibleIndices[listIndex]];
 
     DrawData drawData;
-    drawData.position = _Positions[sourceIndex].xyz + lodData.offset.xyz;
+    drawData.position = _Positions[(uint)lodData.offset.w].xyz + lodData.offset.xyz;
     drawData.rotation = lodData.rotation;
     drawData.scale = lodData.scale.xyz;
   

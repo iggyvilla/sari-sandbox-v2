@@ -49,7 +49,7 @@ public struct LodRenderData
 {
     public Vector4 rotation;
     public Vector4 scale;
-    public Vector4 offset; // LOD position minus lod0 position (the shared _Positions entry)
+    public Vector4 offset; // xyz = LOD position minus lod0 position, w = index of the shared _Positions entry
 }
 
 // One LOD level: mesh, instancing materials, and the distance below which it's used.
@@ -61,6 +61,8 @@ public struct LODDefinition
     public Material[] materials;
     [Tooltip("Use this LOD when closer than this distance. The last (farthest) LOD's value is the hard cull distance.")]
     public float maxDistance;
+    // Meshes/materials built for this LOD alone; destroyed when the LOD is replaced (shared ones are not listed).
+    [NonSerialized] public UnityEngine.Object[] owned;
 }
 
 public struct LidarIndirectDrawStats
@@ -89,6 +91,31 @@ public struct LidarIndirectDrawStats
     }
 }
 
+// One indirect draw: a submesh of one (batch, LOD) and its entry in the args buffer (same index as in the draw list).
+public readonly struct IndirectDraw
+{
+    public readonly int batch;
+    public readonly int lod;
+    public readonly int submesh;
+    public readonly Mesh mesh;
+    public readonly Material material;
+    public readonly Bounds bounds;
+    public readonly uint startInstance; // start of the (batch, LOD) region in the visible list
+
+    public IndirectDraw(int batch, int lod, int submesh, Mesh mesh, Material material, Bounds bounds, uint startInstance)
+    {
+        this.batch = batch;
+        this.lod = lod;
+        this.submesh = submesh;
+        this.mesh = mesh;
+        this.material = material;
+        this.bounds = bounds;
+        this.startInstance = startInstance;
+    }
+
+    public int Counter => batch * BatchInstancer.MaxLods + lod;
+}
+
 // Every GPU instance of one product (or combined row chunk): instance data, draw buffers, and indirect draws.
 // Culling for all batches runs in InstanceCullingSystem.
 public class BatchInstancer : MonoBehaviour
@@ -97,7 +124,7 @@ public class BatchInstancer : MonoBehaviour
 
     // CPU mirror of the GPU test is made slightly more permissive so it never drops a LOD the GPU fills.
     private const float CpuCullEpsilon = 1e-3f;
-    private const int ArgsStride = 5;
+    public static readonly int ArgsBytes = GraphicsBuffer.IndirectDrawIndexedArgs.size;
 
     // Physics prefabs use the same mode (ProductLodSetup) so shadows don't change when a product swaps forms.
     public const ShadowCastingMode ProductShadowMode = ShadowCastingMode.Off;
@@ -107,8 +134,6 @@ public class BatchInstancer : MonoBehaviour
 
     private readonly List<InstanceData> _instances = new();
     private Vector4[] _spheres = Array.Empty<Vector4>();
-    private ComputeBuffer _positionBuffer;
-    private ComputeBuffer[] _lodTransformBuffers;
     private int[] _argsEntryStart;
     private int[] _subMeshCounts;
     private Vector4 _lodDistancesSq;
@@ -123,8 +148,6 @@ public class BatchInstancer : MonoBehaviour
     public Vector4 LodDistancesSq => _lodDistancesSq;
     public IReadOnlyList<InstanceData> Instances => _instances;
     public IReadOnlyList<Vector4> Spheres => _spheres;
-    public ComputeBuffer PositionBuffer => _positionBuffer;
-    public ComputeBuffer LodTransformBuffer(int lod) => _lodTransformBuffers[lod];
     public bool IsDrawable => _ready && isActiveAndEnabled && _instances.Count > 0;
 
     // Bumped whenever instance data changes, so the culling system knows to rebuild its buffers.
@@ -132,10 +155,35 @@ public class BatchInstancer : MonoBehaviour
 
     private float HardCullDistanceSq => _lodDistancesSq[lods.Length - 1];
 
+    // Swaps the LOD meshes/materials of a live batch (instance data stays) and frees what the old ones owned.
+    public void SetLods(LODDefinition[] lodDefinitions)
+    {
+        LODDefinition[] old = lods;
+        Init(itemId, lodDefinitions);
+        MarkDirty();
+        DestroyOwned(old);
+    }
+
+    private static void DestroyOwned(LODDefinition[] definitions)
+    {
+        if (definitions == null) return;
+        foreach (LODDefinition lod in definitions)
+        {
+            if (lod.owned == null) continue;
+            foreach (UnityEngine.Object o in lod.owned)
+            {
+                if (o == null) continue;
+                if (Application.isPlaying) Destroy(o);
+                else DestroyImmediate(o);
+            }
+        }
+    }
+
     public void Init(string id, LODDefinition[] lodDefinitions)
     {
         itemId = id;
         lods = lodDefinitions;
+        IndirectDrawCommandCount = 0;
         if (lods == null || lods.Length == 0 || lods.Length > MaxLods)
         {
             Debug.LogError($"BatchInstancer ({itemId}): expected 1-{MaxLods} LODs.");
@@ -159,7 +207,7 @@ public class BatchInstancer : MonoBehaviour
         _ready = true;
     }
 
-    void OnDestroy() => ReleaseBuffers();
+    void OnDestroy() => DestroyOwned(lods);
 
     public void AddObjectToBatch(InstanceData d)
     {
@@ -192,50 +240,20 @@ public class BatchInstancer : MonoBehaviour
         DataVersion++;
     }
 
-    // Appends this batch's indirect args (index count, 0 instances, start index, base vertex, 0) per LOD/submesh.
-    public void AppendArgsTemplate(List<uint> args, List<uint> counterSources, int batchIndex)
+    // Appends this batch's draws (one per LOD/submesh). `visibleOffset` is where its visible-list regions start,
+    // one region of InstanceCount entries per LOD.
+    public void AppendDraws(List<IndirectDraw> draws, int batch, uint visibleOffset)
     {
         for (int lod = 0; lod < lods.Length; lod++)
         {
+            uint region = visibleOffset + (uint)(lod * _instances.Count);
             for (int s = 0; s < _subMeshCounts[lod]; s++)
-            {
-                Mesh mesh = lods[lod].mesh;
-                args.Add(mesh.GetIndexCount(s));
-                args.Add(0);
-                args.Add(mesh.GetIndexStart(s));
-                args.Add(mesh.GetBaseVertex(s));
-                args.Add(0);
-                counterSources.Add((uint)(batchIndex * MaxLods + lod));
-            }
-        }
-    }
-
-    // Draws each LOD in lodMask for one camera, reading instance counts from the viewer's args buffer.
-    public void Draw(Camera cam, ComputeBuffer args, int argsStart, MaterialPropertyBlock[] props, int lodMask)
-    {
-        for (int lod = 0; lod < lods.Length; lod++)
-        {
-            if ((lodMask & (1 << lod)) == 0) continue;
-            for (int s = 0; s < _subMeshCounts[lod]; s++)
-            {
-                Graphics.DrawMeshInstancedIndirect(
-                    lods[lod].mesh,
-                    s,
-                    lods[lod].materials[s],
-                    _drawBounds,
-                    args,
-                    ArgsOffset(argsStart, lod, s),
-                    props[lod],
-                    ProductShadowMode,
-                    true,
-                    0,
-                    cam);
-            }
+                draws.Add(new IndirectDraw(batch, lod, s, lods[lod].mesh, lods[lod].materials[s], _drawBounds, region));
         }
     }
 
     public LidarIndirectDrawStats AddLidarDepthDrawCommands(
-        CommandBuffer cmd, Material depthMaterial, ComputeBuffer args, int argsStart, MaterialPropertyBlock[] props)
+        CommandBuffer cmd, Material depthMaterial, GraphicsBuffer args, int argsStart, MaterialPropertyBlock[] props)
     {
         var stats = new LidarIndirectDrawStats { batchers = 1, sourceInstances = _instances.Count };
 
@@ -300,62 +318,44 @@ public class BatchInstancer : MonoBehaviour
             $"lod1MinusLod0Y={minLod1DeltaY:F3}..{maxLod1DeltaY:F3}";
     }
 
-    // Rebuilds this batch's draw buffers and bounding spheres after instance changes.
-    public void PrepareBuffers()
+    // Recomputes the bounding spheres and bounds after instance changes.
+    public void PrepareBounds()
     {
         if (!_ready || !_buffersDirty) return;
         _buffersDirty = false;
-        ReleaseBuffers();
 
         int count = _instances.Count;
         if (count == 0) return;
 
-        var positions = new Vector4[count];
-        var lodRenderData = new LodRenderData[lods.Length][];
-        for (int lod = 0; lod < lods.Length; lod++)
-            lodRenderData[lod] = new LodRenderData[count];
-
         if (_spheres.Length != count)
             _spheres = new Vector4[count];
-
         for (int i = 0; i < count; i++)
-        {
-            InstanceData instance = _instances[i];
-            positions[i] = instance.lod0.position;
-            _spheres[i] = CalculateBoundingSphere(instance);
-
-            for (int lod = 0; lod < lods.Length; lod++)
-            {
-                LodTransform t = instance[lod];
-                lodRenderData[lod][i] = new LodRenderData
-                {
-                    rotation = t.rotation,
-                    scale = t.scale,
-                    offset = t.position - instance.lod0.position
-                };
-            }
-        }
-
-        _positionBuffer = new ComputeBuffer(count, sizeof(float) * 4);
-        _positionBuffer.SetData(positions);
-
-        _lodTransformBuffers = new ComputeBuffer[lods.Length];
-        for (int lod = 0; lod < lods.Length; lod++)
-        {
-            _lodTransformBuffers[lod] = new ComputeBuffer(count, Marshal.SizeOf<LodRenderData>());
-            _lodTransformBuffers[lod].SetData(lodRenderData[lod]);
-        }
+            _spheres[i] = CalculateBoundingSphere(_instances[i]);
 
         RecalculateBounds();
     }
 
-    private void ReleaseBuffers()
+    // Writes this batch's slice of the shared draw buffers: positions at `firstInstance`, LOD data at
+    // `visibleOffset + lod * count + i` (the slot the visible lists point at).
+    public void WriteDrawData(Vector4[] positions, LodRenderData[] lodData, int firstInstance, int visibleOffset)
     {
-        _positionBuffer?.Release();
-        if (_lodTransformBuffers != null)
-            foreach (ComputeBuffer buffer in _lodTransformBuffers) buffer?.Release();
-        _positionBuffer = null;
-        _lodTransformBuffers = null;
+        int count = _instances.Count;
+        for (int i = 0; i < count; i++)
+        {
+            InstanceData instance = _instances[i];
+            positions[firstInstance + i] = instance.lod0.position;
+            for (int lod = 0; lod < lods.Length; lod++)
+            {
+                LodTransform t = instance[lod];
+                Vector3 offset = t.position - instance.lod0.position;
+                lodData[visibleOffset + lod * count + i] = new LodRenderData
+                {
+                    rotation = t.rotation,
+                    scale = t.scale,
+                    offset = new Vector4(offset.x, offset.y, offset.z, firstInstance + i)
+                };
+            }
+        }
     }
 
     // Sphere around every LOD mesh as the shader draws it (each LOD at its own position).
@@ -482,5 +482,5 @@ public class BatchInstancer : MonoBehaviour
     }
 
     private int ArgsOffset(int argsStart, int lod, int subMesh) =>
-        (argsStart + _argsEntryStart[lod] + subMesh) * ArgsStride * sizeof(uint);
+        (argsStart + _argsEntryStart[lod] + subMesh) * ArgsBytes;
 }
