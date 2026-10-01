@@ -71,6 +71,16 @@ GPU instances of one product are drawn in a single indirect call (per submesh), 
 - Product lighting comes from the scene (Adaptive Probe Volumes + reflection probes). Don't add per-item lights or light-probe proxies.
 - Possible remaining difference (not verified in play): physics prefabs pick a reflection probe by object position, indirect draws by the batch bounds (centred at the origin). If plastic reflections change when an item swaps form, look here first.
 
+## 6b. Texture arrays (opt-in: `GPUInstanceTracker.useTextureArrays` / `-sariTextureArrays on`)
+
+Opaque, textured parts can sample one packed `Texture2DArray` instead of their own material (`ProductTextureAtlas`, `SubmeshMerger`). A part is packed when its albedo is **BC1 sRGB, power-of-two, ≤ 4096, full mip chain, Repeat + Bilinear, min side ≥ 4 after downscaling**; anything else (transparent, normal-mapped, other formats) silently stays on the classic per-material path.
+
+- Layer size = `GPUInstanceTracker.textureArrayResolution` (1K / 2K default / 4K, `-sariTextureRes 1024|2048|4096`). Bigger sources are copied from the matching mip (no resize, no recompression); smaller ones keep their size. Physics prefabs and classic parts always use the full-res originals.
+- Only products that get a GPU batcher are packed, and all batchers created in a frame are packed together (`GPUInstanceTracker.FlushPending`). Products that appear later (Store Builder, random fills) fill free space or append a new array; existing batchers never change.
+- Labels that tile (UVs far outside 0..1) get a full-width/height slot so hardware Repeat still wraps; keep tiling to the textures that need it, they cost a whole layer row/column.
+- Never call `Apply` on the arrays: it uploads an empty CPU copy and spikes memory by ~3x the array size.
+- Check copies/visual parity in edit mode with `ProductTextureAtlasCheck.BuildAll(layerSize)` / `VerifyCopies` / `RenderParity`.
+
 ## 7. Checklist / tools
 
 1. *Tools ▸ Products ▸ Validate Product Prefabs* (`ProductPrefabValidator.Run()`): root rotation/scale, pivot, missing LOD mesh/renderer, submesh/material mismatch, empty `LODGroup` slots, mirrored labels.
