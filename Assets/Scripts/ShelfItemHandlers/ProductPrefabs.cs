@@ -17,6 +17,14 @@ public static class ProductPrefabs
         return prefab;
     }
 
+    // Loads (and caches) every product prefab. Editor tools only: the game loads the products it spawns.
+    public static IEnumerable<GameObject> LoadAll()
+    {
+        foreach (GameObject prefab in Resources.LoadAll<GameObject>(ResourcePath.TrimEnd('/')))
+            Cache[prefab.name] = prefab;
+        return Cache.Values;
+    }
+
     // Instantiates a product as a physics/held item; its LODs and shadows match the GPU-instanced form.
     public static GameObject Spawn(string itemId, Vector3 position, Quaternion rotation, Transform parent = null)
     {

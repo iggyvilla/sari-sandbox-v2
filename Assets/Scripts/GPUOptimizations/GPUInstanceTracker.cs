@@ -1,6 +1,15 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+
+// Side length of the product texture array layers; larger sources are copied from their matching mip.
+public enum TextureArrayResolution
+{
+    [InspectorName("1K")] Res1K = 1024,
+    [InspectorName("2K")] Res2K = 2048,
+    [InspectorName("4K")] Res4K = 4096
+}
 
 // Singleton that owns one BatchInstancer per item ID and drives per-camera GPU culling + drawing.
 public class GPUInstanceTracker : MonoBehaviour
@@ -23,6 +32,16 @@ public class GPUInstanceTracker : MonoBehaviour
     [Tooltip("Merge opaque submeshes with matching render state into one draw (see SubmeshMerger).")]
     [SerializeField] private bool mergeSubmeshes = true;
 
+    [Tooltip("Sample opaque product albedo from packed texture arrays so products share one material (see ProductTextureAtlas).")]
+    [SerializeField] private bool useTextureArrays = false;
+
+    [Tooltip("Layer size of the texture arrays (memory vs. sharpness). Products with smaller textures keep their size.")]
+    [SerializeField] private TextureArrayResolution textureArrayResolution = TextureArrayResolution.Res2K;
+
+    [Tooltip("Draw with Graphics.RenderMeshIndirect: shared draw buffers, no per-draw property blocks, and identical " +
+             "materials shared across products, so the renderer changes state far less (see InstanceCullingSystem).")]
+    [SerializeField] private bool useIndirectArgs = false;
+
     // LOD2/LOD3 are disabled until their mesh scales are fixed.
     [SerializeField] private bool enableLod2AndLod3 = false;
 
@@ -32,14 +51,40 @@ public class GPUInstanceTracker : MonoBehaviour
     private const int DestroyedCameraPurgeInterval = 120;
     private const string FrustumCullingFlag = "-sariFrustumCulling";
     private const string OcclusionCullingFlag = "-sariOcclusionCulling";
+    private const string TextureArraysFlag = "-sariTextureArrays";
+    private const string TextureResFlag = "-sariTextureRes";
+    private const string IndirectArgsFlag = "-sariIndirectArgs";
+
+    // What a LOD was built from, so batchers can be rebuilt when texture arrays are toggled.
+    private readonly struct LodSource
+    {
+        public readonly Mesh mesh;
+        public readonly Material[] materials;
+        public readonly float maxDistance;
+
+        public LodSource(Mesh mesh, Material[] materials, float maxDistance)
+        {
+            this.mesh = mesh;
+            this.materials = materials;
+            this.maxDistance = maxDistance;
+        }
+    }
 
     private readonly Dictionary<string, BatchInstancer> _batchers = new();
+    private readonly Dictionary<string, LodSource[]> _lodSources = new();
+    private readonly List<BatchInstancer> _pending = new();
+    private ProductTextureAtlas _atlas;
+    private SharedMaterialPool _sharedMaterials;
     private readonly Plane[] _unityPlanes = new Plane[6];
     private readonly Vector4[] _planes = new Vector4[6];
     private CommandBuffer _cullCommands;
     private InstanceCullingSystem _culling;
 
     public Camera MainCamera => mainCamera;
+    public bool UseTextureArrays => useTextureArrays;
+    public bool UseIndirectArgs => useIndirectArgs;
+    public TextureArrayResolution TextureResolution => textureArrayResolution;
+    public ProductTextureAtlas TextureAtlas => _atlas;
 
     // How many LODs instanced products use (physics prefabs mirror this, see ProductLodSetup).
     public static int ActiveLodCount =>
@@ -71,6 +116,10 @@ public class GPUInstanceTracker : MonoBehaviour
         _culling = new InstanceCullingSystem(frustumCullingShader);
         frustumCulling = ReadToggleArgument(FrustumCullingFlag, frustumCulling);
         occlusionCulling = ReadToggleArgument(OcclusionCullingFlag, occlusionCulling);
+        useTextureArrays = ReadToggleArgument(TextureArraysFlag, useTextureArrays);
+        textureArrayResolution = ReadResolutionArgument(TextureResFlag, textureArrayResolution);
+        useIndirectArgs = ReadToggleArgument(IndirectArgsFlag, useIndirectArgs);
+        _culling.IndirectArgs = useIndirectArgs;
     }
 
     // "-flag off" / "-flag on" overrides the Inspector value in player builds.
@@ -80,6 +129,17 @@ public class GPUInstanceTracker : MonoBehaviour
         if (string.IsNullOrEmpty(value)) return fallback;
         return !value.Equals("off", System.StringComparison.OrdinalIgnoreCase) && value != "0" &&
                !value.Equals("false", System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    // "-flag 1024|2048|4096" overrides the Inspector value in player builds.
+    private static TextureArrayResolution ReadResolutionArgument(string flag, TextureArrayResolution fallback)
+    {
+        string value = CommandLineArgs.Get(flag);
+        if (string.IsNullOrEmpty(value)) return fallback;
+        if (int.TryParse(value, out int size) && Enum.IsDefined(typeof(TextureArrayResolution), size))
+            return (TextureArrayResolution)size;
+        Debug.LogWarning($"{flag}: '{value}' is not 1024, 2048 or 4096; using {(int)fallback}.");
+        return fallback;
     }
 
     void OnEnable()
@@ -94,6 +154,8 @@ public class GPUInstanceTracker : MonoBehaviour
     {
         _cullCommands?.Release();
         _culling?.Dispose();
+        _atlas?.Dispose();
+        _sharedMaterials?.Dispose();
         if (Instance == this) Instance = null;
     }
 
@@ -110,6 +172,7 @@ public class GPUInstanceTracker : MonoBehaviour
     private void OnBeginCameraRendering(ScriptableRenderContext _, Camera cam)
     {
         if (!DrawsProducts(cam)) return;
+        FlushPending();
         if (cam.cameraType == CameraType.SceneView && sceneViewShowsMainCameraCulling &&
             _culling.RenderCameraAs(cam, mainCamera != null ? mainCamera : Camera.main))
             return;
@@ -155,12 +218,16 @@ public class GPUInstanceTracker : MonoBehaviour
 
     public void CullForLidarRange(Vector3 origin, float maxRange)
     {
+        FlushPending();
         _culling.CullForLidarRange(_cullCommands, origin, maxRange);
         ExecuteCullCommands();
     }
 
-    public LidarIndirectDrawStats AddLidarDepthDrawCommands(CommandBuffer cmd, Material depthMaterial) =>
-        _culling.AddLidarDepthDrawCommands(cmd, depthMaterial);
+    public LidarIndirectDrawStats AddLidarDepthDrawCommands(CommandBuffer cmd, Material depthMaterial)
+    {
+        FlushPending();
+        return _culling.AddLidarDepthDrawCommands(cmd, depthMaterial);
+    }
 
     public void DespawnAllItems()
     {
@@ -172,9 +239,9 @@ public class GPUInstanceTracker : MonoBehaviour
     {
         if (!_batchers.TryGetValue(itemId, out BatchInstancer bi))
         {
-            LODDefinition[] lodDefinitions = BuildLodDefinitions(obj);
-            if (lodDefinitions == null) return;
-            bi = CreateBatcher(itemId, lodDefinitions);
+            LodSource[] sources = ResolveLodSources(obj);
+            if (sources == null) return;
+            bi = CreateBatcher(itemId, sources);
         }
         bi.AddObjectToBatch(instanceData);
     }
@@ -201,19 +268,38 @@ public class GPUInstanceTracker : MonoBehaviour
         {
             bi = CreateBatcher(itemId, new[]
             {
-                MakeLod(mesh, materials, DefaultMaxDistances[LodHierarchy.MaxLods - 1])
+                new LodSource(mesh, materials, DefaultMaxDistances[LodHierarchy.MaxLods - 1])
             });
         }
         bi.AddObjectToBatch(MakeChunkInstanceData(position));
     }
 
-    private BatchInstancer CreateBatcher(string itemId, LODDefinition[] lodDefinitions)
+    private BatchInstancer CreateBatcher(string itemId, LodSource[] sources)
     {
         BatchInstancer bi = gameObject.AddComponent<BatchInstancer>();
-        bi.Init(itemId, lodDefinitions);
+        bi.itemId = itemId;
+        _lodSources[itemId] = sources;
         _batchers[itemId] = bi;
-        _culling.Add(bi);
+        // With texture arrays the LODs wait for FlushPending, so every product spawned together is packed together.
+        if (useTextureArrays) _pending.Add(bi);
+        else Activate(bi);
         return bi;
+    }
+
+    private void Activate(BatchInstancer bi)
+    {
+        bi.Init(bi.itemId, BuildLodDefinitions(_lodSources[bi.itemId]));
+        _culling.Add(bi);
+    }
+
+    // Packs the textures of every batcher created since the last flush in one go (dense arrays, only products that
+    // are really in the store), then gives them their LODs. Runs before anything draws or culls.
+    private void FlushPending()
+    {
+        if (_pending.Count == 0) return;
+        if (useTextureArrays) PackSources(_pending.ConvertAll(b => _lodSources[b.itemId]));
+        foreach (BatchInstancer bi in _pending) Activate(bi);
+        _pending.Clear();
     }
 
     // A chunk's geometry is baked relative to its pivot, so every LOD slot shares one identity transform.
@@ -228,11 +314,11 @@ public class GPUInstanceTracker : MonoBehaviour
         return new InstanceData { lod0 = t, lod1 = t, lod2 = t, lod3 = t };
     }
 
-    private LODDefinition[] BuildLodDefinitions(GameObject obj)
+    private LodSource[] ResolveLodSources(GameObject obj)
     {
         Transform[] lodTransforms = LodHierarchy.ResolveLodTransforms(obj);
         int activeLods = ActiveLodCount;
-        var lodList = new List<LODDefinition>();
+        var lodList = new List<LodSource>();
 
         for (int i = 0; i < activeLods; i++)
         {
@@ -244,7 +330,7 @@ public class GPUInstanceTracker : MonoBehaviour
                 ? DefaultMaxDistances[LodHierarchy.MaxLods - 1]
                 : DefaultMaxDistances[i];
 
-            lodList.Add(MakeLod(mf.sharedMesh, mr.sharedMaterials, maxDistance));
+            lodList.Add(new LodSource(mf.sharedMesh, mr.sharedMaterials, maxDistance));
         }
 
         if (lodList.Count > 0) return lodList.ToArray();
@@ -253,32 +339,133 @@ public class GPUInstanceTracker : MonoBehaviour
         return null;
     }
 
-    private LODDefinition MakeLod(Mesh mesh, Material[] sourceMaterials, float maxDistance) =>
-        BuildLod(mesh, sourceMaterials, maxDistance, proceduralUrpLitShader, mergeSubmeshes);
-
-    // Shared with editor tools so previews use the exact runtime mesh/material conversion.
-    public static LODDefinition BuildLod(
-        Mesh mesh, Material[] sourceMaterials, float maxDistance, Shader instancingShader, bool merge)
+    private LODDefinition[] BuildLodDefinitions(LodSource[] sources)
     {
-        Material[] materials = CloneMaterialsForInstancing(sourceMaterials, instancingShader);
-        if (merge)
-            (mesh, materials) = SubmeshMerger.Merge(mesh, materials);
-        return new LODDefinition { mesh = mesh, materials = materials, maxDistance = maxDistance };
+        ProductTextureAtlas atlas = useTextureArrays ? _atlas : null; // packed by FlushPending / RebuildLods
+        SharedMaterialPool pool = null;
+        if (useIndirectArgs) pool = _sharedMaterials ??= new SharedMaterialPool();
+        var definitions = new LODDefinition[sources.Length];
+        for (int i = 0; i < sources.Length; i++)
+        {
+            LodSource src = sources[i];
+            definitions[i] = BuildLod(
+                src.mesh, src.materials, src.maxDistance, proceduralUrpLitShader, mergeSubmeshes, atlas, pool);
+        }
+        return definitions;
     }
 
-    // Each batcher needs its own material clones: shared materials across meshes break procedural instancing.
-    private static Material[] CloneMaterialsForInstancing(Material[] source, Shader instancingShader)
+    // Switches between per-product materials and texture arrays, rebuilding every batcher's LODs.
+    public void SetUseTextureArrays(bool enabled)
     {
-        var cloned = new Material[source.Length];
-        for (int i = 0; i < source.Length; i++)
+        if (useTextureArrays == enabled) return;
+        useTextureArrays = enabled;
+        RebuildLods();
+    }
+
+    // Switches between per-draw property blocks and shared draw buffers (with shared materials).
+    public void SetUseIndirectArgs(bool enabled)
+    {
+        if (useIndirectArgs == enabled) return;
+        useIndirectArgs = enabled;
+        _culling.IndirectArgs = enabled;
+        RebuildLods();
+        if (enabled) return;
+        _sharedMaterials?.Dispose();
+        _sharedMaterials = null;
+    }
+
+    // Switches the layer size, repacking every product that has a batcher.
+    public void SetTextureArrayResolution(TextureArrayResolution resolution)
+    {
+        if (textureArrayResolution == resolution) return;
+        textureArrayResolution = resolution;
+        ProductTextureAtlas old = _atlas;
+        _atlas = null;
+        RebuildLods();
+        old?.Dispose();
+    }
+
+    private void RebuildLods()
+    {
+        FlushPending();
+        if (useTextureArrays) PackSources(_lodSources.Values);
+        foreach (KeyValuePair<string, BatchInstancer> entry in _batchers)
+            entry.Value.SetLods(BuildLodDefinitions(_lodSources[entry.Key]));
+    }
+
+    // Adds the textures of these LODs the atlas doesn't have yet: free space first, then a new array.
+    private void PackSources(IEnumerable<LodSource[]> sources)
+    {
+        var needs = new Dictionary<Texture2D, ProductTextureAtlas.Wrap>();
+        foreach (LodSource[] lods in sources)
+            foreach (LodSource lod in lods)
+                ProductTextureAtlas.CollectNeeds(lod.mesh, lod.materials, needs);
+        _atlas ??= new ProductTextureAtlas((int)textureArrayResolution);
+        int added = _atlas.Add(needs);
+        if (added > 0)
         {
-            cloned[i] = new Material(source[i])
-            {
-                shader = instancingShader,
-                enableInstancing = true
-            };
-            ProductMaterials.ApplyDepthWrite(cloned[i]);
+            Debug.Log($"GPUInstanceTracker: packed {added} textures; atlas has {_atlas.TextureCount} textures in " +
+                      $"{_atlas.LayerCount} layers of {_atlas.LayerSize}px across {_atlas.Arrays.Count} arrays " +
+                      $"({_atlas.MemoryBytes / 1048576} MB, {_atlas.Efficiency:P1} used, {_atlas.BuildMilliseconds:F0} ms total).");
         }
-        return cloned;
+    }
+
+    // Shared with editor tools so previews use the exact runtime mesh/material conversion. Without a pool every
+    // material is a clone this LOD owns (see LODDefinition.owned); with one, equal clones are shared across LODs.
+    public static LODDefinition BuildLod(
+        Mesh mesh, Material[] sourceMaterials, float maxDistance, Shader instancingShader, bool merge,
+        ProductTextureAtlas atlas = null, SharedMaterialPool pool = null)
+    {
+        Mesh sourceMesh = mesh;
+        var clones = new List<Material>();
+        Material Clone(Material m)
+        {
+            Material clone = CloneForInstancing(m, instancingShader);
+            clones.Add(clone);
+            return clone;
+        }
+        Material Share(Material m) => pool != null ? pool.Intern(m) : m;
+
+        Material[] materials;
+        if (merge && atlas != null)
+            (mesh, materials) = SubmeshMerger.MergeIntoArrays(mesh, sourceMaterials, atlas, instancingShader, Clone, Share);
+        else
+        {
+            materials = Array.ConvertAll(sourceMaterials, Clone);
+            if (merge)
+                (mesh, materials) = SubmeshMerger.Merge(mesh, materials);
+            materials = Array.ConvertAll(materials, Share);
+        }
+
+        // Clones the merge left unused are freed now; used ones belong to the pool or to this LOD.
+        var owned = new List<UnityEngine.Object>();
+        if (mesh != sourceMesh) owned.Add(mesh);
+        foreach (Material clone in clones)
+        {
+            if (clone == null) continue;
+            if (Array.IndexOf(materials, clone) < 0) DestroyOwned(clone);
+            else if (pool == null) owned.Add(clone);
+        }
+        return new LODDefinition { mesh = mesh, materials = materials, maxDistance = maxDistance, owned = owned.ToArray() };
+    }
+
+    private static void DestroyOwned(UnityEngine.Object o)
+    {
+        if (Application.isPlaying) Destroy(o);
+        else DestroyImmediate(o);
+    }
+
+    // Per-product clones (one per batcher) keep procedural data per material for the property-block draws.
+    // Array materials hold no per-product data (everything per-part is vertex data), and with shared draw buffers
+    // neither do the others, so a pool can serve every product.
+    private static Material CloneForInstancing(Material source, Shader instancingShader)
+    {
+        var clone = new Material(source)
+        {
+            shader = instancingShader,
+            enableInstancing = true
+        };
+        ProductMaterials.ApplyDepthWrite(clone);
+        return clone;
     }
 }
