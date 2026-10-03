@@ -75,13 +75,13 @@ GPU instances of one product are drawn in a single indirect call (per submesh), 
 
 Per-machine render settings (`RenderingSettings`), changed live in the Store Builder's *Agent Settings* menu (Render Preset, Texture Arrays, Indirect Draw, Array Resolution):
 
-| Preset | Indirect draw | Texture arrays | Cost / gain (full store) |
-|---|---|---|---|
-| Low memory | on | off | no extra memory, ~0.6 ms/frame faster than the legacy path |
-| Balanced (default) | on | 2K | ~+290 MB, ~1 ms/frame faster, SetPass 1250 -> 750 |
-| High quality | on | 4K | ~+1 GB, same speed, sharper only in extreme close-ups |
+| Preset | Indirect draw | Texture arrays | SSAO | Cost / gain (full store) |
+|---|---|---|---|---|
+| Low memory | on | off | half res | no extra memory, ~0.6 ms/frame faster than the legacy path |
+| Balanced (default) | on | 2K | half res | ~+290 MB, ~1 ms/frame faster, SetPass 1250 -> 750 |
+| High quality | on | 4K | full res | ~+1 GB, sharper only in extreme close-ups; full-res SSAO costs ~1.2 ms/frame more |
 
-Any other toggle combination reads *Custom* (all off = the legacy path, kept for debugging; 1K is ~+70 MB). Choices are saved in PlayerPrefs (`sari.render*`) and applied before products spawn. Precedence: command-line flags (`-sariRenderPreset low|balanced|hq`, then `-sariTextureArrays`, `-sariIndirectArgs`, `-sariTextureRes`) > PlayerPrefs > the `GPUInstanceTracker` inspector values (defaults = Balanced). Flags are per-launch only; they are not saved.
+SSAO is the single biggest GPU cost (~1.8 ms of a ~4.3 ms frame at 1080p on an M1 Pro); its resolution is set at runtime on the renderer feature (`RenderingSettings.FullResSsao`, saved as `sari.renderSsaoFullRes`), and the renderer asset defaults to half res. Fewer samples, depth-only normals or Kawase blur saved nothing measurable. Any other toggle combination reads *Custom* (all off = the legacy path, kept for debugging; 1K is ~+70 MB). Choices are saved in PlayerPrefs (`sari.render*`) and applied before products spawn. Precedence: command-line flags (`-sariRenderPreset low|balanced|hq`, then `-sariTextureArrays`, `-sariIndirectArgs`, `-sariTextureRes`) > PlayerPrefs > the `GPUInstanceTracker` inspector values (defaults = Balanced). Flags are per-launch only; they are not saved.
 
 **Texture arrays** (`GPUInstanceTracker.useTextureArrays`):
 
