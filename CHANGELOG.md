@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.4.1 (2026-10-03)
+
+### Documentation
+
+- Document SSAO resolution in render presets
+  ([`2df47d9`](https://github.com/iggyvilla/sari-sandbox-v2/commit/2df47d92ebc3ad3ea1f84a04dc4eabde464986c6))
+
+### Performance Improvements
+
+- **gpu**: Render SSAO at half resolution except on the High quality preset
+  ([`81d3ee4`](https://github.com/iggyvilla/sari-sandbox-v2/commit/81d3ee4b5c8b4cb6467c603bdccfd1a6fcd26a48))
+
+
 ## v1.4.0 (2026-10-03)
 
 ### Bug Fixes
