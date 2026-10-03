@@ -38,6 +38,7 @@ MonoBehaviour:
   fillR12: {fileID: 21300000, guid: 5781b47a8a22544099dbd92547a0a847, type: 3}
   ringR12: {fileID: 21300000, guid: 2396f00f5dc6943e7842262f1ef9c203, type: 3}
   pill: {fileID: 21300000, guid: 3857576fcc04d4f0793bc036d4b90742, type: 3}
+  ringPill: {fileID: 21300000, guid: 18e2e05634e144fedb46e2e0aff95cee, type: 3}
   circle: {fileID: 21300000, guid: a76658cab37a74bb3848ceae055d12bd, type: 3}
   icons:
   - name: agent

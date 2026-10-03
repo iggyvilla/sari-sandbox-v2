@@ -230,7 +230,8 @@ if __name__ == "__main__":
     shape("ring_r8", 64, 16, ring=2)
     shape("fill_r12", 96, 24)
     shape("ring_r12", 96, 24, ring=2)
-    shape("fill_pill", 64, 32)
+    shape("fill_pill", 44, 22)
+    shape("ring_pill", 44, 22, ring=2)
     circle("circle", 64)
     for key, paths in ICONS.items():
         icon(key, paths)

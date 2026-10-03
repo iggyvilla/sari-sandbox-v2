@@ -43,6 +43,7 @@ public class SB_Theme : ScriptableObject
     public Sprite fillR12;
     public Sprite ringR12;
     public Sprite pill;
+    public Sprite ringPill;
     public Sprite circle;
 
     [Header("Icons")]

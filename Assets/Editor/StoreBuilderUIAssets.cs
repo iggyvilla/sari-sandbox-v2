@@ -37,7 +37,7 @@ class StoreBuilderSpriteImporter : AssetPostprocessor
     {
         "fill_r8" or "ring_r8" => Vector4.one * 18f,
         "fill_r12" or "ring_r12" => Vector4.one * 28f,
-        "fill_pill" => Vector4.one * 32f,
+        "fill_pill" or "ring_pill" => Vector4.one * 22f,
         _ => Vector4.zero
     };
 }
@@ -109,6 +109,7 @@ public static class StoreBuilderUIAssets
         theme.fillR12 = LoadSprite("fill_r12");
         theme.ringR12 = LoadSprite("ring_r12");
         theme.pill = LoadSprite("fill_pill");
+        theme.ringPill = LoadSprite("ring_pill");
         theme.circle = LoadSprite("circle");
 
         var icons = new List<SB_Theme.IconEntry>();
