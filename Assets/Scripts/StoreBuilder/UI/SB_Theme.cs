@@ -44,6 +44,7 @@ public class SB_Theme : ScriptableObject
     public Sprite ringR12;
     public Sprite pill;
     public Sprite ringPill;
+    public Sprite pillSmall;
     public Sprite circle;
 
     [Header("Icons")]

@@ -510,7 +510,7 @@ public class StoreBuilderUIKit
         track.pivot = new Vector2(1f, 0.5f);
         track.sizeDelta = new Vector2(8f, -12f);
         track.anchoredPosition = new Vector2(-4f, 0f);
-        Img(track, T.pill, new Color(1f, 1f, 1f, 0.05f), true);
+        Img(track, T.pillSmall, new Color(1f, 1f, 1f, 0.05f), true);
 
         RectTransform area = Rect("Sliding Area", track);
         Stretch(area);
@@ -518,7 +518,7 @@ public class StoreBuilderUIKit
         handle.anchorMin = Vector2.zero;
         handle.anchorMax = Vector2.one;
         handle.offsetMin = handle.offsetMax = Vector2.zero;
-        Image handleImage = Img(handle, T.pill, new Color(1f, 1f, 1f, 0.5f), true);
+        Image handleImage = Img(handle, T.pillSmall, new Color(1f, 1f, 1f, 0.5f), true);
 
         var bar = track.gameObject.AddComponent<Scrollbar>();
         bar.direction = Scrollbar.Direction.BottomToTop;
