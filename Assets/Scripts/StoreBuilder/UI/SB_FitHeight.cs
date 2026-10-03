@@ -20,7 +20,8 @@ public class SB_FitHeight : MonoBehaviour
         }
 
         float max = _canvas.rect.height - topMargin - bottomMargin;
-        float height = Mathf.Min(LayoutUtility.GetPreferredHeight(content), max);
+        // +2: the viewport is inset by 1 px top and bottom, and the scrollbar hides only when the content fits.
+        float height = Mathf.Min(LayoutUtility.GetPreferredHeight(content) + 2f, max);
         if (!Mathf.Approximately(_rect.rect.height, height))
             _rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
     }

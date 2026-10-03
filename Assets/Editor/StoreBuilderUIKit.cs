@@ -306,7 +306,7 @@ public class StoreBuilderUIKit
         RectTransform rect = Rect(name, parent);
         Fixed(rect.gameObject, 38f, 22f);
         Image track = Img(rect, T.pill, T.field, true);
-        Image ring = Ring(rect, T.ringR12, T.lineStrong);
+        Image ring = Ring(rect, T.ringPill, T.lineStrong);
 
         RectTransform knob = Rect("Knob", rect);
         Place(knob, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(2f, 0f), new Vector2(16f, 16f));
@@ -353,7 +353,9 @@ public class StoreBuilderUIKit
 
     // ── Segmented control and tabs ────────────────────────────────────────────
 
-    public SB_Segmented Segmented(Transform parent, string name, string[] labels, int[] values, bool underline = false, float height = 32f)
+    /// <param name="experimental">Options (by index) that get a warning icon next to their label.</param>
+    public SB_Segmented Segmented(Transform parent, string name, string[] labels, int[] values, bool underline = false,
+        float height = 32f, bool[] experimental = null)
     {
         RectTransform root = Rect(name, parent);
         Fixed(root.gameObject, -1f, height);
@@ -398,7 +400,15 @@ public class StoreBuilderUIKit
             button.targetGraphic = hit;
             button.transition = Selectable.Transition.None;
             TextMeshProUGUI label = Text(cell, labels[i], T.sansMedium, underline ? 13f : 12f, T.muted, TextAlignmentOptions.Center);
-            Stretch(label.rectTransform);
+            if (experimental != null && experimental[i])
+            {
+                H(cell.gameObject, 6f, null, TextAnchor.MiddleCenter);
+                Icon(cell, "warn", 13f, T.warn);
+            }
+            else
+            {
+                Stretch(label.rectTransform);
+            }
             segmented.buttons[i] = button;
             segmented.labels[i] = label;
         }
@@ -465,12 +475,64 @@ public class StoreBuilderUIKit
     }
 
     /// <summary>Caption above a control; returns the column so the control can be added to it.</summary>
-    public RectTransform Labeled(Transform parent, string label, string name = "Field")
+    public RectTransform Labeled(Transform parent, string label, string name = "Field", bool experimental = false)
     {
         RectTransform column = Rect(name, parent);
         V(column.gameObject, 5f);
-        Text(column, label, T.sans, 12f, T.muted);
+        if (!experimental)
+        {
+            Text(column, label, T.sans, 12f, T.muted);
+            return column;
+        }
+
+        RectTransform caption = Rect("Caption", column);
+        H(caption.gameObject, 6f);
+        Text(caption, label, T.sans, 12f, T.muted);
+        Icon(caption, "warn", 13f, T.warn);
         return column;
+    }
+
+    // ── Scrolling ─────────────────────────────────────────────────────────────
+
+    /// <summary>Mouse-wheel step per notch; trackpads send many small events, so keep it low.</summary>
+    public const float ScrollSensitivity = 4f;
+
+    /// <summary>Vertical scrolling with a slim scrollbar on the right of `host` that hides when everything fits.</summary>
+    public void StyleScroll(ScrollRect scroll, RectTransform host)
+    {
+        scroll.horizontal = false;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = ScrollSensitivity;
+
+        RectTransform track = Rect("Scrollbar", host);
+        track.anchorMin = new Vector2(1f, 0f);
+        track.anchorMax = new Vector2(1f, 1f);
+        track.pivot = new Vector2(1f, 0.5f);
+        track.sizeDelta = new Vector2(8f, -12f);
+        track.anchoredPosition = new Vector2(-4f, 0f);
+        Img(track, T.pill, new Color(1f, 1f, 1f, 0.05f), true);
+
+        RectTransform area = Rect("Sliding Area", track);
+        Stretch(area);
+        RectTransform handle = Rect("Handle", area);
+        handle.anchorMin = Vector2.zero;
+        handle.anchorMax = Vector2.one;
+        handle.offsetMin = handle.offsetMax = Vector2.zero;
+        Image handleImage = Img(handle, T.pill, new Color(1f, 1f, 1f, 0.5f), true);
+
+        var bar = track.gameObject.AddComponent<Scrollbar>();
+        bar.direction = Scrollbar.Direction.BottomToTop;
+        bar.handleRect = handle;
+        bar.targetGraphic = handleImage;
+        bar.transition = Selectable.Transition.ColorTint;
+        bar.colors = new ColorBlock
+        {
+            normalColor = new Color(1f, 1f, 1f, 0.6f), highlightedColor = Color.white, pressedColor = Color.white,
+            selectedColor = new Color(1f, 1f, 1f, 0.6f), disabledColor = new Color(1f, 1f, 1f, 0.2f),
+            colorMultiplier = 1f, fadeDuration = 0.1f
+        };
+        scroll.verticalScrollbar = bar;
+        scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
     }
 
     public TMP_Dropdown Dropdown(Transform parent, string name, float height = 32f)
@@ -530,7 +592,7 @@ public class StoreBuilderUIKit
         scroll.content = content;
         scroll.horizontal = false;
         scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 24f;
+        scroll.scrollSensitivity = ScrollSensitivity;
 
         var dropdown = root.gameObject.AddComponent<TMP_Dropdown>();
         dropdown.targetGraphic = background;

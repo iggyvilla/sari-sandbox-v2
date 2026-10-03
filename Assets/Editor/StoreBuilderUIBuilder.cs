@@ -267,9 +267,7 @@ public static class StoreBuilderUIBuilder
             var scroll = rect.gameObject.AddComponent<ScrollRect>();
             scroll.viewport = viewport;
             scroll.content = content;
-            scroll.horizontal = false;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 24f;
+            k.StyleScroll(scroll, rect);
             rect.gameObject.AddComponent<SB_FitHeight>().content = content;
 
             animated = k.MakePanel(rect.gameObject, new Vector2(16f, 0f));
@@ -361,10 +359,12 @@ public static class StoreBuilderUIBuilder
             return status;
         }
 
-        SB_Segmented Choice(Transform parent, string label, string[] labels, int[] values)
+        // `experimental` flags options (by index) and `experimentalField` the whole field with a warning icon.
+        SB_Segmented Choice(Transform parent, string label, string[] labels, int[] values,
+            bool[] experimental = null, bool experimentalField = false)
         {
-            RectTransform column = k.Labeled(parent, label);
-            return k.Segmented(column, label + " Choice", labels, values);
+            RectTransform column = k.Labeled(parent, label, "Field", experimentalField);
+            return k.Segmented(column, label + " Choice", labels, values, experimental: experimental);
         }
 
         void BuildShelfInspector(RectTransform root)
@@ -569,14 +569,12 @@ public static class StoreBuilderUIBuilder
             listContent.anchorMax = new Vector2(1f, 1f);
             listContent.pivot = new Vector2(0.5f, 1f);
             listContent.sizeDelta = Vector2.zero;
-            V(listContent.gameObject, 4f);
+            V(listContent.gameObject, 4f, Pad(0f, 14f, 0f, 0f)); // right gap keeps rows clear of the scrollbar
             FitToContent(listContent.gameObject);
             var scroll = list.gameObject.AddComponent<ScrollRect>();
             scroll.viewport = list;
             scroll.content = listContent;
-            scroll.horizontal = false;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 24f;
+            k.StyleScroll(scroll, list);
             h.storeListRoot = listContent;
 
             ButtonParts template = k.Row(listContent, "Row Template", 40f);
@@ -672,14 +670,23 @@ public static class StoreBuilderUIBuilder
             V(agent.gameObject, 14f, Pad(20f), TextAnchor.UpperLeft);
             h.agentTab = agent.gameObject;
             k.Body(agent, "How the shopper agent looks and acts when you press Play.", 12f, true, true);
-            h.agentAvatarSegment = Choice(agent, "Avatar", new[] { "VR", "Experimental IK humanoid" },
-                new[] { (int)AgentAvatarSetting.VR, (int)AgentAvatarSetting.ExperimentalIKHumanoid });
+            h.agentAvatarSegment = Choice(agent, "Avatar", new[] { "VR", "IK humanoid" },
+                new[] { (int)AgentAvatarSetting.VR, (int)AgentAvatarSetting.ExperimentalIKHumanoid },
+                new[] { false, true });
             h.agentInteractionSegment = Choice(agent, "Interaction style", new[] { "Gaze", "Manual", "Manual, gaze door" },
-                new[] { (int)AgentInteractionStyle.Gaze, (int)AgentInteractionStyle.Manual, (int)AgentInteractionStyle.ManualButGazeDoor });
+                new[] { (int)AgentInteractionStyle.Gaze, (int)AgentInteractionStyle.Manual, (int)AgentInteractionStyle.ManualButGazeDoor },
+                new[] { true, false, true });
             h.agentBasketSegment = Choice(agent, "Item basket", new[] { "None", "Left hand" },
-                new[] { (int)AgentBasketStyle.None, (int)AgentBasketStyle.LeftHand });
+                new[] { (int)AgentBasketStyle.None, (int)AgentBasketStyle.LeftHand }, experimentalField: true);
             h.scanningDifficultySegment = Choice(agent, "Barcode scanning difficulty", new[] { "Easy", "Medium", "Hard" },
                 new[] { (int)ScanningDifficulty.Easy, (int)ScanningDifficulty.Medium, (int)ScanningDifficulty.Hard });
+
+            // Legend for the warning icons, pinned to the bottom of the page.
+            Flex(k.Spacer(agent).gameObject, 0f, 1f);
+            RectTransform legend = Rect("Legend", agent);
+            H(legend.gameObject, 6f);
+            k.Icon(legend, "warn", 13f, T.warn);
+            k.Text(legend, "Experimental option. May be unstable or change.", T.sans, 12f, T.muted);
 
             RectTransform rendering = Rect("Rendering Page", pages);
             V(rendering.gameObject, 14f, Pad(20f), TextAnchor.UpperLeft);
