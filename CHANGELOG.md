@@ -2,6 +2,50 @@
 
 <!-- version list -->
 
+## v1.5.0 (2026-10-03)
+
+### Bug Fixes
+
+- **store-builder**: Give scrollbars their own small pill sprite
+  ([`16cae9a`](https://github.com/iggyvilla/sari-sandbox-v2/commit/16cae9a24f63ce97c2ee00362219175976342430))
+
+- **store-builder**: Keep the store list scrolling over row gaps and stop scrollbar drags closing
+  dialogs
+  ([`bf4e7b1`](https://github.com/iggyvilla/sari-sandbox-v2/commit/bf4e7b1546fb9c8408f29b6e96fe66b5733ab556))
+
+- **store-builder**: Round the chip and switch ends with a height-matched pill sprite
+  ([`f3fac95`](https://github.com/iggyvilla/sari-sandbox-v2/commit/f3fac95256db21ead974dd888e8386e48ce88a26))
+
+### Chores
+
+- **store-builder**: Add IBM Plex fonts and UI sprite generator
+  ([`ae6fad2`](https://github.com/iggyvilla/sari-sandbox-v2/commit/ae6fad2e51d82c9ed6f83ded9b08a947fcb32f76))
+
+- **store-builder**: Regenerate the StoreBuilder scene UI
+  ([`14895bb`](https://github.com/iggyvilla/sari-sandbox-v2/commit/14895bbfc38eaad0ee91568aeb15ab66c3dc6aa6))
+
+- **store-builder**: Regenerate the StoreBuilder scene UI
+  ([`4f27b96`](https://github.com/iggyvilla/sari-sandbox-v2/commit/4f27b96d74a30f69ff947db7cc756ddfe2daa44e))
+
+### Documentation
+
+- Document the generated Store Builder UI and the new Settings dialog
+  ([`0599702`](https://github.com/iggyvilla/sari-sandbox-v2/commit/059970251a306f6cec991c72bc91f1b6602fb5ee))
+
+### Features
+
+- **store-builder**: Add scrollbars, gentler scrolling and experimental markers
+  ([`b2d01e1`](https://github.com/iggyvilla/sari-sandbox-v2/commit/b2d01e1b6ec3e2bfc0920c4a53bcef56b0df600b))
+
+- **store-builder**: Redesign the builder UI with a tool palette, inspectors and dialogs
+  ([`b786e5a`](https://github.com/iggyvilla/sari-sandbox-v2/commit/b786e5ad6a5489f5db61c29d903e972e504d9839))
+
+### Performance Improvements
+
+- **store-builder**: Light the builder with one directional light and flat ambient
+  ([`a7a3287`](https://github.com/iggyvilla/sari-sandbox-v2/commit/a7a32878c333e6fedb1438282a1ade020d6ee0b5))
+
+
 ## v1.4.1 (2026-10-03)
 
 ### Documentation
