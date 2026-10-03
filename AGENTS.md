@@ -43,7 +43,7 @@ Just write conventional commits.
 ## `Assets/Scripts` Structure
 
 - Core runtime: agent controllers, UI handlers, barcode/price/expiration systems, room and interaction helpers.
-- `StoreBuilder/`: editor/runtime store layout tools, selection, markers, props, and Store Builder UI partials.
+- `StoreBuilder/`: editor/runtime store layout tools, selection, markers, props, and Store Builder UI partials. `StoreBuilder/UI/` holds the DOTween-driven widgets (panel, segmented control, toggle, button fx). The widgets are generated into the StoreBuilder scene by `Assets/Editor/StoreBuilderUI*.cs` (menu `Sari/Store Builder UI/3. Rebuild UI`) from `Assets/UI/StoreBuilder/SB_Theme.asset`; edit the generator, not the generated hierarchy. Sprites come from `Tools/generate_store_builder_sprites.py`, fonts are IBM Plex (OFL) in `Assets/Fonts/IBMPlex`.
 - `ShelfBuilder/` and `ShelfItemHandlers/`: shelf geometry, fridge/item placement, item data, and spawning.
 - `ItemPhysics/`: item pooling, basket/hand collisions, shelf stacks, and physics proxies.
 - `SocketServers/`: Socket.IO/WebSocket server behavior for Sari agent and multiplayer commands.

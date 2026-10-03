@@ -73,7 +73,7 @@ GPU instances of one product are drawn in a single indirect call (per submesh), 
 
 ## 6b. Texture arrays and render presets (on by default: Balanced)
 
-Per-machine render settings (`RenderingSettings`), changed live in the Store Builder's *Agent Settings* menu (Render Preset, Texture Arrays, Indirect Draw, Array Resolution):
+Per-machine render settings (`RenderingSettings`), changed live in the Store Builder's *Settings* dialog, *Rendering* tab (Preset, Texture arrays, Indirect draw, Texture resolution):
 
 | Preset | Indirect draw | Texture arrays | SSAO | Cost / gain (full store) |
 |---|---|---|---|---|

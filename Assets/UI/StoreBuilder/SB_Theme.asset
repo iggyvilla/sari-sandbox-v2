@@ -1,0 +1,88 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d1ea7493910654fb5a932cafc9e96cbb, type: 3}
+  m_Name: SB_Theme
+  m_EditorClassIdentifier: 
+  panel: {r: 0.078431375, g: 0.08627451, b: 0.09803922, a: 0.9254902}
+  panelSolid: {r: 0.09411765, g: 0.101960786, b: 0.11764706, a: 1}
+  field: {r: 0.0627451, g: 0.07058824, b: 0.078431375, a: 1}
+  line: {r: 1, g: 1, b: 1, a: 0.09}
+  lineStrong: {r: 1, g: 1, b: 1, a: 0.2}
+  text: {r: 0.9254902, g: 0.9372549, b: 0.9490196, a: 1}
+  muted: {r: 0.6392157, g: 0.6666667, b: 0.69803923, a: 1}
+  accent: {r: 0.43529412, g: 0.827451, b: 0.6431373, a: 1}
+  accentHover: {r: 0.5254902, g: 0.8784314, b: 0.7137255, a: 1}
+  accentInk: {r: 0.043137256, g: 0.101960786, b: 0.07450981, a: 1}
+  warn: {r: 0.9490196, g: 0.7019608, b: 0.36862746, a: 1}
+  danger: {r: 1, g: 0.6039216, b: 0.54901963, a: 1}
+  fill: {r: 1, g: 1, b: 1, a: 0.05}
+  fillHover: {r: 1, g: 1, b: 1, a: 0.12}
+  fillPressed: {r: 1, g: 1, b: 1, a: 0.2}
+  scrim: {r: 0.03137255, g: 0.03529412, b: 0.039215688, a: 0.6}
+  sans: {fileID: 11400000, guid: 915f15b19826f4272a967da930e0f89e, type: 2}
+  sansMedium: {fileID: 11400000, guid: 156b80cc59ee0461ca58e010076d11fe, type: 2}
+  sansSemiBold: {fileID: 11400000, guid: 00cf17dff5733444498a14f6825e8c2a, type: 2}
+  mono: {fileID: 11400000, guid: 5c4e3e8d2357f47eebe1258d0a177496, type: 2}
+  monoMedium: {fileID: 11400000, guid: 8dccd9364ee27460f934710a1e71e266, type: 2}
+  fillR8: {fileID: 21300000, guid: afae1b9eb48db4f1abea83c9dd127dcc, type: 3}
+  ringR8: {fileID: 21300000, guid: 1e882ce965c4b4f84a9b72a42ea849ea, type: 3}
+  fillR12: {fileID: 21300000, guid: 5781b47a8a22544099dbd92547a0a847, type: 3}
+  ringR12: {fileID: 21300000, guid: 2396f00f5dc6943e7842262f1ef9c203, type: 3}
+  pill: {fileID: 21300000, guid: 3857576fcc04d4f0793bc036d4b90742, type: 3}
+  ringPill: {fileID: 21300000, guid: 18e2e05634e144fedb46e2e0aff95cee, type: 3}
+  pillSmall: {fileID: 21300000, guid: 0ad159c76729748359fd979d55ed603e, type: 3}
+  circle: {fileID: 21300000, guid: a76658cab37a74bb3848ceae055d12bd, type: 3}
+  icons:
+  - name: agent
+    sprite: {fileID: 21300000, guid: 2f2cd6681531748edb307b03eb7f2135, type: 3}
+  - name: aisle
+    sprite: {fileID: 21300000, guid: c3d558efe0df144c885697a178e719fe, type: 3}
+  - name: check
+    sprite: {fileID: 21300000, guid: 856bef2fc4f56448bbe8c59648d4dd43, type: 3}
+  - name: checkout
+    sprite: {fileID: 21300000, guid: 548dfaa89240c42539972d97f289d035, type: 3}
+  - name: chevron
+    sprite: {fileID: 21300000, guid: 470a17eba3d9b4a6397c07f72fbc98c9, type: 3}
+  - name: close
+    sprite: {fileID: 21300000, guid: 10d55f578c04840cf9796a737c464a96, type: 3}
+  - name: copy
+    sprite: {fileID: 21300000, guid: 3f1f6b0b7caab422e837d76999d667ad, type: 3}
+  - name: edit
+    sprite: {fileID: 21300000, guid: c28b0eb1123b243d786ea090ed5d177d, type: 3}
+  - name: exit
+    sprite: {fileID: 21300000, guid: 6dbd497093bea4d17810f145f3375875, type: 3}
+  - name: fill
+    sprite: {fileID: 21300000, guid: 60653f16495d84f3ea882d1507363f8e, type: 3}
+  - name: folder
+    sprite: {fileID: 21300000, guid: 8101cf81839164ab1bedb4ab9348bcc5, type: 3}
+  - name: fridge
+    sprite: {fileID: 21300000, guid: 19cf4bc435165487fa6732a17076030d, type: 3}
+  - name: move
+    sprite: {fileID: 21300000, guid: 7aa28eee6f9cc46b1827cc819168e8b3, type: 3}
+  - name: play
+    sprite: {fileID: 21300000, guid: f43bd35eb8f0a42ed9a7e7ae76be20e9, type: 3}
+  - name: rotate
+    sprite: {fileID: 21300000, guid: 8bad31e2ccfdb4f2b9c0d1701cba805e, type: 3}
+  - name: save
+    sprite: {fileID: 21300000, guid: 475e3763e66d741418c157b9afd57aa8, type: 3}
+  - name: search
+    sprite: {fileID: 21300000, guid: dff89acb55f154879bf26663cdd2b58b, type: 3}
+  - name: select
+    sprite: {fileID: 21300000, guid: 5cfc4299301b64d2782e462223d083a6, type: 3}
+  - name: shelf
+    sprite: {fileID: 21300000, guid: a9bc1beac145e4536823e63a07b7ff90, type: 3}
+  - name: sliders
+    sprite: {fileID: 21300000, guid: da0343df1b4a54328af87c6271739b4a, type: 3}
+  - name: trash
+    sprite: {fileID: 21300000, guid: f9b800010b171433c8d15f75f9a8c59a, type: 3}
+  - name: warn
+    sprite: {fileID: 21300000, guid: 006df3800f531492ea75a80cf28108cc, type: 3}

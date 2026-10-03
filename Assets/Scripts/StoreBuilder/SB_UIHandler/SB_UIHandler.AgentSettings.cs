@@ -1,46 +1,36 @@
+// Settings dialog: the Agent tab here, the Rendering tab in SB_UIHandler.Rendering.cs.
 public partial class SB_UIHandler
 {
-    public void OnAgentSettingsMenuPressed()
+    void OpenSettingsDialog()
     {
-        if (!ToggleMenu(agentSettingsMenu)) return;
-        SyncAgentSettingsDropdowns();
+        storesDialog.Hide();
+        SyncAgentSettings();
         SyncRenderingSettings();
+        settingsDialog.Show();
     }
 
-    void PopulateAgentSettingsDropdowns()
+    void OnSettingsTabChanged(int tab)
     {
-        FillEnumDropdown<AgentAvatarSetting>(agentAvatarSettingDropdown);
-        FillEnumDropdown<AgentInteractionStyle>(agentInteractionStyleDropdown);
-        FillEnumDropdown<AgentBasketStyle>(agentBasketStyleDropdown);
-        FillEnumDropdown<ScanningDifficulty>(scanningDifficultyDropdown);
+        agentTab.SetActive(tab == 0);
+        renderingTab.SetActive(tab == 1);
+        for (int i = 0; i < settingsTabFx.Length; i++)
+            settingsTabFx[i].SetSelected(i == tab);
     }
 
-    void SyncAgentSettingsDropdowns()
+    void BindAgentSettings()
+    {
+        agentAvatarSegment.onValueChanged.AddListener(index => DataHandler.Instance.agentAvatarSetting = (AgentAvatarSetting)index);
+        agentInteractionSegment.onValueChanged.AddListener(index => DataHandler.Instance.agentInteractionStyle = (AgentInteractionStyle)index);
+        agentBasketSegment.onValueChanged.AddListener(index => DataHandler.Instance.agentBasketStyle = (AgentBasketStyle)index);
+        scanningDifficultySegment.onValueChanged.AddListener(index => DataHandler.Instance.scanningDifficulty = (ScanningDifficulty)index);
+    }
+
+    void SyncAgentSettings()
     {
         DataHandler data = DataHandler.Instance;
-        ShelfEditGroupHandler.SetValue(agentAvatarSettingDropdown, (int)data.agentAvatarSetting);
-        ShelfEditGroupHandler.SetValue(agentInteractionStyleDropdown, (int)data.agentInteractionStyle);
-        ShelfEditGroupHandler.SetValue(agentBasketStyleDropdown, (int)data.agentBasketStyle);
-        ShelfEditGroupHandler.SetValue(scanningDifficultyDropdown, (int)data.scanningDifficulty);
-    }
-
-    public void OnAgentAvatarSettingChanged(int index)
-    {
-        DataHandler.Instance.agentAvatarSetting = (AgentAvatarSetting)index;
-    }
-
-    public void OnAgentInteractionStyleChanged(int index)
-    {
-        DataHandler.Instance.agentInteractionStyle = (AgentInteractionStyle)index;
-    }
-
-    public void OnAgentBasketStyleChanged(int index)
-    {
-        DataHandler.Instance.agentBasketStyle = (AgentBasketStyle)index;
-    }
-
-    public void OnScanningDifficultyChanged(int index)
-    {
-        DataHandler.Instance.scanningDifficulty = (ScanningDifficulty)index;
+        agentAvatarSegment.SetValueWithoutNotify((int)data.agentAvatarSetting);
+        agentInteractionSegment.SetValueWithoutNotify((int)data.agentInteractionStyle);
+        agentBasketSegment.SetValueWithoutNotify((int)data.agentBasketStyle);
+        scanningDifficultySegment.SetValueWithoutNotify((int)data.scanningDifficulty);
     }
 }
