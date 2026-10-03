@@ -528,6 +528,7 @@ public static class StoreBuilderUIBuilder
             Place(window, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size);
             Img(window, T.fillR12, T.panelSolid, true);
             StoreBuilderUIKit.Ring(window, T.ringR12, T.lineStrong);
+            window.gameObject.AddComponent<SB_ClickSink>();
             V(window.gameObject, 0f, Pad(1f));
 
             RectTransform header = Rect("Header", window);
@@ -564,6 +565,8 @@ public static class StoreBuilderUIBuilder
             RectTransform list = Rect("List", open);
             Flex(list.gameObject, 0f, 1f);
             list.gameObject.AddComponent<RectMask2D>();
+            // Scroll events go to whatever is under the pointer, so the gaps between rows need something to hit.
+            Img(list, null, T.Clear, true);
             RectTransform listContent = Rect("Content", list);
             listContent.anchorMin = new Vector2(0f, 1f);
             listContent.anchorMax = new Vector2(1f, 1f);
