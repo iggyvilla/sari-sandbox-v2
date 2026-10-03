@@ -32,15 +32,16 @@ public class GPUInstanceTracker : MonoBehaviour
     [Tooltip("Merge opaque submeshes with matching render state into one draw (see SubmeshMerger).")]
     [SerializeField] private bool mergeSubmeshes = true;
 
+    // Defaults are the Balanced preset; saved settings and command-line flags override them (see RenderingSettings).
     [Tooltip("Sample opaque product albedo from packed texture arrays so products share one material (see ProductTextureAtlas).")]
-    [SerializeField] private bool useTextureArrays = false;
+    [SerializeField] private bool useTextureArrays = true;
 
     [Tooltip("Layer size of the texture arrays (memory vs. sharpness). Products with smaller textures keep their size.")]
     [SerializeField] private TextureArrayResolution textureArrayResolution = TextureArrayResolution.Res2K;
 
     [Tooltip("Draw with Graphics.RenderMeshIndirect: shared draw buffers, no per-draw property blocks, and identical " +
              "materials shared across products, so the renderer changes state far less (see InstanceCullingSystem).")]
-    [SerializeField] private bool useIndirectArgs = false;
+    [SerializeField] private bool useIndirectArgs = true;
 
     // LOD2/LOD3 are disabled until their mesh scales are fixed.
     [SerializeField] private bool enableLod2AndLod3 = false;
@@ -85,6 +86,7 @@ public class GPUInstanceTracker : MonoBehaviour
     public bool UseIndirectArgs => useIndirectArgs;
     public TextureArrayResolution TextureResolution => textureArrayResolution;
     public ProductTextureAtlas TextureAtlas => _atlas;
+    public RenderingSettings.Options RenderingOptions => new(useTextureArrays, useIndirectArgs, textureArrayResolution);
 
     // How many LODs instanced products use (physics prefabs mirror this, see ProductLodSetup).
     public static int ActiveLodCount =>
@@ -116,9 +118,10 @@ public class GPUInstanceTracker : MonoBehaviour
         _culling = new InstanceCullingSystem(frustumCullingShader);
         frustumCulling = ReadToggleArgument(FrustumCullingFlag, frustumCulling);
         occlusionCulling = ReadToggleArgument(OcclusionCullingFlag, occlusionCulling);
-        useTextureArrays = ReadToggleArgument(TextureArraysFlag, useTextureArrays);
-        textureArrayResolution = ReadResolutionArgument(TextureResFlag, textureArrayResolution);
-        useIndirectArgs = ReadToggleArgument(IndirectArgsFlag, useIndirectArgs);
+        RenderingSettings.Options rendering = RenderingSettings.Startup(RenderingOptions);
+        useTextureArrays = ReadToggleArgument(TextureArraysFlag, rendering.textureArrays);
+        textureArrayResolution = ReadResolutionArgument(TextureResFlag, rendering.resolution);
+        useIndirectArgs = ReadToggleArgument(IndirectArgsFlag, rendering.indirectArgs);
         _culling.IndirectArgs = useIndirectArgs;
     }
 
@@ -369,9 +372,6 @@ public class GPUInstanceTracker : MonoBehaviour
         useIndirectArgs = enabled;
         _culling.IndirectArgs = enabled;
         RebuildLods();
-        if (enabled) return;
-        _sharedMaterials?.Dispose();
-        _sharedMaterials = null;
     }
 
     // Switches the layer size, repacking every product that has a batcher.
@@ -379,18 +379,26 @@ public class GPUInstanceTracker : MonoBehaviour
     {
         if (textureArrayResolution == resolution) return;
         textureArrayResolution = resolution;
+        if (!useTextureArrays) return; // nothing is packed; the next pack uses the new size
         ProductTextureAtlas old = _atlas;
         _atlas = null;
         RebuildLods();
         old?.Dispose();
     }
 
+    // Fresh shared materials per rebuild, so the old ones (and the arrays they sample) are freed once unused.
     private void RebuildLods()
     {
         FlushPending();
         if (useTextureArrays) PackSources(_lodSources.Values);
+        SharedMaterialPool oldPool = _sharedMaterials;
+        _sharedMaterials = null;
         foreach (KeyValuePair<string, BatchInstancer> entry in _batchers)
             entry.Value.SetLods(BuildLodDefinitions(_lodSources[entry.Key]));
+        oldPool?.Dispose();
+        if (useTextureArrays) return;
+        _atlas?.Dispose();
+        _atlas = null;
     }
 
     // Adds the textures of these LODs the atlas doesn't have yet: free space first, then a new array.
