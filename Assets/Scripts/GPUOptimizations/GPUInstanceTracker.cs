@@ -86,7 +86,8 @@ public class GPUInstanceTracker : MonoBehaviour
     public bool UseIndirectArgs => useIndirectArgs;
     public TextureArrayResolution TextureResolution => textureArrayResolution;
     public ProductTextureAtlas TextureAtlas => _atlas;
-    public RenderingSettings.Options RenderingOptions => new(useTextureArrays, useIndirectArgs, textureArrayResolution);
+    public RenderingSettings.Options RenderingOptions =>
+        new(useTextureArrays, useIndirectArgs, textureArrayResolution, RenderingSettings.FullResSsao);
 
     // How many LODs instanced products use (physics prefabs mirror this, see ProductLodSetup).
     public static int ActiveLodCount =>
@@ -123,6 +124,7 @@ public class GPUInstanceTracker : MonoBehaviour
         textureArrayResolution = ReadResolutionArgument(TextureResFlag, rendering.resolution);
         useIndirectArgs = ReadToggleArgument(IndirectArgsFlag, rendering.indirectArgs);
         _culling.IndirectArgs = useIndirectArgs;
+        RenderingSettings.FullResSsao = rendering.fullResSsao;
     }
 
     // "-flag off" / "-flag on" overrides the Inspector value in player builds.

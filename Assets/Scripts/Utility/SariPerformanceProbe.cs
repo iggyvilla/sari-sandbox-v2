@@ -479,7 +479,19 @@ public sealed class SariPerformanceProbe : MonoBehaviour
             switch (token)
             {
                 case "no-ssao":
-                    SetRendererFeatureActive("ScreenSpaceAmbientOcclusion", false);
+                    SetRendererFeatureActive(RendererFeatures.Ssao, false);
+                    break;
+                case "ssao-depth":
+                    SetSsaoSetting("Source", 0);
+                    break;
+                case "ssao-low-samples":
+                    SetSsaoSetting("Samples", 2);
+                    break;
+                case "ssao-blur-low":
+                    SetSsaoSetting("BlurQuality", 2);
+                    break;
+                case "ssao-half":
+                    SetSsaoSetting("Downsample", true);
                     break;
                 case "no-decals":
                     SetRendererFeatureActive("DecalRendererFeature", false);
@@ -527,33 +539,19 @@ public sealed class SariPerformanceProbe : MonoBehaviour
 
     private static void SetRendererFeatureActive(string featureName, bool active)
     {
-        UniversalRenderPipelineAsset pipeline = UniversalRenderPipeline.asset;
-        ScriptableRenderer renderer = pipeline != null ? pipeline.GetRenderer(0) : null;
-        if (renderer == null)
-        {
-            Debug.LogWarning(
-                $"Cannot toggle renderer feature '{featureName}': no active URP renderer.");
-            return;
-        }
-
-        System.Reflection.PropertyInfo featuresProperty =
-            typeof(ScriptableRenderer).GetProperty(
-                "rendererFeatures",
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.Public |
-                System.Reflection.BindingFlags.NonPublic);
-        IEnumerable<ScriptableRendererFeature> features =
-            featuresProperty?.GetValue(renderer) as IEnumerable<ScriptableRendererFeature>;
-        ScriptableRendererFeature feature = features?
-            .FirstOrDefault(candidate => candidate != null && candidate.name == featureName);
+        ScriptableRendererFeature feature = RendererFeatures.Find(featureName);
         if (feature == null)
-        {
-            Debug.LogWarning($"Renderer feature '{featureName}' was not found.");
             return;
-        }
 
         feature.SetActive(active);
         Debug.Log($"Performance probe set renderer feature '{featureName}' active={active}.");
+    }
+
+    // Enums take an int.
+    private static void SetSsaoSetting(string fieldName, object value)
+    {
+        if (RendererFeatures.SetSsaoSetting(fieldName, value))
+            Debug.Log($"Performance probe set SSAO {fieldName}={RendererFeatures.GetSsaoSetting(fieldName)}.");
     }
 
     private static void GetBatchStats(out int batchCount, out int instanceCount, out int drawCommands)
