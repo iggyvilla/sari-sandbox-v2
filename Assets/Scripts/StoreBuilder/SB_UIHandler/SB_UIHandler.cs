@@ -64,6 +64,12 @@ public partial class SB_UIHandler : MonoBehaviour
     public TMP_Dropdown agentBasketStyleDropdown;
     public TMP_Dropdown scanningDifficultyDropdown;
 
+    [Header("Rendering Settings UI")]
+    public TMP_Dropdown renderPresetDropdown;
+    public Toggle textureArraysToggle;
+    public Toggle indirectDrawToggle;
+    public TMP_Dropdown textureResolutionDropdown;
+
     [Header("Aisle Marker UI")]
     // Panel shown when an aisle marker is selected for editing
     public GameObject aisleMarkerMenu;
@@ -95,14 +101,18 @@ public partial class SB_UIHandler : MonoBehaviour
         FillEnumDropdown<ExitDoorType>(exitDoorTypeDropdown);
         FillEnumDropdown<ExitDoorPosition>(exitDoorPositionDropdown);
         PopulateAgentSettingsDropdowns();
+        PopulateRenderingDropdowns();
     }
 
-    // Replaces a dropdown's options with the names of enum T.
-    static void FillEnumDropdown<T>(TMP_Dropdown dropdown) where T : Enum
+    // Replaces a dropdown's options with the names of enum T (or `label(value)` when given).
+    static void FillEnumDropdown<T>(TMP_Dropdown dropdown, Func<T, string> label = null) where T : Enum
     {
         if (dropdown == null) return;
         dropdown.ClearOptions();
-        dropdown.AddOptions(new List<string>(Enum.GetNames(typeof(T))));
+        var options = new List<string>();
+        foreach (T value in Enum.GetValues(typeof(T)))
+            options.Add(label != null ? label(value) : value.ToString());
+        dropdown.AddOptions(options);
     }
 
     // Flips a menu's visibility and returns whether it is now open.

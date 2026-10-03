@@ -2,8 +2,9 @@ public partial class SB_UIHandler
 {
     public void OnAgentSettingsMenuPressed()
     {
-        if (ToggleMenu(agentSettingsMenu))
-            SyncAgentSettingsDropdowns();
+        if (!ToggleMenu(agentSettingsMenu)) return;
+        SyncAgentSettingsDropdowns();
+        SyncRenderingSettings();
     }
 
     void PopulateAgentSettingsDropdowns()
