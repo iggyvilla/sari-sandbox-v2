@@ -2,6 +2,55 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-10-03)
+
+### Bug Fixes
+
+- **gpu**: Compact visible lists in stable order to stop transparent flicker
+  ([`2b3bab9`](https://github.com/iggyvilla/sari-sandbox-v2/commit/2b3bab991c0774d26c99fa0ecaa354204edb1dfa))
+
+### Chores
+
+- Gitignore grocery and street asset packs and bug recordings
+  ([`d6221fc`](https://github.com/iggyvilla/sari-sandbox-v2/commit/d6221fcb452971e08476cf51c2f8afd3c9110d49))
+
+- Gitignore wall, street and building asset packs
+  ([`6dc3d09`](https://github.com/iggyvilla/sari-sandbox-v2/commit/6dc3d09d916fadc3051c172171765ecfe71aaaef))
+
+### Documentation
+
+- Allow Unity play mode for agent validation
+  ([`225c4b8`](https://github.com/iggyvilla/sari-sandbox-v2/commit/225c4b85f19858e24c7a329661ee0929edf7b12c))
+
+- Document product texture arrays
+  ([`f4ae454`](https://github.com/iggyvilla/sari-sandbox-v2/commit/f4ae4547f0edb277040f55a95e8bf89705fd6f0d))
+
+- Document render presets and runtime texture array rebuilds
+  ([`f37d52c`](https://github.com/iggyvilla/sari-sandbox-v2/commit/f37d52cefd2fb9d6ac0d29307429725f891fd52c))
+
+### Features
+
+- **gpu**: Add render presets and enable texture arrays and indirect draw by default
+  ([`c33d73a`](https://github.com/iggyvilla/sari-sandbox-v2/commit/c33d73ac1e33353ff2652d0cffd15f64cf047c14))
+
+- **gpu**: Pack spawned product textures into shared texture arrays
+  ([`7f1e965`](https://github.com/iggyvilla/sari-sandbox-v2/commit/7f1e9650856831d9b30503680e79022b8446aea8))
+
+- **store**: Add modular walls, street exit, emergency exits and street buildings
+  ([`dd72a26`](https://github.com/iggyvilla/sari-sandbox-v2/commit/dd72a26a4c5dddaebb08579e44993c2df8892f20))
+
+- **store**: Add window pillars, door thresholds and street pavement
+  ([`9806fd1`](https://github.com/iggyvilla/sari-sandbox-v2/commit/9806fd1ae11fbc96ab34315b6cfa12131cf484e7))
+
+- **store-builder**: Add rendering settings to the agent settings menu
+  ([`ac46001`](https://github.com/iggyvilla/sari-sandbox-v2/commit/ac460017b335a2c7d3a87d63381fea1593ce001d))
+
+### Performance Improvements
+
+- **gpu**: Draw products with RenderMeshIndirect and shared draw buffers
+  ([`4cbffb5`](https://github.com/iggyvilla/sari-sandbox-v2/commit/4cbffb52353e56ae7a464c15a8953a73ee0c6384))
+
+
 ## v1.3.0 (2026-09-29)
 
 ### Bug Fixes
