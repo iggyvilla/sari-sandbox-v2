@@ -5,55 +5,90 @@ using UnityEngine.UI;
 
 public partial class SB_UIHandler
 {
+    enum ShelfFace { Front, Back, Left, Right }
+
+    void BindShelfInspector()
+    {
+        ShelfEditGroupHandler g = shelfEditGroupHandler;
+        shelfTabs.onValueChanged.AddListener(OnShelfTabChanged);
+        shelfTabs.SetValueWithoutNotify(0);
+        OnShelfTabChanged(0);
+        applyShelfCategoryButton.onClick.AddListener(OnApplyShelfCategoryPressed);
+        itemCategoryDropdown.onValueChanged.AddListener(OnSubShelfCategoryChanged);
+
+        // Numbers apply when editing ends (Enter or click away); an invalid entry keeps the current value.
+        g.shelfWidth.onEndEdit.AddListener(OnShelfWidthChanged);
+        g.shelfLevels.onEndEdit.AddListener(OnNumberOfLevelsChanged);
+        g.distanceBetweenLevels.onEndEdit.AddListener(OnDistanceBetweenLevelsChanged);
+        g.roofHeight.onEndEdit.AddListener(OnShelfRoofHeightChanged);
+        g.bootHeight.onEndEdit.AddListener(OnBootHeightChanged);
+
+        g.rotationY.onValueChanged.AddListener(OnRotYChanged);
+        g.itemSpawnOption.onValueChanged.AddListener(OnItemSpawnOptionChanged);
+        g.fridgeDoorStyle.onValueChanged.AddListener(OnFridgeDoorStyleChanged);
+
+        BindFace(g.spawnFrontShelf, ShelfFace.Front, WithShelves);
+        BindFace(g.spawnBackShelf, ShelfFace.Back, WithShelves);
+        BindFace(g.spawnLShelf, ShelfFace.Left, WithShelves);
+        BindFace(g.spawnRShelf, ShelfFace.Right, WithShelves);
+        BindFace(g.spawnFrontShelfWall, ShelfFace.Front, WithWall);
+        BindFace(g.spawnBackShelfWall, ShelfFace.Back, WithWall);
+        BindFace(g.spawnLShelfWall, ShelfFace.Left, WithWall);
+        BindFace(g.spawnRShelfWall, ShelfFace.Right, WithWall);
+        BindFace(g.spawnFShelfRoof, ShelfFace.Front, WithRoof);
+        BindFace(g.spawnBShelfRoof, ShelfFace.Back, WithRoof);
+        BindFace(g.spawnLShelfRoof, ShelfFace.Left, WithRoof);
+        BindFace(g.spawnRShelfRoof, ShelfFace.Right, WithRoof);
+
+        Bind(g.spawnItems, OnSpawnItemsChanged);
+        Bind(g.spawnPriceTags, OnSpawnPriceTagsChanged);
+        Bind(g.spawnHingeDoors, OnSpawnHingeDoorsChange);
+    }
+
+    void OnShelfTabChanged(int tab)
+    {
+        shelfLayoutTab.SetActive(tab == 0);
+        shelfItemsTab.SetActive(tab == 1);
+    }
+
     // -- Int / Float input fields ---------------------------------------------
-    // Called by the matching InputField's OnValueChanged event; invalid input falls back to the default.
 
-    public void OnShelfWidthChanged(string value) =>
-        EditShelf(s => s.shelfWidth = ParsePositive(value, DefaultShelfWidth));
+    void OnShelfWidthChanged(string value) =>
+        EditShelf(s => s.shelfWidth = ParsePositive(value, s.shelfWidth));
 
-    public void OnNumberOfLevelsChanged(string value) =>
-        EditShelf(s => s.shelfLevels = int.TryParse(value, out int v) && v > 0 ? v : DefaultNumberOfLevels);
+    void OnNumberOfLevelsChanged(string value) =>
+        EditShelf(s => s.shelfLevels = int.TryParse(value, out int v) && v > 0 ? v : s.shelfLevels);
 
-    public void OnDistanceBetweenLevelsChanged(string value) =>
-        EditShelf(s => s.distanceBetweenLevels = ParsePositive(value, DefaultDistanceBetweenLevels));
+    void OnDistanceBetweenLevelsChanged(string value) =>
+        EditShelf(s => s.distanceBetweenLevels = ParsePositive(value, s.distanceBetweenLevels));
 
-    public void OnShelfRoofHeightChanged(string value) =>
-        EditShelf(s => s.shelfRoofHeight = ParsePositive(value, DefaultShelfRoofHeight));
+    void OnShelfRoofHeightChanged(string value) =>
+        EditShelf(s => s.shelfRoofHeight = ParsePositive(value, s.shelfRoofHeight));
 
-    public void OnBootHeightChanged(string value) =>
-        EditShelf(s => s.shelfBootHeight = ParsePositive(value, DefaultBootHeight));
+    void OnBootHeightChanged(string value) =>
+        EditShelf(s => s.shelfBootHeight = ParsePositive(value, s.shelfBootHeight));
 
     static float ParsePositive(string value, float fallback) =>
         float.TryParse(value, out float v) && v > 0f ? v : fallback;
 
-    // -- Dropdowns ------------------------------------------------------------
+    // -- Segments and dropdowns -------------------------------------------------
 
-    // rotY dropdown: 0 -> 0 degrees, 1 -> 90 degrees, 2 -> 180 degrees, 3 -> 270 degrees
-    public void OnRotYChanged(int index) => EditShelf(s => s.rotationY = index * 90f);
+    // rotY segments: 0 -> 0 degrees, 1 -> 90 degrees, 2 -> 180 degrees, 3 -> 270 degrees
+    void OnRotYChanged(int index) => EditShelf(s => s.rotationY = index * 90f);
 
     // itemSpawnOption dropdown: 0 -> GenerateRandom, 1 -> GenerateRandomThenSave, 2 -> ReadFromSave
-    public void OnItemSpawnOptionChanged(int index) => EditShelf(s => s.itemSpawnOption = (ItemSpawnOption)index);
+    void OnItemSpawnOptionChanged(int index) => EditShelf(s => s.itemSpawnOption = (ItemSpawnOption)index);
 
-    public void OnFridgeDoorStyleChanged(int index) => EditShelf(s => s.fridgeDoorStyle = (FridgeDoorStyle)index);
+    void OnFridgeDoorStyleChanged(int index) => EditShelf(s => s.fridgeDoorStyle = (FridgeDoorStyle)index);
 
     // -- Shelf face / wall / roof toggles ---------------------------------------
 
-    public void OnSpawnFrontShelfChanged(Toggle t) => EditFace(ShelfFace.Front, c => { c.buildShelves = t.isOn; return c; });
-    public void OnSpawnBackShelfChanged(Toggle t)  => EditFace(ShelfFace.Back,  c => { c.buildShelves = t.isOn; return c; });
-    public void OnSpawnLeftShelfChanged(Toggle t)  => EditFace(ShelfFace.Left,  c => { c.buildShelves = t.isOn; return c; });
-    public void OnSpawnRightShelfChanged(Toggle t) => EditFace(ShelfFace.Right, c => { c.buildShelves = t.isOn; return c; });
+    static ShelfConfiguration WithShelves(ShelfConfiguration c, bool on) { c.buildShelves = on; return c; }
+    static ShelfConfiguration WithWall(ShelfConfiguration c, bool on) { c.buildBackWall = on; return c; }
+    static ShelfConfiguration WithRoof(ShelfConfiguration c, bool on) { c.buildShelfRoof = on; return c; }
 
-    public void OnSpawnFrontWallChanged(Toggle t) => EditFace(ShelfFace.Front, c => { c.buildBackWall = t.isOn; return c; });
-    public void OnSpawnBackWallChanged(Toggle t)  => EditFace(ShelfFace.Back,  c => { c.buildBackWall = t.isOn; return c; });
-    public void OnSpawnLeftWallChanged(Toggle t)  => EditFace(ShelfFace.Left,  c => { c.buildBackWall = t.isOn; return c; });
-    public void OnSpawnRightWallChanged(Toggle t) => EditFace(ShelfFace.Right, c => { c.buildBackWall = t.isOn; return c; });
-
-    public void OnSpawnFrontRoofChanged(Toggle t) => EditFace(ShelfFace.Front, c => { c.buildShelfRoof = t.isOn; return c; });
-    public void OnSpawnBackRoofChanged(Toggle t)  => EditFace(ShelfFace.Back,  c => { c.buildShelfRoof = t.isOn; return c; });
-    public void OnSpawnLeftRoofChanged(Toggle t)  => EditFace(ShelfFace.Left,  c => { c.buildShelfRoof = t.isOn; return c; });
-    public void OnSpawnRightRoofChanged(Toggle t) => EditFace(ShelfFace.Right, c => { c.buildShelfRoof = t.isOn; return c; });
-
-    enum ShelfFace { Front, Back, Left, Right }
+    void BindFace(Toggle toggle, ShelfFace face, Func<ShelfConfiguration, bool, ShelfConfiguration> with) =>
+        Bind(toggle, t => EditFace(face, c => with(c, t.isOn)));
 
     // Applies an edit to the selected shelf and rebuilds it.
     void EditShelf(Action<ShelfBuilder> edit)
@@ -77,7 +112,7 @@ public partial class SB_UIHandler
 
     // -- Item spawn toggles ----------------------------------------------------
 
-    public void OnSpawnItemsChanged(Toggle toggle)
+    void OnSpawnItemsChanged(Toggle toggle)
     {
         if (SelectedShelf == null) return;
         _userWantsSpawnItems = toggle.isOn;
@@ -86,9 +121,10 @@ public partial class SB_UIHandler
         priceTagToggle.interactable = _userWantsSpawnItems;
         if (!_userWantsSpawnItems)
             priceTagToggle.isOn = false;
+        MarkDirty();
     }
 
-    public void OnSpawnItemsOnAllShelvesButtonPressed()
+    void OnSpawnItemsOnAllShelvesButtonPressed()
     {
         ShelfBuilder.DeleteAllPriceTags();
 
@@ -100,7 +136,7 @@ public partial class SB_UIHandler
         }
     }
 
-    public void OnSpawnPriceTagsChanged(Toggle toggle)
+    void OnSpawnPriceTagsChanged(Toggle toggle)
     {
         if (SelectedShelf == null) return;
         SelectedShelf.spawnPriceTags = toggle.isOn;
@@ -109,9 +145,10 @@ public partial class SB_UIHandler
         {
             ShelfBuilder.DeleteAllPriceTags();
         }
+        MarkDirty();
     }
 
-    public void OnSpawnHingeDoorsChange(Toggle toggle) => EditShelf(s => s.isFridge = toggle.isOn);
+    void OnSpawnHingeDoorsChange(Toggle toggle) => EditShelf(s => s.isFridge = toggle.isOn);
 
     // -- Shelf rotation --------------------------------------------------------
 
@@ -119,9 +156,6 @@ public partial class SB_UIHandler
     {
         if (SelectedShelf == null) return;
         SelectedShelf.RotateQuarterTurn();
-        ShelfEditGroupHandler.SetValue(
-            shelfEditGroupHandler.rotationY,
-            ShelfEditGroupHandler.RotationIndex(SelectedShelf.rotationY));
         SafeRebuildShelf();
     }
 
@@ -146,6 +180,11 @@ public partial class SB_UIHandler
 
         SelectedShelf.Rebuild();
         _activeShelfSelector.Refit();
+
+        // Show the values the shelf really ended up with (invalid entries revert) and flag the unsaved change.
+        shelfEditGroupHandler.UpdateFromShelf(SelectedShelf, _userWantsSpawnItems);
+        RefreshShelfHeader();
+        MarkDirty();
     }
 
     // Returns true when itemSpawnOption is ReadFromSave and at least one saved

@@ -16,10 +16,13 @@ public class ShelfEditGroupHandler : MonoBehaviour
     public TMP_InputField bootHeight;
     public TMP_InputField roofHeight;
 
-    [Header("Dropdowns")]
-    public TMP_Dropdown rotationY;
+    [Header("Options")]
+    public SB_Segmented rotationY;
     public TMP_Dropdown itemSpawnOption;
-    public TMP_Dropdown fridgeDoorStyle;
+    public SB_Segmented fridgeDoorStyle;
+
+    [Tooltip("Door style row; only shown for fridges.")]
+    public GameObject fridgeSection;
 
     [Header("Toggles - Spawn Shelves")]
     public Toggle spawnFrontShelf;
@@ -63,6 +66,7 @@ public class ShelfEditGroupHandler : MonoBehaviour
         SetValue(rotationY, RotationIndex(shelf.rotationY));
         SetValue(itemSpawnOption, (int)shelf.itemSpawnOption);
         SetValue(fridgeDoorStyle, (int)shelf.fridgeDoorStyle);
+        if (fridgeSection != null) fridgeSection.SetActive(shelf.isFridge);
 
         SetOn(spawnItems, selectedShelfSpawnItem);
         SetOn(spawnPriceTags, shelf.spawnPriceTags);
@@ -100,6 +104,11 @@ public class ShelfEditGroupHandler : MonoBehaviour
     public static void SetValue(TMP_Dropdown dropdown, int value)
     {
         if (dropdown != null) dropdown.SetValueWithoutNotify(value);
+    }
+
+    public static void SetValue(SB_Segmented segmented, int value)
+    {
+        if (segmented != null) segmented.SetValueWithoutNotify(value);
     }
 
     public static void SetOn(Toggle toggle, bool isOn)
